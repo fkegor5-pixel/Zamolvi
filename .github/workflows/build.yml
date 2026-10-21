@@ -1,0 +1,67 @@
+name: Build APK
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write   # attach the APK to the release of a tag
+
+env:
+  APKTOOL_TAG: v3.0.3
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Apktool
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$APKTOOL_TAG" --repo iBotPeaches/Apktool --pattern 'apktool_*.jar' --output apktool.jar
+
+      - name: Signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p signing
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > signing/release.p12
+            echo "Using the signing key from repository secrets."
+          else
+            echo "::warning::No SIGNING_KEYSTORE_BASE64 secret: the APK is signed with a temporary key."
+          fi
+
+      - name: Build
+        env:
+          ZAMOLVI_KEYSTORE_PASSWORD: ${{ secrets.SIGNING_KEYSTORE_PASSWORD || 'android' }}
+          ZAMOLVI_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS || 'zamolvi' }}
+        run: python3 build-tools/build_apk.py --sdk "$ANDROID_HOME" --apktool apktool.jar
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Zamolvi-apk
+          path: build/Zamolvi-*.apk
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="docs/release-notes/$GITHUB_REF_NAME.md"
+          [ -f "$notes" ] || notes=CHANGELOG.md
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "Zamolvi ${GITHUB_REF_NAME#v}" --notes-file "$notes"
+          gh release upload "$GITHUB_REF_NAME" build/Zamolvi-*.apk --clobber

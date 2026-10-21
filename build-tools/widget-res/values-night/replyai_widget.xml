@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="replyai_widget_background">#F21E2226</color>
+    <color name="replyai_widget_border">#26FFFFFF</color>
+    <color name="replyai_widget_ink">#ECEFF1</color>
+    <color name="replyai_widget_muted">#9AA4AD</color>
+    <color name="replyai_widget_button">#2B3136</color>
+    <color name="replyai_widget_accent">#1FA79F</color>
+</resources>

@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.apk binary
+*.mp4 binary
+*.png binary
+*.pem text eol=lf
+*.sh text eol=lf

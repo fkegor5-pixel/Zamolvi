@@ -1,0 +1,36 @@
+# Build output
+build/
+*.apk
+!base/base-app-2.7.apk
+*.idsig
+
+# Signing keys and secrets: never commit them
+signing/
+*.p12
+*.jks
+*.keystore
+*.pem.key
+.env
+*.env
+server.env
+
+# Your own intro video (see assets/README.md)
+assets/*.mp4
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+
+# Diagnostics reports saved from the app may contain chat names and server state
+*-diagnostics-*.json
+*-features-*.json
+
+# Editors and OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db

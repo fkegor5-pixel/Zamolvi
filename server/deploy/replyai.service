@@ -1,0 +1,26 @@
+[Unit]
+Description=Zamolvi Telegram API responder
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=replyai
+Group=replyai
+WorkingDirectory=/opt/replyai
+EnvironmentFile=/etc/replyai/server.env
+ExecStart=/opt/replyai/venv/bin/python -m replyai
+Restart=always
+RestartSec=10
+TimeoutStopSec=20
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/replyai
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target
