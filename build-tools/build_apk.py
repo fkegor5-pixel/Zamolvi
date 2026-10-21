@@ -25,8 +25,8 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parent.parent
 NS = "http://schemas.android.com/apk/res/android"
 APP_NAME = "Zamolvi"
-VERSION_NAME = "3.2"
-VERSION_CODE = "25"
+VERSION_NAME = "3.2.1"
+VERSION_CODE = "26"
 FORMER_NAME = "Reply AI"
 ORIGINAL_SHA256 = "3bd84dd57a4709ac1abb9692055af3a414659decf8ded86799fe10e133fc291b"
 ET.register_namespace("android", NS)
@@ -144,7 +144,9 @@ def patch_manifest(manifest):
     # Status notification (runtime permission on Android 13+) and its restore after reboot.
     present = {e.get(f"{{{NS}}}name") for e in manifest.findall("uses-permission")}
     position = list(manifest).index(app)
-    for permission in ("android.permission.POST_NOTIFICATIONS", "android.permission.RECEIVE_BOOT_COMPLETED"):
+    # The last two keep notification replies working with the screen off and the app in the background.
+    for permission in ("android.permission.POST_NOTIFICATIONS", "android.permission.RECEIVE_BOOT_COMPLETED",
+                       "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS", "android.permission.WAKE_LOCK"):
         if permission not in present:
             manifest.insert(position, ET.Element("uses-permission", {f"{{{NS}}}name": permission}))
             position += 1

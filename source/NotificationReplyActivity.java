@@ -13,6 +13,7 @@ import android.widget.Switch;
 public final class NotificationReplyActivity extends FeatureActivity {
     private Switch enabled;
     private Switch everyone;
+    private android.widget.TextView background;
     private LinearLayout answered;
     private LinearLayout ignored;
     private final java.util.ArrayList<android.view.View> owned = new java.util.ArrayList<>();
@@ -35,7 +36,20 @@ public final class NotificationReplyActivity extends FeatureActivity {
         access = label(box, "", 14, true);
         action(box, "Открыть настройки доступа", v -> startActivity(
                 new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)), new java.util.ArrayList<>());
-        heading(box, "2. Кому отвечать");
+        heading(box, "2. Работа в фоне");
+        background = label(box, "", 14, true);
+        action(box, "Снять ограничение батареи", v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                        android.net.Uri.parse("package:" + getPackageName())));
+            } catch (RuntimeException noScreen) {
+                startActivity(new Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS));
+            }
+        }, new java.util.ArrayList<>());
+        action(box, "Автозапуск и фон (настройки приложения)", v -> startActivity(new Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + getPackageName()))),
+                new java.util.ArrayList<>());
+        heading(box, "3. Кому отвечать");
         everyone = new Switch(this);
         everyone.setText("Всем личным чатам, кроме игнора");
         everyone.setTextColor(colors.ink);
@@ -73,6 +87,11 @@ public final class NotificationReplyActivity extends FeatureActivity {
         access.setText(granted ? "Доступ есть."
                 : "Доступа нет: включите Zamolvi в списке. Если переключатель неактивен — «О приложении» → ⋮ → "
                         + "«Разрешить ограниченные настройки» (Android 13+), затем снова сюда.");
+        background.setText(NotificationReplyService.unrestricted(this)
+                ? "Ограничение батареи снято."
+                : "Батарея ограничивает приложение: в фоне ответы не уходят. Нажмите кнопку ниже и выберите «Разрешить». "
+                        + "На TECNO/Infinix ещё: настройки приложения → «Батарея» → «Без ограничений», включите "
+                        + "автозапуск и закрепите Zamolvi замком в списке недавних приложений.");
         SharedPreferences p = getSharedPreferences(NotificationReplyService.PREFS, 0);
         String sent = p.getString(NotificationReplyService.LAST, ""), seen = p.getString(NotificationReplyService.TRACE, "");
         last.setText((sent.isEmpty() ? "Ответов ещё не было." : "Последний ответ: " + sent)

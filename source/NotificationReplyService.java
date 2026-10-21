@@ -41,6 +41,11 @@ public final class NotificationReplyService extends NotificationListenerService 
     private final Map<String, String> lastText = new HashMap<>();
     private final Map<String, Long> lastAt = new HashMap<>();
 
+    @Override public void onListenerDisconnected() {
+        // Vendor shells unbind the listener after killing the process; ask the system to bind it again.
+        requestRebind(new android.content.ComponentName(this, NotificationReplyService.class));
+    }
+
     @Override public void onNotificationPosted(StatusBarNotification sbn) {
         try {
             handle(sbn);
@@ -121,6 +126,10 @@ public final class NotificationReplyService extends NotificationListenerService 
 
     private void answer(String chat, String text, Notification.Action reply) {
         String result;
+        // The phone may fall asleep between the AI request and the reply.
+        android.os.PowerManager.WakeLock lock = getSystemService(android.os.PowerManager.class)
+                .newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "zamolvi:notification-reply");
+        lock.acquire(90_000);
         try {
             RemoteSettings settings = new RemoteSettings(this);
             if (settings.url().isEmpty() || settings.token().isEmpty()) {
@@ -140,7 +149,10 @@ public final class NotificationReplyService extends NotificationListenerService 
         } catch (Exception error) {
             Log.w(TAG, "Reply failed", error);
             String reason = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
-            result = "Не удалось ответить «" + chat + "»: " + reason;
+            result = "Не удалось ответить «" + chat + "»: " + reason
+                    + (unrestricted(this) ? "" : " (работа в фоне ограничена — снимите ограничение батареи)");
+        } finally {
+            if (lock.isHeld()) lock.release();
         }
         getSharedPreferences(PREFS, 0).edit()
                 .putString(LAST, new java.text.SimpleDateFormat("dd.MM HH:mm", Locale.getDefault())
@@ -173,6 +185,12 @@ public final class NotificationReplyService extends NotificationListenerService 
         } catch (org.json.JSONException error) {
             p.edit().remove(HISTORY).apply(); // a damaged list is only statistics: start it again
         }
+    }
+
+    /** Without this Android and vendor shells cut the network of a background app (Doze, HiOS). */
+    static boolean unrestricted(android.content.Context c) {
+        android.os.PowerManager pm = c.getSystemService(android.os.PowerManager.class);
+        return pm != null && pm.isIgnoringBatteryOptimizations(c.getPackageName());
     }
 
     static boolean granted(android.content.Context c) {

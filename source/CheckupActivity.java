@@ -155,9 +155,12 @@ public final class CheckupActivity extends FeatureActivity {
         boolean access = NotificationReplyService.granted(this);
         boolean notifyOn = np.getBoolean(NotificationReplyService.ENABLED, false);
         row(phone, "notification_reply", "Ответы из уведомлений",
-                !notifyOn ? "off" : access && listOk ? "ok" : "problem",
+                !notifyOn ? "off" : access && listOk && NotificationReplyService.unrestricted(this) ? "ok" : "problem",
                 (!notifyOn ? "Выключено: «2. Telegram» → «Ответы из уведомлений»."
-                        : !access ? "Нет доступа к уведомлениям." : !listOk ? "Список чатов пуст — отвечать некому." : "Включено.")
+                        : !access ? "Нет доступа к уведомлениям." : !listOk ? "Список чатов пуст — отвечать некому."
+                        : !NotificationReplyService.unrestricted(this)
+                        ? "Батарея ограничивает приложение: в фоне ответы не уходят. Снимите ограничение на экране ответов."
+                        : "Включено.")
                         + (last.isEmpty() ? "" : "\nПоследний ответ: " + last)
                         + (np.getString(NotificationReplyService.TRACE, "").isEmpty() ? ""
                                 : "\nПоследнее пропущенное: " + np.getString(NotificationReplyService.TRACE, "")),
