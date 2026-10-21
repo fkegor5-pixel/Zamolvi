@@ -14,7 +14,7 @@ MODEL_FIELDS = ('calls', 'errors', 'input_tokens', 'output_tokens', 'ms', 'audio
 CHAT_FIELDS = ('received', 'replies', 'errors', 'reply_ms', 'ai_calls', 'input_tokens', 'output_tokens',
                'auto', 'approved', 'edited', 'rejected', 'expired', 'photos', 'documents', 'auto_reply_ms')
 ERROR_KINDS = ('ai', 'telegram', 'voice', 'media', 'memory')
-PURPOSES = ('reply', 'memory', 'vision', 'voice', 'test')
+PURPOSES = ('reply', 'memory', 'vision', 'voice', 'notification', 'test')
 ZONE_NAME = 'Europe/Moscow'
 ZONE = ZoneInfo(ZONE_NAME)
 KEEP_DAYS = 90

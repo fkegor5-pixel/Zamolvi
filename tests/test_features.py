@@ -785,3 +785,12 @@ async def test_provider_error_reason_is_short_and_hides_keys():
     reason = await AiClient._reason(Response(raw), {"key": "secret-key-123"})
     assert reason.startswith("bad-model:free is not a valid model ID") and "abcdef" not in reason
     assert await AiClient._reason(Response(b"<html>"), {}) == ""
+
+
+def test_notification_answer_works_without_telegram_account(api29, env):
+    assert api29.post("/api/notification/answer", json={"text": "Привет"}).status_code == 401
+    assert api29.post("/api/notification/answer", headers=AUTH, json={"text": ""}).status_code == 422
+    response = api29.post("/api/notification/answer", headers=AUTH, json={"text": "Привет, ты где?"})
+    assert response.status_code == 200
+    assert response.json() == {"answer": "[AI-автоответ] Тестовый ответ"}
+    assert env.ai.calls[-1][0] == "Привет, ты где?"   # only the message text reaches the AI

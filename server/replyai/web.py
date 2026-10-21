@@ -15,12 +15,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from telethon import errors
 
 from .errors import UserError
-from .ai import AiError, purpose as ai_purpose
+from .ai import AiError, PREFIX, purpose as ai_purpose
 from .engine import Engine
 from .store import Store
 from .diagnostics import REQUEST_ID, ROUTES
 from .viewer import PAGE
-from .formatting import preview
+from .formatting import preview, render
 from . import stats, archive
 
 
@@ -88,6 +88,11 @@ class ArchiveQuery(Input):
 
 
 class Test(Input):
+    text: str = Field(min_length=1, max_length=4000)
+
+
+class NotificationReply(Input):
+    # Text of a Telegram notification on the phone; the server's Telegram account is not used.
     text: str = Field(min_length=1, max_length=4000)
 
 
@@ -382,6 +387,14 @@ def create_app(store=None, engine=None, token=None):
             with ai_purpose('test'):
                 answer = await engine.ai.answer(config, data.text)
             return preview(answer, config.get("formatting", "auto"))
+
+    @app.post("/api/notification/answer", dependencies=protected)
+    async def notification_answer(data: NotificationReply):
+        # Notification replies cannot carry Telegram formatting: plain text only.
+        config = dict(store.read()["ai"], formatting="plain")
+        with ai_purpose('notification'):
+            answer = await engine.ai.answer(config, data.text)
+        return {"answer": render(answer, "plain", PREFIX)[0]}
 
     @app.put("/api/formatting", dependencies=protected)
     async def formatting(data: Formatting):

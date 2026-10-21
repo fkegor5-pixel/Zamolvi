@@ -21,7 +21,7 @@ ROUTES = {'/api/status', '/api/settings', '/api/control', '/api/telegram/start',
           '/api/chats', '/api/test', '/api/clear', '/api/diagnostics', '/api/formatting', '/api/behavior', '/api/voice', '/api/voice/clear', '/api/stats',
           '/api/archive', '/api/archive/list', '/api/archive/clear',
           '/api/memory', '/api/memory/forget', '/api/media', '/api/approval', '/api/approval/decide',
-          '/api/stats/extended', '/api/pricing', '/api/features',
+          '/api/stats/extended', '/api/pricing', '/api/features', '/api/notification/answer',
           '/api/memory/import', '/api/memory/import/cancel'}
 TEXT_FIELDS = {'kind', 'operation', 'error_type', 'provider', 'delivery', 'stage', 'request_id'}
 NUMBER_FIELDS = {'http_status', 'duration_ms', 'retry_after_s', 'resend_after_s'}
@@ -96,7 +96,7 @@ class Diagnostics:
             'schema': 'replyai.diagnostics.v1',
             'generated_at': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'),
             'report_id': uuid.uuid4().hex,
-            'runtime': {'server_version': '3.0.0', 'python_version': platform.python_version(),
+            'runtime': {'server_version': '3.1.0', 'python_version': platform.python_version(),
                         'platform': platform.system(), 'machine': platform.machine(),
                         'telethon_version': version('telethon'), 'httpx_version': version('httpx'),
                         'uptime_s': max(0, int(time.monotonic() - self.started)),

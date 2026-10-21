@@ -227,6 +227,7 @@ public final class StatsActivity extends FeatureActivity {
             case "memory": return "Память";
             case "vision": return "Фото и документы";
             case "voice": return "Голосовые";
+            case "notification": return "Ответы из уведомлений";
             case "test": return "Тест AI";
             default: return key;
         }

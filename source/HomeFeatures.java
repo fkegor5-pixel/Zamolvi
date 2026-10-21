@@ -42,6 +42,7 @@ public final class HomeFeatures {
     };
     private static final Class<?>[] SCREENS = {DeletedMessagesActivity.class, MemoryActivity.class,
             MediaActivity.class, ApprovalActivity.class, StatsActivity.class, CheckupActivity.class};
+    private static final String NOTIFY_TAG = "replyai.notification.reply.v1";
     private static final String LOGO_TAG = "replyai.developer.logo.v1";
     private static final String AUTOREPLY_TAG = "replyai.autoreply.intro.v1";
     private static final String AUTOREPLY_PREFIX = "5. Автоответчик";
@@ -102,6 +103,7 @@ public final class HomeFeatures {
             int count = content.getChildCount();
             if (first == lastFirstChild && count == lastChildCount) return;
             install(activity, content);
+            addNotificationEntry(activity, content);
             // Our own additions change the count; remember the state after installing.
             lastFirstChild = content.getChildCount() > 0 ? content.getChildAt(0) : null;
             lastChildCount = content.getChildCount();
@@ -275,6 +277,26 @@ public final class HomeFeatures {
             // Before the footer, so the entries keep their order.
             group.addView(button, Math.max(0, group.getChildCount() - 1), lp);
         }
+    }
+
+    /** «2. Telegram»: the screen with the «Личный аккаунт» card gets the notification-reply entry. */
+    private static void addNotificationEntry(Activity a, ViewGroup content) {
+        if (content.findViewWithTag(NOTIFY_TAG) != null || !hasText(content, "Личный аккаунт")) return;
+        Button button = entry(a, "Ответы из уведомлений", "Автоответ без входа в Telegram на сервере");
+        button.setTag(NOTIFY_TAG);
+        button.setOnClickListener(v -> a.startActivity(new Intent(a, NotificationReplyActivity.class)));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.topMargin = dp(a, 11);
+        content.addView(button, lp);
+    }
+
+    private static boolean hasText(View v, String value) {
+        if (v instanceof TextView && value.contentEquals(((TextView) v).getText())) return true;
+        if (v instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) v;
+            for (int i = 0; i < group.getChildCount(); i++) if (hasText(group.getChildAt(i), value)) return true;
+        }
+        return false;
     }
 
     /** Same look as the original menu entries: bold title, muted subtitle, chevron, ripple. */

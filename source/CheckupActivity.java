@@ -25,7 +25,7 @@ import org.json.JSONObject;
  */
 public final class CheckupActivity extends FeatureActivity {
     private static final int SAVE = 2915;
-    static final String MIN_SERVER = "3.0.0";
+    static final String MIN_SERVER = "3.1.0";
     private LinearLayout phone;
     private LinearLayout server;
     private final ArrayList<View> ownedPhone = new ArrayList<>();

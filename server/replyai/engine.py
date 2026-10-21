@@ -18,7 +18,7 @@ from . import queueing, stats, quiet, archive, memory, media, approval, privacy
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.0.0"
+SERVER_VERSION = "3.1.0"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -129,7 +129,7 @@ class Engine:
         self.authorized = False
         self.client = self.client_factory(
             PersistentSession(self.store), credentials["api_id"], credentials["api_hash"],
-            device_model="Zamolvi Server", system_version="Linux", app_version="3.0",
+            device_model="Zamolvi Server", system_version="Linux", app_version="3.1",
             auto_reconnect=True, connection_retries=5, request_retries=0, flood_sleep_threshold=0,
             catch_up=True, sequential_updates=True)
         self.client.add_event_handler(self.on_message, events.NewMessage())
