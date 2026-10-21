@@ -223,8 +223,12 @@ def main():
         *visible_files(classes, "*.class"))
     shutil.copy2(dex / "classes.dex", decoded / "classes2.dex")
     unsigned = build / "unsigned.apk"
-    run("java", "-jar", args.apktool, "b", decoded, "-o", unsigned,
-        "--aapt", tools / "aapt2")
+    # Apktool marks the aapt2 binary executable; the SDK directory may be read-only (CI runners),
+    # so it gets a private copy.
+    aapt2 = build / "aapt2"
+    shutil.copy2(tools / "aapt2", aapt2)
+    aapt2.chmod(0o755)
+    run("java", "-jar", args.apktool, "b", decoded, "-o", unsigned, "--aapt", aapt2)
     with zipfile.ZipFile(original) as old, zipfile.ZipFile(unsigned) as new:
         if old.read("classes.dex") != new.read("classes.dex"):
             raise RuntimeError("The original DEX changed unexpectedly")

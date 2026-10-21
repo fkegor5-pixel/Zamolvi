@@ -646,7 +646,7 @@ class HistoryTelegram(FakeTelegram):
             if self.flood_once and index == 5:
                 self.flood_once = False
                 from telethon import errors
-                raise errors.FloodWaitError(seconds=0)
+                raise errors.FloodWaitError(None, capture=0)
             yield message
 
 
