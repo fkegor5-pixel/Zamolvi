@@ -26,9 +26,12 @@ public final class NotificationReplyService extends NotificationListenerService 
     static final String ENABLED = "notify_enabled";
     static final String CHATS = "notify_chats";
     static final String LAST = "notify_last";
+    static final String TRACE = "notify_trace";
+    private static final String OUR_PREFIX = "[AI-автоответ]"; // the server marks every AI reply
     private static final String TAG = "ZamolviNotifyReply";
     private static final String[] TELEGRAM = {"org.telegram.messenger", "org.telegram.messenger.web",
-            "org.telegram.messenger.beta"};
+            "org.telegram.messenger.beta", "org.telegram.plus", "org.thunderdog.challegram",
+            "tw.nekomimi.nekogram", "nekox.messenger"};
     private static final long PER_CHAT_INTERVAL_MS = 20_000; // one answer per chat at a time, no reply loops
     private static final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Map<String, String> lastText = new HashMap<>();
@@ -44,24 +47,31 @@ public final class NotificationReplyService extends NotificationListenerService 
 
     private void handle(StatusBarNotification sbn) {
         SharedPreferences p = getSharedPreferences(PREFS, 0);
-        if (!p.getBoolean(ENABLED, false) || !isTelegram(sbn.getPackageName())) return;
+        if (!isTelegram(sbn.getPackageName())) return;
+        if (!p.getBoolean(ENABLED, false)) { trace(p, "", "ответы выключены"); return; }
         Notification n = sbn.getNotification();
-        if ((n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return;
+        if ((n.flags & Notification.FLAG_GROUP_SUMMARY) != 0) return; // the group header, not a chat
         Bundle x = n.extras;
-        if (x == null || x.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION)) return; // personal chats only
+        if (x == null) return;
         CharSequence title = x.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE);
         if (title == null) title = x.getCharSequence(Notification.EXTRA_TITLE);
         String chat = title == null ? "" : title.toString().trim();
-        if (chat.isEmpty() || !allowed(p.getString(CHATS, ""), chat)) return;
+        if (x.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION)) { trace(p, chat, "групповой чат — пропущен"); return; }
+        if (chat.isEmpty()) { trace(p, "", "в уведомлении нет имени чата"); return; }
+        if (!allowed(p.getString(CHATS, ""), chat)) { trace(p, chat, "нет в списке чатов (впишите имя точно так)"); return; }
         String text = lastIncoming(x);
-        if (text == null || text.trim().isEmpty()) return;
+        if (text == null) { trace(p, chat, "последнее сообщение — наш же автоответ"); return; }
+        if (text.trim().isEmpty()) { trace(p, chat, "нет текста сообщения: включите показ текста в уведомлениях Telegram"); return; }
         Notification.Action reply = replyAction(n);
-        if (reply == null) return;
+        if (reply == null) { trace(p, chat, "у уведомления нет кнопки «Ответить»"); return; }
         long now = System.currentTimeMillis();
         synchronized (this) {
             if (text.equals(lastText.get(chat))) return; // the same notification updated again
             Long previous = lastAt.get(chat);
-            if (previous != null && now - previous < PER_CHAT_INTERVAL_MS) return;
+            if (previous != null && now - previous < PER_CHAT_INTERVAL_MS) {
+                trace(p, chat, "меньше 20 секунд после прошлого ответа — пропущено");
+                return;
+            }
             lastText.put(chat, text);
             lastAt.put(chat, now);
         }
@@ -69,18 +79,22 @@ public final class NotificationReplyService extends NotificationListenerService 
         worker.execute(() -> answer(chat, message, reply));
     }
 
-    /** The newest message, or null when it is the owner's own (for example our reply). */
+    /** The newest message; null when it is our own AI reply, "" when the text is hidden. */
     private static String lastIncoming(Bundle x) {
         Parcelable[] raw = x.getParcelableArray(Notification.EXTRA_MESSAGES);
         if (raw != null && raw.length > 0) {
             List<Notification.MessagingStyle.Message> messages = Notification.MessagingStyle.Message.getMessagesFromBundleArray(raw);
-            if (messages.isEmpty()) return null;
+            if (messages.isEmpty()) return "";
             Notification.MessagingStyle.Message last = messages.get(messages.size() - 1);
-            if (last.getSenderPerson() == null) return null; // MessagingStyle: no sender means the device owner
-            return last.getText() == null ? null : last.getText().toString();
+            return own(last.getText());
         }
-        CharSequence text = x.getCharSequence(Notification.EXTRA_TEXT);
-        return text == null ? null : text.toString();
+        return own(x.getCharSequence(Notification.EXTRA_TEXT));
+    }
+
+    // Not the sender field: some Telegram builds leave it empty for incoming personal messages.
+    private static String own(CharSequence value) {
+        String text = value == null ? "" : value.toString();
+        return text.trim().startsWith(OUR_PREFIX) ? null : text;
     }
 
     private static Notification.Action replyAction(Notification n) {
@@ -120,6 +134,12 @@ public final class NotificationReplyService extends NotificationListenerService 
         getSharedPreferences(PREFS, 0).edit()
                 .putString(LAST, new java.text.SimpleDateFormat("dd.MM HH:mm", Locale.getDefault())
                         .format(new java.util.Date()) + " · " + result).apply();
+    }
+
+    /** Why the last Telegram notification was not answered: shown on the screen and in the feature check. */
+    private static void trace(SharedPreferences p, String chat, String reason) {
+        p.edit().putString(TRACE, new java.text.SimpleDateFormat("dd.MM HH:mm", Locale.getDefault())
+                .format(new java.util.Date()) + " · " + (chat.isEmpty() ? "" : "«" + chat + "»: ") + reason).apply();
     }
 
     static boolean granted(android.content.Context c) {

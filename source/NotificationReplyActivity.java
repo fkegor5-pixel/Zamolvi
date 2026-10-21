@@ -44,6 +44,9 @@ public final class NotificationReplyActivity extends FeatureActivity {
         body.addView(enabled);
         controls.add(enabled);
         button("Сохранить", v -> save());
+        button("Проверить ответ сервера", v -> execute(() -> request("POST", "/api/notification/answer",
+                new org.json.JSONObject().put("text", "Привет! Как дела?")),
+                value -> status.setText("Сервер ответил: " + value.optString("answer"))));
         controls.add(chats);
         status = text("", 15);
         last = text("", 13);
@@ -55,7 +58,11 @@ public final class NotificationReplyActivity extends FeatureActivity {
         access.setText(granted ? "Доступ есть."
                 : "Доступа нет: включите Zamolvi в списке. Если переключатель неактивен — «О приложении» → ⋮ → "
                         + "«Разрешить ограниченные настройки» (Android 13+), затем снова сюда.");
-        last.setText(getSharedPreferences(NotificationReplyService.PREFS, 0).getString(NotificationReplyService.LAST, ""));
+        SharedPreferences p = getSharedPreferences(NotificationReplyService.PREFS, 0);
+        String sent = p.getString(NotificationReplyService.LAST, ""), seen = p.getString(NotificationReplyService.TRACE, "");
+        last.setText((sent.isEmpty() ? "Ответов ещё не было." : "Последний ответ: " + sent)
+                + (seen.isEmpty() ? "\nУведомлений Telegram ещё не было — напишите себе с другого аккаунта при закрытом чате."
+                        : "\nПоследнее пропущенное уведомление: " + seen));
     }
 
     private void save() {

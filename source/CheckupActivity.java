@@ -157,7 +157,9 @@ public final class CheckupActivity extends FeatureActivity {
                 !notifyOn ? "off" : access && listOk ? "ok" : "problem",
                 (!notifyOn ? "Выключено: «2. Telegram» → «Ответы из уведомлений»."
                         : !access ? "Нет доступа к уведомлениям." : !listOk ? "Список чатов пуст — отвечать некому." : "Включено.")
-                        + (last.isEmpty() ? "" : "\nПоследнее: " + last),
+                        + (last.isEmpty() ? "" : "\nПоследний ответ: " + last)
+                        + (np.getString(NotificationReplyService.TRACE, "").isEmpty() ? ""
+                                : "\nПоследнее пропущенное: " + np.getString(NotificationReplyService.TRACE, "")),
                 "Открыть", () -> startActivity(new Intent(this, NotificationReplyActivity.class)));
     }
 
