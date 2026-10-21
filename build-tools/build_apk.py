@@ -25,8 +25,8 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parent.parent
 NS = "http://schemas.android.com/apk/res/android"
 APP_NAME = "Zamolvi"
-VERSION_NAME = "3.3.3"
-VERSION_CODE = "30"
+VERSION_NAME = "3.4"
+VERSION_CODE = "31"
 FORMER_NAME = "Reply AI"
 ORIGINAL_SHA256 = "3bd84dd57a4709ac1abb9692055af3a414659decf8ded86799fe10e133fc291b"
 ET.register_namespace("android", NS)
@@ -67,7 +67,7 @@ def patch_manifest(manifest):
         if element.get(f"{{{NS}}}label") == FORMER_NAME:
             element.set(f"{{{NS}}}label", APP_NAME)
     for name in ("DeletedMessagesActivity", "DeveloperActivity", "MemoryActivity", "MediaActivity",
-                 "ApprovalActivity", "StatsActivity", "CheckupActivity", "NotificationReplyActivity", "StyleActivity"):
+                 "ApprovalActivity", "StatsActivity", "CheckupActivity", "NotificationReplyActivity", "StyleActivity", "LanguageActivity"):
         ET.SubElement(app, "activity", {
             f"{{{NS}}}name": "ru.replyai.android." + name,
             f"{{{NS}}}exported": "false",
@@ -218,6 +218,10 @@ def main():
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
     (decoded / "assets/replyai-server.bundle").write_bytes(server_bundle())
+    # Interface translations (see I18n.java): i18n/<lang>.json, Russian text -> translation.
+    (decoded / "assets/i18n").mkdir(parents=True, exist_ok=True)
+    for table in visible_files(ROOT / "i18n", "*.json"):
+        shutil.copy2(table, decoded / "assets/i18n" / table.name)
     classes, dex, api = build / "classes", build / "intro-dex", build / "compile-api"
     for directory in (classes, dex, api):
         if directory.exists():

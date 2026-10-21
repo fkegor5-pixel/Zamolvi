@@ -68,7 +68,7 @@ public final class ReplyTileService extends TileService {
         if (tile == null) return;
         AutoReplyState.Snapshot s = AutoReplyState.read(this);
         String progress = AutoReplyState.progress();
-        tile.setLabel("Автоответчик");
+        tile.setLabel(I18n.t(this, "Автоответчик"));
         tile.setIcon(Icon.createWithResource(this, StatusNotification.icon(this)));
         tile.setState(s.ready() && s.enabled ? Tile.STATE_ACTIVE : Tile.STATE_INACTIVE);
         String subtitle = progress != null ? progress
@@ -76,8 +76,8 @@ public final class ReplyTileService extends TileService {
                 : s.known && !s.authorized ? "Нет Telegram"
                 : s.offline ? "Нет связи"
                 : s.shortCounters();
-        if (Build.VERSION.SDK_INT >= 29) tile.setSubtitle(subtitle);
-        tile.setContentDescription("Автоответчик. " + s.status() + ". " + s.counters());
+        if (Build.VERSION.SDK_INT >= 29) tile.setSubtitle(I18n.t(this, subtitle));
+        tile.setContentDescription(I18n.t(this, "Автоответчик. " + s.status() + ". " + s.counters()));
         tile.updateTile();
     }
 

@@ -19,7 +19,7 @@ import java.util.WeakHashMap;
  */
 public final class Brand {
     public static final String NAME = "Zamolvi";
-    public static final String VERSION = "3.3.3";
+    public static final String VERSION = "3.4";
     public static final String AUTHOR = "@stytam";
     public static final String VERSION_LABEL = NAME + " " + VERSION + " · " + AUTHOR;
     static final String FORMER = "Reply AI";
@@ -66,21 +66,35 @@ public final class Brand {
         return result.equals(text) ? value : result;
     }
 
+    /** Texts this pass already produced: unchanged views are skipped instead of translated again. */
+    private static final WeakHashMap<View, String> done = new WeakHashMap<>();
+
+    /** Name, device wording and interface language for one text; spans (styled menu entries) are kept. */
+    static CharSequence localize(android.content.Context c, CharSequence value) {
+        CharSequence named = text(value);
+        if (named instanceof android.text.Spanned) return named;
+        return I18n.t(c, named);
+    }
+
     /** Rewrites texts and hints of the view tree. User input in edit fields is never touched. */
     static void rewrite(View view) {
+        android.content.Context c = view.getContext();
         if (view instanceof TextView) {
             TextView field = (TextView) view;
             if (!(view instanceof EditText)) {
                 CharSequence value = field.getText();
-                CharSequence fixed = text(value);
-                if (fixed != value) field.setText(fixed);
+                if (value != null && !value.toString().equals(done.get(view))) {
+                    CharSequence fixed = localize(c, value);
+                    if (fixed != value) field.setText(fixed);
+                    done.put(view, field.getText().toString());
+                }
             }
             CharSequence hint = field.getHint();
-            CharSequence fixedHint = text(hint);
+            CharSequence fixedHint = localize(c, hint);
             if (fixedHint != hint) field.setHint(fixedHint);
         }
         CharSequence description = view.getContentDescription();
-        CharSequence fixedDescription = text(description);
+        CharSequence fixedDescription = localize(c, description);
         if (fixedDescription != description) view.setContentDescription(fixedDescription);
         if (view instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) view;
@@ -92,7 +106,7 @@ public final class Brand {
     static void attach(Activity activity) {
         View root = activity.getWindow().getDecorView();
         CharSequence title = activity.getTitle();
-        CharSequence fixed = text(title);
+        CharSequence fixed = localize(activity, title);
         if (fixed != title) activity.setTitle(fixed);
         Watcher watcher = new Watcher(root);
         watchers.put(activity, watcher);

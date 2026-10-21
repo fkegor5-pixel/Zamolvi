@@ -44,6 +44,7 @@ public final class HomeFeatures {
             MediaActivity.class, ApprovalActivity.class, StatsActivity.class, CheckupActivity.class};
     private static final String NOTIFY_TAG = "replyai.notification.reply.v1";
     private static final String STYLE_TAG = "replyai.style.v1";
+    private static final String LANGUAGE_TAG = "replyai.language.v1";
     private static final String LOGO_TAG = "replyai.developer.logo.v1";
     private static final String AUTOREPLY_TAG = "replyai.autoreply.intro.v1";
     private static final String AUTOREPLY_PREFIX = "5. Автоответчик";
@@ -183,7 +184,7 @@ public final class HomeFeatures {
             TextView text = (TextView) view;
             CharSequence value = text.getText();
             if (view instanceof Button) {
-                if (startsWith(value, AUTOREPLY_PREFIX)) hookAutoReply(a, text);
+                if (startsWith(value, AUTOREPLY_PREFIX) || startsWith(value, I18n.t(a, AUTOREPLY_PREFIX))) hookAutoReply(a, text);
             } else if (Brand.isVersionLine(value) && !Brand.VERSION_LABEL.contentEquals(value)) {
                 text.setText(Brand.VERSION_LABEL);
             }
@@ -281,38 +282,71 @@ public final class HomeFeatures {
     }
 
     /** Entries added to original sections: card title that marks the section, tag, title, subtitle. */
+    /** Buttons added inside cards of original sections: card title, tag, button text; screens in the same order. */
     private static final String[][] SECTION_ENTRIES = {
-            {"Личный аккаунт", NOTIFY_TAG, "Ответы из уведомлений", "Автоответ без входа в Telegram на сервере"},
-            {"AI API и ответы", STYLE_TAG, "Стиль общения", "Добрый, дерзкий, гопник, умник и другие"},
+            {"Личный аккаунт", NOTIFY_TAG, "Ответы из уведомлений"},
+            {"AI API и ответы", STYLE_TAG, "Стиль общения"},
+            {"Выберите тему", LANGUAGE_TAG, "Язык · Language"},
     };
-    private static final Class<?>[] SECTION_SCREENS = {NotificationReplyActivity.class, StyleActivity.class};
+    private static final Class<?>[] SECTION_SCREENS = {NotificationReplyActivity.class, StyleActivity.class,
+            LanguageActivity.class};
 
     private static void addSectionEntries(Activity a, ViewGroup content) {
         for (int i = 0; i < SECTION_ENTRIES.length; i++) {
             String[] e = SECTION_ENTRIES[i];
-            if (content.findViewWithTag(e[1]) != null || !hasText(content, e[0])) continue;
+            if (content.findViewWithTag(e[1]) != null) continue;
+            TextView title = findText(content, e[0], a);
+            if (title == null || !(title.getParent() instanceof LinearLayout)) continue;
+            LinearLayout card = (LinearLayout) title.getParent();
+            Button sample = null;
+            int at = card.getChildCount();
+            for (int j = 0; j < card.getChildCount(); j++) {
+                if (card.getChildAt(j) instanceof Button) { sample = (Button) card.getChildAt(j); at = j + 1; }
+            }
             Class<?> screen = SECTION_SCREENS[i];
-            Button button = entry(a, e[2], e[3]);
+            // Same look as the card's own buttons, right after them.
+            Button button = new Button(a);
+            button.setText(I18n.t(a, e[2]));
+            button.setAllCaps(false);
+            if (sample != null) {
+                button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, sample.getTextSize());
+                button.setTextColor(sample.getTextColors());
+                button.setMinHeight(sample.getMinHeight());
+                if (sample.getBackground() != null && sample.getBackground().getConstantState() != null) {
+                    button.setBackground(sample.getBackground().getConstantState().newDrawable().mutate());
+                }
+            }
             button.setTag(e[1]);
             button.setOnClickListener(v -> a.startActivity(new Intent(a, screen)));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-            lp.topMargin = dp(a, 11);
-            content.addView(button, lp);
+            LinearLayout.LayoutParams lp = sample != null && sample.getLayoutParams() instanceof LinearLayout.LayoutParams
+                    ? new LinearLayout.LayoutParams((LinearLayout.LayoutParams) sample.getLayoutParams())
+                    : new LinearLayout.LayoutParams(-1, -2);
+            card.addView(button, at, lp);
         }
     }
 
-    private static boolean hasText(View v, String value) {
-        if (v instanceof TextView && value.contentEquals(((TextView) v).getText())) return true;
+    /** The view showing this original (Russian) text, before or after translation. */
+    private static TextView findText(View v, String value, Activity a) {
+        if (v instanceof TextView) {
+            CharSequence text = ((TextView) v).getText();
+            return value.contentEquals(text) || I18n.t(a, value).contentEquals(text) ? (TextView) v : null;
+        }
         if (v instanceof ViewGroup) {
             ViewGroup group = (ViewGroup) v;
-            for (int i = 0; i < group.getChildCount(); i++) if (hasText(group.getChildAt(i), value)) return true;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                TextView found = findText(group.getChildAt(i), value, a);
+                if (found != null) return found;
+            }
         }
-        return false;
+        return null;
     }
+
 
     /** Same look as the original menu entries: bold title, muted subtitle, chevron, ripple. */
     private static Button entry(Activity a, String title, String subtitle) {
         ThemeManager.Palette colors = ThemeManager.colors(a);
+        title = I18n.t(a, title);
+        subtitle = I18n.t(a, subtitle);
         SpannableString text = new SpannableString(title + "\n" + subtitle);
         text.setSpan(new StyleSpan(android.graphics.Typeface.BOLD), 0, title.length(), 33);
         text.setSpan(new RelativeSizeSpan(0.78f), title.length() + 1, text.length(), 33);

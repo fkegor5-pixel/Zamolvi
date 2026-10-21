@@ -35,8 +35,10 @@ public final class ReplyWidget extends AppWidgetProvider {
                     : footer.isEmpty() ? s.counters() : s.counters() + "\n" + footer;
 
             RemoteViews views = new RemoteViews(c.getPackageName(), layout);
-            views.setTextViewText(id(c, "widget_status"), s.status());
-            views.setTextViewText(id(c, "widget_detail"), detail);
+            views.setTextViewText(id(c, "widget_status"), I18n.t(c, s.status()));
+            views.setTextViewText(id(c, "widget_detail"), I18n.t(c, detail));
+            views.setTextViewText(id(c, "widget_enable"), I18n.t(c, "Включить"));
+            views.setTextViewText(id(c, "widget_disable"), I18n.t(c, "Стоп"));
             views.setImageViewResource(id(c, "widget_dot"),
                     AutoReplyState.res(c, s.running() ? "replyai_widget_dot_on" : "replyai_widget_dot_off", "drawable"));
             PendingIntent open = s.awaiting > 0 ? StatusNotification.openApprovals(c) : StatusNotification.openApp(c);

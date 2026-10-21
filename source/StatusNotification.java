@@ -88,10 +88,10 @@ final class StatusNotification {
 
             Notification.Builder b = new Notification.Builder(c, CHANNEL)
                     .setSmallIcon(icon)
-                    .setContentTitle(s.status())
-                    .setContentText(text)
+                    .setContentTitle(I18n.t(c, s.status()))
+                    .setContentText(I18n.t(c, text))
                     .setStyle(new Notification.BigTextStyle()
-                            .bigText(footer.isEmpty() ? text : text + "\n" + footer))
+                            .bigText(I18n.t(c, footer.isEmpty() ? text : text + "\n" + footer)))
                     .setOngoing(true)
                     .setOnlyAlertOnce(true)
                     .setShowWhen(false)
@@ -112,7 +112,7 @@ final class StatusNotification {
             }
             if (progress == null && s.awaiting > 0) {
                 b.addAction(new Notification.Action.Builder(Icon.createWithResource(c, icon),
-                        "Черновики (" + s.awaiting + ")", openApprovals(c)).build());
+                        I18n.t(c, "Черновики") + " (" + s.awaiting + ")", openApprovals(c)).build());
             }
             nm.notify(ID, b.build());
         } catch (RuntimeException error) {
@@ -186,7 +186,7 @@ final class StatusNotification {
 
     private static Notification.Action action(Context c, int icon, String title, String command, int code) {
         Notification.Action.Builder builder = new Notification.Action.Builder(
-                Icon.createWithResource(c, icon), title, ControlReceiver.pending(c, command, code));
+                Icon.createWithResource(c, icon), I18n.t(c, title), ControlReceiver.pending(c, command, code));
         // On the lock screen the phone must be unlocked first.
         if (Build.VERSION.SDK_INT >= 31) builder.setAuthenticationRequired(true);
         return builder.build();
