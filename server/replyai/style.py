@@ -61,12 +61,20 @@ def validate(key):
     return key in STYLES
 
 
-def apply(config, key):
-    """The AI settings with the style; the AI client puts it last in the system prompt, after memory."""
+def apply(config, key, note=""):
+    """The AI settings with the style and the situation note of a profile («Работаю», «Сплю»).
+
+    The AI client puts it last in the system prompt, after memory."""
     instruction = STYLES.get(key or "", STYLES[""])[2]
-    if not instruction:
+    note = (note or "").strip()
+    if not instruction and not note:
         return config
-    return dict(config, style=RULE + instruction)
+    parts = []
+    if instruction:
+        parts.append(RULE + instruction)
+    if note:
+        parts.append("СИТУАЦИЯ ВЛАДЕЛЬЦА (учитывай в ответе, не цитируй дословно): " + note)
+    return dict(config, style=" ".join(parts))
 
 
 BINARY_LIMIT = 1500  # the reply is cut at 1600 characters when sent

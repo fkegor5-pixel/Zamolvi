@@ -69,6 +69,8 @@ public final class HomeFeatures {
         boolean scheduled;
         Object lastFirstChild;
         int lastChildCount = -1;
+        int lastRawCount = -1;   // children before our additions: tells a new screen from a refresh of the same one
+        long revealedAt;
         ScrollView scroll;       // MainActivity's root ScrollView
         boolean wasHome;         // the home menu was showing on the previous scan
         boolean restoring;       // a restore is in flight; ignore scroll changes meanwhile
@@ -106,6 +108,13 @@ public final class HomeFeatures {
             if (first == lastFirstChild && count == lastChildCount) return;
             install(activity, content);
             addSectionEntries(activity, content);
+            if (isHome(content)) colorMenu(activity, content);
+            long now = SystemClock.elapsedRealtime();
+            if (count != lastRawCount && now - revealedAt > 800) { // a different screen: the content glides in
+                Ui.reveal(content);
+                revealedAt = now;
+            }
+            lastRawCount = count;
             // Our own additions change the count; remember the state after installing.
             lastFirstChild = content.getChildCount() > 0 ? content.getChildAt(0) : null;
             lastChildCount = content.getChildCount();
@@ -370,6 +379,30 @@ public final class HomeFeatures {
         bg.setStroke(dp(a, 1), colors.border);
         button.setBackground(new RippleDrawable(ColorStateList.valueOf(colors.border), bg, null));
         return button;
+    }
+
+    /** Menu rows get their own color: a tinted card, an accent outline and a dot, instead of one gray list. */
+    private static void colorMenu(Activity a, ViewGroup menu) {
+        ThemeManager.Palette colors = ThemeManager.colors(a);
+        int tone = 0;
+        for (int i = 0; i < menu.getChildCount(); i++) {
+            if (!(menu.getChildAt(i) instanceof Button)) continue;
+            Button row = (Button) menu.getChildAt(i);
+            int accent = Ui.accent(tone++);
+            GradientDrawable card = new GradientDrawable();
+            card.setColor(Ui.mix(colors.card, accent, 0.10f));
+            card.setCornerRadius(dp(a, 18));
+            card.setStroke(dp(a, 2), Ui.alpha(accent, 0xB0));
+            row.setBackground(new RippleDrawable(ColorStateList.valueOf(Ui.alpha(accent, 0x44)), card, null));
+            GradientDrawable dot = new GradientDrawable();
+            dot.setShape(GradientDrawable.OVAL);
+            dot.setColor(accent);
+            dot.setSize(dp(a, 12), dp(a, 12));
+            android.graphics.drawable.Drawable[] now = row.getCompoundDrawables();
+            row.setCompoundDrawablesWithIntrinsicBounds(dot, now[1], now[2], now[3]);
+            row.setCompoundDrawablePadding(dp(a, 12));
+            Ui.press(row);
+        }
     }
 
     private static boolean containsTitle(View v) {

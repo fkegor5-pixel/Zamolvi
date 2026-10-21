@@ -19,7 +19,7 @@ import java.util.WeakHashMap;
  */
 public final class Brand {
     public static final String NAME = "Zamolvi";
-    public static final String VERSION = "3.4";
+    public static final String VERSION = "3.5";
     public static final String AUTHOR = "@stytam";
     public static final String VERSION_LABEL = NAME + " " + VERSION + " · " + AUTHOR;
     static final String FORMER = "Reply AI";
@@ -68,6 +68,7 @@ public final class Brand {
 
     /** Texts this pass already produced: unchanged views are skipped instead of translated again. */
     private static final WeakHashMap<View, String> done = new WeakHashMap<>();
+    private static final WeakHashMap<View, Boolean> pressable = new WeakHashMap<>();
 
     /** Name, device wording and interface language for one text; spans (styled menu entries) are kept. */
     static CharSequence localize(android.content.Context c, CharSequence value) {
@@ -79,6 +80,10 @@ public final class Brand {
     /** Rewrites texts and hints of the view tree. User input in edit fields is never touched. */
     static void rewrite(View view) {
         android.content.Context c = view.getContext();
+        if (view instanceof android.widget.Button && !pressable.containsKey(view)) {
+            pressable.put(view, Boolean.TRUE);
+            Ui.press(view); // every button of every screen springs under the finger
+        }
         if (view instanceof TextView) {
             TextView field = (TextView) view;
             if (!(view instanceof EditText)) {

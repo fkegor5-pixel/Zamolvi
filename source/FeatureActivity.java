@@ -13,6 +13,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.Switch;
 import android.widget.TextView;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ abstract class FeatureActivity extends Activity {
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Handler ui = new Handler(Looper.getMainLooper());
     protected boolean busy;
+    private int tone; // the next accent color, so neighbouring cards and buttons differ
     private boolean closed;
     private AlertDialog dialog;
 
@@ -54,10 +56,17 @@ abstract class FeatureActivity extends Activity {
         setContentView(scroll);
         Button back = new Button(this);
         back.setText("‹  На главное меню");
-        back.setAllCaps(false);
+        Ui.pill(back, Ui.accent(0));
         back.setOnClickListener(v -> finish());
-        body.addView(back);
+        body.addView(back, new LinearLayout.LayoutParams(-2, -2));
+        // After onCreate of the screen: its rows appear one by one, rows added later fade in.
+        body.post(() -> {
+            Ui.stagger(body);
+            Ui.smooth(body);
+        });
     }
+
+    protected int nextTone() { return Ui.accent(tone++); }
 
     protected int dp(int value) { return HomeFeatures.dp(this, value); }
     protected TextView text(String value, int size) {
@@ -69,13 +78,36 @@ abstract class FeatureActivity extends Activity {
         body.addView(view, new LinearLayout.LayoutParams(-1, -2));
         return view;
     }
-    protected void title(String value) { text(value, 27).setTypeface(null, Typeface.BOLD); }
+    protected void title(String value) {
+        TextView view = text(value, 27);
+        view.setTypeface(null, Typeface.BOLD);
+        Ui.gradientText(view, Ui.accent(0), Ui.accent(5));
+    }
     protected Button button(String label, View.OnClickListener listener) {
         Button view = new Button(this);
         view.setText(label);
-        view.setAllCaps(false);
+        Ui.filled(view, nextTone());
         view.setOnClickListener(listener);
-        body.addView(view, new LinearLayout.LayoutParams(-1, -2));
+        body.addView(view, spaced());
+        controls.add(view);
+        return view;
+    }
+
+    private LinearLayout.LayoutParams spaced() {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+        lp.topMargin = dp(8);
+        return lp;
+    }
+
+    /** A switch with the accent color of the screen, added to the parent and disabled while a request runs. */
+    protected Switch toggle(LinearLayout parent, String label, boolean checked) {
+        Switch view = new Switch(this);
+        view.setText(label);
+        view.setTextColor(colors.ink);
+        view.setPadding(0, dp(10), 0, dp(10));
+        view.setChecked(checked);
+        Ui.tint(view, Ui.accent(3));
+        parent.addView(view, new LinearLayout.LayoutParams(-1, -2));
         controls.add(view);
         return view;
     }
@@ -93,11 +125,11 @@ abstract class FeatureActivity extends Activity {
     protected LinearLayout card(LinearLayout parent) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        card.setPadding(dp(14), dp(12), dp(14), dp(14));
+        card.setPadding(dp(16), dp(14), dp(16), dp(16));
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(colors.card);
-        bg.setCornerRadius(dp(14));
-        bg.setStroke(dp(1), colors.border);
+        bg.setCornerRadius(dp(18));
+        bg.setStroke(dp(2), Ui.alpha(nextTone(), 0xB0));
         card.setBackground(bg);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.topMargin = dp(12);
@@ -128,6 +160,7 @@ abstract class FeatureActivity extends Activity {
         view.setInputType(inputType);
         view.setTextColor(colors.ink);
         view.setHintTextColor(colors.muted);
+        Ui.input(view, Ui.accent(0));
         parent.addView(view, new LinearLayout.LayoutParams(-1, -2));
         controls.add(view);
         return view;
@@ -137,7 +170,7 @@ abstract class FeatureActivity extends Activity {
     protected Button action(LinearLayout parent, String value, View.OnClickListener listener, ArrayList<View> owned) {
         Button view = new Button(this);
         view.setText(value);
-        view.setAllCaps(false);
+        Ui.filled(view, nextTone());
         view.setOnClickListener(listener);
         view.setEnabled(!busy);
         parent.addView(view, new LinearLayout.LayoutParams(-1, -2));
@@ -231,7 +264,7 @@ abstract class FeatureActivity extends Activity {
         LinearLayout parent = (LinearLayout) status.getParent();
         update = new Button(this);
         update.setText("Обновить сервер");
-        update.setAllCaps(false);
+        Ui.filled(update, Ui.accent(4));
         update.setOnClickListener(v -> openServerSetup(this));
         parent.addView(update, parent.indexOfChild(status) + 1, new LinearLayout.LayoutParams(-1, -2));
     }

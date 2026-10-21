@@ -18,7 +18,7 @@ from . import queueing, stats, quiet, archive, memory, media, approval, privacy,
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.2.3"
+SERVER_VERSION = "3.3.0"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 

@@ -37,7 +37,7 @@ The app's main menu:
 
 Also:
 
-- **Replies from notifications** — a mode without logging in to Telegram on the server: the phone sees the Telegram notification, the server writes a reply with the AI, and it is sent with the «Reply» button of the notification. Answer all private chats or only a list, see who was answered, keep an ignore list. Works while the phone is online.
+- **Replies from notifications** — a mode without logging in to Telegram on the server: the phone sees the Telegram notification, the server writes a reply with the AI, and it is sent with the «Reply» button of the notification. Answer all private chats or only a list, see who was answered, keep an ignore list. Works while the phone is online. Besides Telegram it can answer **WhatsApp, VK, Viber and SMS**; **profiles** (Working / Sleeping / Driving) switch the style and the situation note by time or by hand; a **daily limit** of AI replies, **quick replies** without the AI and **urgent words** (the bot stays silent and notifies you) keep costs and risks down. Messages with confirmation codes never leave the phone.
 - **Voice messages** are transcribed (Whisper via Groq) and answered by their text.
 - **Home-screen widget, status notification and Quick Settings tile**: status, number of sent replies, «Turn on» and «Stop» buttons.
 - **A contact can turn auto-replies off** with the `/ai_off` command.

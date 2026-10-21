@@ -17,8 +17,13 @@ public final class FeatureInitProvider extends ContentProvider {
             @Override public void onActivityCreated(Activity a, Bundle state) {
                 // After onCreate: the screen has set its content and window features by then.
                 main.post(() -> { if (!a.isFinishing() && !a.isDestroyed()) Brand.attach(a); });
-                if (isMain(a)) HomeFeatures.attach(a);
-                else if ("ru.replyai.android.DiagnosticsActivity".equals(a.getClass().getName())) addCheckupLink(a);
+                if (isMain(a)) {
+                    HomeFeatures.attach(a); // reveals its own screens
+                } else {
+                    // Added screens animate themselves; the original ones glide in as a whole.
+                    if (!(a instanceof FeatureActivity)) main.post(() -> Ui.reveal(a.findViewById(android.R.id.content)));
+                    if ("ru.replyai.android.DiagnosticsActivity".equals(a.getClass().getName())) addCheckupLink(a);
+                }
             }
             @Override public void onActivityDestroyed(Activity a) {
                 Brand.detach(a);

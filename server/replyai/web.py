@@ -4,6 +4,7 @@ import os
 import time
 import uuid
 import re
+from typing import Optional
 from secrets import token_urlsafe as secrets_token
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
@@ -98,6 +99,9 @@ class StyleChoice(Input):
 class NotificationReply(Input):
     # Text of a Telegram notification on the phone; the server's Telegram account is not used.
     text: str = Field(min_length=1, max_length=4000)
+    # A profile of the phone («Работаю», «Сплю»): its own style and note instead of the saved style.
+    style: Optional[str] = Field(default=None, max_length=20)
+    note: str = Field(default='', max_length=500)
 
 
 class MemorySettings(Input):
@@ -397,9 +401,12 @@ def create_app(store=None, engine=None, token=None):
     async def notification_answer(data: NotificationReply):
         # Notification replies cannot carry Telegram formatting: plain text only.
         s = store.read()
-        config = style.apply(dict(s["ai"], formatting="plain"), s.get("style", ""))
+        key = s.get("style", "") if data.style is None else data.style
+        if not style.validate(key):
+            raise UserError('Неизвестный стиль общения.')
+        config = style.apply(dict(s["ai"], formatting="plain"), key, data.note)
         with ai_purpose('notification'):
-            answer = style.finish(s.get("style", ""), await engine.ai.answer(config, data.text))
+            answer = style.finish(key, await engine.ai.answer(config, data.text))
         return {"answer": render(answer, "plain", PREFIX)[0]}
 
     @app.put("/api/formatting", dependencies=protected)

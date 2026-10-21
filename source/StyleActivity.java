@@ -37,6 +37,7 @@ public final class StyleActivity extends FeatureActivity {
             radio.setText(row.getString("title") + " — " + row.optString("description"));
             radio.setTextColor(colors.ink);
             radio.setPadding(0, dp(8), 0, dp(8));
+            radio.setButtonTintList(android.content.res.ColorStateList.valueOf(Ui.accent(i + 1)));
             radio.setTag(row.getString("key"));
             group.addView(radio);
             controls.add(radio);

@@ -18,6 +18,7 @@ public final class NotificationReplyActivity extends FeatureActivity {
     private LinearLayout ignored;
     private final java.util.ArrayList<android.view.View> owned = new java.util.ArrayList<>();
     private EditText chats;
+    private final java.util.ArrayList<Switch> apps = new java.util.ArrayList<>();
     private android.widget.TextView access;
     private android.widget.TextView last;
 
@@ -50,29 +51,29 @@ public final class NotificationReplyActivity extends FeatureActivity {
                 Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:" + getPackageName()))),
                 new java.util.ArrayList<>());
         heading(box, "3. Кому отвечать");
-        everyone = new Switch(this);
-        everyone.setText("Всем личным чатам, кроме игнора");
-        everyone.setTextColor(colors.ink);
-        everyone.setChecked(p.getBoolean(NotificationReplyService.ALL, false));
-        box.addView(everyone);
-        controls.add(everyone);
+        everyone = toggle(box, "Всем личным чатам, кроме игнора", p.getBoolean(NotificationReplyService.ALL, false));
         label(box, "Если выключено — только чатам из списка: имена точно как в уведомлениях Telegram, по одному на строку.", 13, true);
         chats = field(box, "Например: Анна", p.getString(NotificationReplyService.CHATS, ""),
                 InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         chats.setSingleLine(false);
         chats.setMinLines(3);
-        enabled = new Switch(this);
-        enabled.setText("Отвечать из уведомлений");
-        enabled.setTextColor(colors.ink);
-        enabled.setPadding(0, dp(12), 0, dp(12));
-        enabled.setChecked(p.getBoolean(NotificationReplyService.ENABLED, false));
-        body.addView(enabled);
-        controls.add(enabled);
+        heading(box, "4. Мессенджеры");
+        label(box, "В каких приложениях отвечать на уведомления. Имя чата берётся из уведомления.", 13, true);
+        for (String[] app : Rules.APPS) {
+            Switch row = toggle(box, app[1], p.getBoolean("app_" + app[0], "telegram".equals(app[0])));
+            row.setTag(app[0]);
+            apps.add(row);
+        }
+        label(box, "SMS: отвечаем только тем, кто назван в списке чатов (режим «всем» к SMS не относится); "
+                + "ответ по SMS оплачивает ваш оператор. Сообщения с кодами подтверждения на сервер не уходят никогда.", 13, true);
+        enabled = toggle(body, "Отвечать из уведомлений", p.getBoolean(NotificationReplyService.ENABLED, false));
         button("Сохранить", v -> save());
         button("Проверить ответ сервера", v -> execute(() -> request("POST", "/api/notification/answer",
                 new org.json.JSONObject().put("text", "Привет! Как дела?")),
                 value -> status.setText("Сервер ответил: " + value.optString("answer"))));
         controls.add(chats);
+        button("Профили: Работаю · Сплю · За рулём", v -> startActivity(new Intent(this, ProfilesActivity.class)));
+        button("Лимит, быстрые ответы, срочное", v -> startActivity(new Intent(this, RulesActivity.class)));
         status = text("", 15);
         last = text("", 13);
         text("Кому ответил", 20).setTypeface(null, android.graphics.Typeface.BOLD);
@@ -153,14 +154,15 @@ public final class NotificationReplyActivity extends FeatureActivity {
     private void save() {
         String list = chats.getText().toString().trim();
         boolean on = enabled.isChecked(), all = everyone.isChecked();
-        getSharedPreferences(NotificationReplyService.PREFS, 0).edit()
-                .putString(NotificationReplyService.CHATS, list)
+        SharedPreferences.Editor editor = getSharedPreferences(NotificationReplyService.PREFS, 0).edit();
+        for (Switch row : apps) editor.putBoolean("app_" + row.getTag(), row.isChecked());
+        editor.putString(NotificationReplyService.CHATS, list)
                 .putBoolean(NotificationReplyService.ALL, all)
                 .putBoolean(NotificationReplyService.ENABLED, on).apply();
         status.setText(!on ? "Выключено."
                 : !granted() ? "Сохранено, но нет доступа к уведомлениям — откройте настройки доступа."
                 : !all && list.isEmpty() ? "Сохранено, но список чатов пуст — отвечать некому."
-                : "Включено. Ответы приходят в Telegram с пометкой «[AI-автоответ]».");
+                : "Включено. Ответы приходят с пометкой «[AI-автоответ]».");
     }
 
     private boolean granted() {

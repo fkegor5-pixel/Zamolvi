@@ -25,8 +25,8 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parent.parent
 NS = "http://schemas.android.com/apk/res/android"
 APP_NAME = "Zamolvi"
-VERSION_NAME = "3.4"
-VERSION_CODE = "31"
+VERSION_NAME = "3.5"
+VERSION_CODE = "32"
 FORMER_NAME = "Reply AI"
 ORIGINAL_SHA256 = "3bd84dd57a4709ac1abb9692055af3a414659decf8ded86799fe10e133fc291b"
 ET.register_namespace("android", NS)
@@ -67,7 +67,7 @@ def patch_manifest(manifest):
         if element.get(f"{{{NS}}}label") == FORMER_NAME:
             element.set(f"{{{NS}}}label", APP_NAME)
     for name in ("DeletedMessagesActivity", "DeveloperActivity", "MemoryActivity", "MediaActivity",
-                 "ApprovalActivity", "StatsActivity", "CheckupActivity", "NotificationReplyActivity", "StyleActivity", "LanguageActivity"):
+                 "ApprovalActivity", "StatsActivity", "CheckupActivity", "NotificationReplyActivity", "StyleActivity", "LanguageActivity", "ProfilesActivity", "RulesActivity"):
         ET.SubElement(app, "activity", {
             f"{{{NS}}}name": "ru.replyai.android." + name,
             f"{{{NS}}}exported": "false",

@@ -857,3 +857,29 @@ async def test_style_goes_last_in_the_system_prompt():
     finally:
         await client.close()
     assert sent[0].startswith("Ты AI-автоответчик.") and sent[0].rstrip().endswith(style.STYLES["gopnik"][2])
+
+
+def test_profile_note_and_style_are_added_to_the_prompt():
+    from replyai import style
+    assert style.apply({"prompt": "P"}, "", "  ") == {"prompt": "P"}
+    only_note = style.apply({"prompt": "P"}, "", "Я за рулём")
+    assert "Я за рулём" in only_note["style"] and "одним абзацем" not in only_note["style"]
+    both = style.apply({"prompt": "P"}, "business", "Я сплю")
+    assert "по делу" in both["style"] and "Я сплю" in both["style"]
+
+
+def test_notification_answer_takes_style_and_note_of_a_profile(api29, env):
+    seen = []
+
+    async def answer(config, text, history=()):
+        seen.append(config.get("style", ""))
+        return "ок"
+    env.engine.ai.answer = answer
+    api29.put("/api/style", headers=AUTH, json={"style": "gopnik"})
+    api29.post("/api/notification/answer", headers=AUTH,
+               json={"text": "Привет", "style": "business", "note": "Я на работе"})
+    assert "по делу" in seen[-1] and "Я на работе" in seen[-1] and "гопника" not in seen[-1]
+    api29.post("/api/notification/answer", headers=AUTH, json={"text": "Привет", "style": ""})
+    assert seen[-1] == ""  # a profile may switch the saved style off
+    assert api29.post("/api/notification/answer", headers=AUTH,
+                      json={"text": "Привет", "style": "nope"}).status_code == 400
