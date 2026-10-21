@@ -390,7 +390,7 @@ def create_app(store=None, engine=None, token=None):
             s = store.read()
             config = style.apply(s["ai"], s.get("style", ""))
             with ai_purpose('test'):
-                answer = await engine.ai.answer(config, data.text)
+                answer = style.finish(s.get("style", ""), await engine.ai.answer(config, data.text))
             return preview(answer, config.get("formatting", "auto"))
 
     @app.post("/api/notification/answer", dependencies=protected)
@@ -399,7 +399,7 @@ def create_app(store=None, engine=None, token=None):
         s = store.read()
         config = style.apply(dict(s["ai"], formatting="plain"), s.get("style", ""))
         with ai_purpose('notification'):
-            answer = await engine.ai.answer(config, data.text)
+            answer = style.finish(s.get("style", ""), await engine.ai.answer(config, data.text))
         return {"answer": render(answer, "plain", PREFIX)[0]}
 
     @app.put("/api/formatting", dependencies=protected)

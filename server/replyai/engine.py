@@ -18,7 +18,7 @@ from . import queueing, stats, quiet, archive, memory, media, approval, privacy,
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.2.0"
+SERVER_VERSION = "3.2.1"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -910,7 +910,7 @@ class Engine:
                 if remembered:
                     config = dict(config, prompt=config['prompt'] + '\n\n' + remembered)
                 with ai_purpose('reply', job['chat']):
-                    answer = await self.ai.answer(config, job['text'], s['history'].get(job['chat'], []))
+                    answer = style.finish(s.get('style', ''), await self.ai.answer(config, job['text'], s['history'].get(job['chat'], [])))
                 self.metric(ai_success=1, ai_ms=(time.perf_counter() - started) * 1000)
         except AiError as exc:
             self.error_metric('ai', job['chat'])

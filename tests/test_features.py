@@ -828,3 +828,13 @@ def test_style_is_added_to_every_reply_prompt(api29, env):
     env.engine.ai.answer = answer
     api29.post("/api/notification/answer", headers=AUTH, json={"text": "Привет"})
     assert "гопника" in seen[-1]
+
+
+def test_computer_style_answers_in_exact_binary():
+    from replyai import style
+    assert style.finish("computer", " Hi ") == "01001000 01101001"
+    long = style.finish("computer", "Ж" * 500)
+    assert len(long) <= style.BINARY_LIMIT
+    assert bytes(int(b, 2) for b in long.split()).decode("utf-8")   # whole characters only
+    assert style.finish("pirate", "Йо-хо-хо") == "Йо-хо-хо"
+    assert all(style.validate(k) for k in ("ogre", "brute", "master", "cat"))
