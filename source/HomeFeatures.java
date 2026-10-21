@@ -111,6 +111,7 @@ public final class HomeFeatures {
             if (isHome(content)) {
                 colorMenu(activity, content);
                 group(activity, content);
+                stripNumbers(content);
             }
             long now = SystemClock.elapsedRealtime();
             if (count != lastRawCount && now - revealedAt > 800) { // a different screen: the content glides in
@@ -484,6 +485,41 @@ public final class HomeFeatures {
         return head;
     }
 
+    /**
+     * «1. Подключение к VPS» → «Подключение к VPS» for every entry of the menu, inside the groups too.
+     * Runs on each pass: the original screen rewrites the text of an entry when its status changes,
+     * and the number comes back with it. The numbers still identify the entries while they are folded.
+     */
+    private static void stripNumbers(ViewGroup menu) {
+        for (int i = 0; i < menu.getChildCount(); i++) {
+            View child = menu.getChildAt(i);
+            if (child instanceof Button) {
+                strip((Button) child);
+            } else if (child instanceof ViewGroup && tagged(child, GROUP_TAG)) {
+                ViewGroup box = (ViewGroup) child;
+                for (int k = 0; k < box.getChildCount(); k++) {
+                    if (box.getChildAt(k) instanceof Button) strip((Button) box.getChildAt(k));
+                }
+            }
+        }
+    }
+
+    /** Drops the leading number of one entry; subSequence keeps the styles of the title and subtitle. */
+    private static void strip(Button row) {
+        if (tagged(row, HEAD_TAG)) return; // a group header, not an entry
+        CharSequence text = row.getText();
+        String digits = number(text);
+        if (digits == null) return;
+        int cut = digits.length();
+        while (cut < text.length() && text.charAt(cut) == ' ') cut++;
+        if (cut >= text.length() || text.charAt(cut) == '\n') return;
+        row.setText(text.subSequence(cut, text.length()));
+    }
+
+    private static boolean tagged(View view, String prefix) {
+        return view.getTag() instanceof String && ((String) view.getTag()).startsWith(prefix);
+    }
+
     /** Leading «12.» of a menu entry, null for any other button; the number stays in every language. */
     private static String number(CharSequence value) {
         if (value == null) return null;
@@ -499,7 +535,7 @@ public final class HomeFeatures {
         for (int i = 0; i < menu.getChildCount(); i++) {
             if (!(menu.getChildAt(i) instanceof Button)) continue;
             Button row = (Button) menu.getChildAt(i);
-            if (row.getTag() instanceof String && ((String) row.getTag()).startsWith(HEAD_TAG)) continue;
+            if (tagged(row, HEAD_TAG)) continue;
             int accent = Ui.accent(tone++);
             GradientDrawable card = new GradientDrawable();
             card.setColor(Ui.mix(colors.card, accent, 0.10f));
