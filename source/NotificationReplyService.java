@@ -27,6 +27,10 @@ public final class NotificationReplyService extends NotificationListenerService 
     static final String CHATS = "notify_chats";
     static final String LAST = "notify_last";
     static final String TRACE = "notify_trace";
+    static final String ALL = "notify_all";
+    static final String IGNORE = "notify_ignore";
+    static final String HISTORY = "notify_history";
+    private static final int HISTORY_SIZE = 100;
     private static final String OUR_PREFIX = "[AI-автоответ]"; // the server marks every AI reply
     private static final String TAG = "ZamolviNotifyReply";
     private static final String[] TELEGRAM = {"org.telegram.messenger", "org.telegram.messenger.web",
@@ -58,7 +62,13 @@ public final class NotificationReplyService extends NotificationListenerService 
         String chat = title == null ? "" : title.toString().trim();
         if (x.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION)) { trace(p, chat, "групповой чат — пропущен"); return; }
         if (chat.isEmpty()) { trace(p, "", "в уведомлении нет имени чата"); return; }
-        if (!allowed(p.getString(CHATS, ""), chat)) { trace(p, chat, "нет в списке чатов (впишите имя точно так)"); return; }
+        // The «Telegram» service chat carries login codes: they must never leave the phone.
+        if ("Telegram".equalsIgnoreCase(chat)) { trace(p, chat, "служебный чат Telegram — не отвечаем"); return; }
+        if (allowed(p.getString(IGNORE, ""), chat)) { trace(p, chat, "в игноре"); return; }
+        if (!p.getBoolean(ALL, false) && !allowed(p.getString(CHATS, ""), chat)) {
+            trace(p, chat, "нет в списке чатов (впишите имя точно так)");
+            return;
+        }
         String text = lastIncoming(x);
         if (text == null) { trace(p, chat, "последнее сообщение — наш же автоответ"); return; }
         if (text.trim().isEmpty()) { trace(p, chat, "нет текста сообщения: включите показ текста в уведомлениях Telegram"); return; }
@@ -126,6 +136,7 @@ public final class NotificationReplyService extends NotificationListenerService 
             RemoteInput.addResultsToIntent(reply.getRemoteInputs(), intent, values);
             reply.actionIntent.send(this, 0, intent);
             result = "Ответ отправлен: «" + chat + "»";
+            remember(this, chat);
         } catch (Exception error) {
             Log.w(TAG, "Reply failed", error);
             String reason = error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage();
@@ -140,6 +151,28 @@ public final class NotificationReplyService extends NotificationListenerService 
     private static void trace(SharedPreferences p, String chat, String reason) {
         p.edit().putString(TRACE, new java.text.SimpleDateFormat("dd.MM HH:mm", Locale.getDefault())
                 .format(new java.util.Date()) + " · " + (chat.isEmpty() ? "" : "«" + chat + "»: ") + reason).apply();
+    }
+
+    /** «Кому ответил»: name → number of answers and the time of the last one, newest kept. */
+    private static synchronized void remember(android.content.Context c, String chat) {
+        SharedPreferences p = c.getSharedPreferences(PREFS, 0);
+        try {
+            JSONObject all = new JSONObject(p.getString(HISTORY, "{}"));
+            JSONObject row = all.optJSONObject(chat);
+            all.put(chat, new JSONObject().put("count", row == null ? 1 : row.optInt("count") + 1)
+                    .put("at", System.currentTimeMillis()));
+            while (all.length() > HISTORY_SIZE) {
+                String oldest = null;
+                for (java.util.Iterator<String> i = all.keys(); i.hasNext(); ) {
+                    String key = i.next();
+                    if (oldest == null || all.getJSONObject(key).optLong("at") < all.getJSONObject(oldest).optLong("at")) oldest = key;
+                }
+                all.remove(oldest);
+            }
+            p.edit().putString(HISTORY, all.toString()).apply();
+        } catch (org.json.JSONException error) {
+            p.edit().remove(HISTORY).apply(); // a damaged list is only statistics: start it again
+        }
     }
 
     static boolean granted(android.content.Context c) {

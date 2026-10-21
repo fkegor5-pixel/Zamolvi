@@ -150,7 +150,8 @@ public final class CheckupActivity extends FeatureActivity {
 
         android.content.SharedPreferences np = getSharedPreferences(NotificationReplyService.PREFS, 0);
         String last = np.getString(NotificationReplyService.LAST, "");
-        boolean listOk = !np.getString(NotificationReplyService.CHATS, "").trim().isEmpty();
+        boolean listOk = np.getBoolean(NotificationReplyService.ALL, false)
+                || !np.getString(NotificationReplyService.CHATS, "").trim().isEmpty();
         boolean access = NotificationReplyService.granted(this);
         boolean notifyOn = np.getBoolean(NotificationReplyService.ENABLED, false);
         row(phone, "notification_reply", "Ответы из уведомлений",
