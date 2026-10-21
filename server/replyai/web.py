@@ -21,7 +21,7 @@ from .store import Store
 from .diagnostics import REQUEST_ID, ROUTES
 from .viewer import PAGE
 from .formatting import preview, render
-from . import stats, archive
+from . import stats, archive, style
 
 
 class Input(BaseModel):
@@ -89,6 +89,10 @@ class ArchiveQuery(Input):
 
 class Test(Input):
     text: str = Field(min_length=1, max_length=4000)
+
+
+class StyleChoice(Input):
+    style: str = Field(default='', max_length=20)
 
 
 class NotificationReply(Input):
@@ -383,7 +387,8 @@ def create_app(store=None, engine=None, token=None):
         if test_lock.locked():
             raise HTTPException(409, "Тест AI уже выполняется.")
         async with test_lock:
-            config = store.read()["ai"]
+            s = store.read()
+            config = style.apply(s["ai"], s.get("style", ""))
             with ai_purpose('test'):
                 answer = await engine.ai.answer(config, data.text)
             return preview(answer, config.get("formatting", "auto"))
@@ -391,7 +396,8 @@ def create_app(store=None, engine=None, token=None):
     @app.post("/api/notification/answer", dependencies=protected)
     async def notification_answer(data: NotificationReply):
         # Notification replies cannot carry Telegram formatting: plain text only.
-        config = dict(store.read()["ai"], formatting="plain")
+        s = store.read()
+        config = style.apply(dict(s["ai"], formatting="plain"), s.get("style", ""))
         with ai_purpose('notification'):
             answer = await engine.ai.answer(config, data.text)
         return {"answer": render(answer, "plain", PREFIX)[0]}
@@ -499,6 +505,17 @@ def create_app(store=None, engine=None, token=None):
         if data.period not in (0, 1, 7, 30):
             raise UserError('Период: 1, 7, 30 дней или 0 — за всё время.')
         return engine.extended_stats(data.period)
+
+    @app.get('/api/style', dependencies=protected)
+    async def get_style():
+        return style.report(store.read().get('style', ''))
+
+    @app.put('/api/style', dependencies=protected)
+    async def put_style(data: StyleChoice):
+        if not style.validate(data.style):
+            raise UserError('Неизвестный стиль общения.')
+        store.update(lambda s: s.update(style=data.style))
+        return style.report(data.style)
 
     @app.get('/api/pricing', dependencies=protected)
     async def pricing():

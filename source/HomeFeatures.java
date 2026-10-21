@@ -43,6 +43,7 @@ public final class HomeFeatures {
     private static final Class<?>[] SCREENS = {DeletedMessagesActivity.class, MemoryActivity.class,
             MediaActivity.class, ApprovalActivity.class, StatsActivity.class, CheckupActivity.class};
     private static final String NOTIFY_TAG = "replyai.notification.reply.v1";
+    private static final String STYLE_TAG = "replyai.style.v1";
     private static final String LOGO_TAG = "replyai.developer.logo.v1";
     private static final String AUTOREPLY_TAG = "replyai.autoreply.intro.v1";
     private static final String AUTOREPLY_PREFIX = "5. Автоответчик";
@@ -103,7 +104,7 @@ public final class HomeFeatures {
             int count = content.getChildCount();
             if (first == lastFirstChild && count == lastChildCount) return;
             install(activity, content);
-            addNotificationEntry(activity, content);
+            addSectionEntries(activity, content);
             // Our own additions change the count; remember the state after installing.
             lastFirstChild = content.getChildCount() > 0 ? content.getChildAt(0) : null;
             lastChildCount = content.getChildCount();
@@ -279,15 +280,25 @@ public final class HomeFeatures {
         }
     }
 
-    /** «2. Telegram»: the screen with the «Личный аккаунт» card gets the notification-reply entry. */
-    private static void addNotificationEntry(Activity a, ViewGroup content) {
-        if (content.findViewWithTag(NOTIFY_TAG) != null || !hasText(content, "Личный аккаунт")) return;
-        Button button = entry(a, "Ответы из уведомлений", "Автоответ без входа в Telegram на сервере");
-        button.setTag(NOTIFY_TAG);
-        button.setOnClickListener(v -> a.startActivity(new Intent(a, NotificationReplyActivity.class)));
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-        lp.topMargin = dp(a, 11);
-        content.addView(button, lp);
+    /** Entries added to original sections: card title that marks the section, tag, title, subtitle. */
+    private static final String[][] SECTION_ENTRIES = {
+            {"Личный аккаунт", NOTIFY_TAG, "Ответы из уведомлений", "Автоответ без входа в Telegram на сервере"},
+            {"AI API и ответы", STYLE_TAG, "Стиль общения", "Добрый, дерзкий, гопник, умник и другие"},
+    };
+    private static final Class<?>[] SECTION_SCREENS = {NotificationReplyActivity.class, StyleActivity.class};
+
+    private static void addSectionEntries(Activity a, ViewGroup content) {
+        for (int i = 0; i < SECTION_ENTRIES.length; i++) {
+            String[] e = SECTION_ENTRIES[i];
+            if (content.findViewWithTag(e[1]) != null || !hasText(content, e[0])) continue;
+            Class<?> screen = SECTION_SCREENS[i];
+            Button button = entry(a, e[2], e[3]);
+            button.setTag(e[1]);
+            button.setOnClickListener(v -> a.startActivity(new Intent(a, screen)));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.topMargin = dp(a, 11);
+            content.addView(button, lp);
+        }
     }
 
     private static boolean hasText(View v, String value) {

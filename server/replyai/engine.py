@@ -14,11 +14,11 @@ from .ai import AiClient, AiError, PREFIX, validate, purpose as ai_purpose
 from .diagnostics import Diagnostics
 from .qr import QrLogin
 from .formatting import render, MODES
-from . import queueing, stats, quiet, archive, memory, media, approval, privacy
+from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.1.1"
+SERVER_VERSION = "3.2.0"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -129,7 +129,7 @@ class Engine:
         self.authorized = False
         self.client = self.client_factory(
             PersistentSession(self.store), credentials["api_id"], credentials["api_hash"],
-            device_model="Zamolvi Server", system_version="Linux", app_version="3.1",
+            device_model="Zamolvi Server", system_version="Linux", app_version="3.3",
             auto_reconnect=True, connection_retries=5, request_retries=0, flood_sleep_threshold=0,
             catch_up=True, sequential_updates=True)
         self.client.add_event_handler(self.on_message, events.NewMessage())
@@ -905,7 +905,7 @@ class Engine:
             if not answer:
                 self.metric(ai_calls=1)
                 started = time.perf_counter()
-                config = s['ai']
+                config = style.apply(s['ai'], s.get('style', ''))
                 remembered = memory.context(s, job['chat'])
                 if remembered:
                     config = dict(config, prompt=config['prompt'] + '\n\n' + remembered)
