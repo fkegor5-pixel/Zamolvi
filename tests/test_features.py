@@ -816,7 +816,8 @@ def test_api_key_pasted_as_model_is_rejected_and_scrubbed(env):
 def test_style_is_added_to_every_reply_prompt(api29, env):
     from replyai import style
     assert style.apply({"prompt": "P"}, "") == {"prompt": "P"}
-    assert "гопника" in style.apply({"prompt": "P"}, "gopnik")["prompt"]
+    styled = style.apply({"prompt": "P"}, "gopnik")["prompt"]
+    assert "гопника" in styled and "Не представляйся" in styled and styled.startswith("P\n\n")
     assert api29.put("/api/style", headers=AUTH, json={"style": "nope"}).status_code == 400
     chosen = api29.put("/api/style", headers=AUTH, json={"style": "gopnik"}).json()
     assert chosen["style"] == "gopnik" and any(s["key"] == "smart" for s in chosen["styles"])
