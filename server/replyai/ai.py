@@ -229,6 +229,8 @@ class AiClient:
         while sum(len(t["content"]) for t in turns) > 6000:
             turns.pop(0)
         prompt = config["prompt"] + "\n\n" + instruction(config.get("formatting", "auto"))
+        if config.get("style"):
+            prompt += "\n\n" + config["style"]  # last: the latest rule wins over the owner's generic instruction
         return await self._chat(config, config["model"], prompt, turns, text[:12000], 1536, limit=1600)
 
     async def _endpoint(self, config):

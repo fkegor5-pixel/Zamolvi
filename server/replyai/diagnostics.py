@@ -96,7 +96,7 @@ class Diagnostics:
             'schema': 'replyai.diagnostics.v1',
             'generated_at': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'),
             'report_id': uuid.uuid4().hex,
-            'runtime': {'server_version': '3.2.2', 'python_version': platform.python_version(),
+            'runtime': {'server_version': '3.2.3', 'python_version': platform.python_version(),
                         'platform': platform.system(), 'machine': platform.machine(),
                         'telethon_version': version('telethon'), 'httpx_version': version('httpx'),
                         'uptime_s': max(0, int(time.monotonic() - self.started)),

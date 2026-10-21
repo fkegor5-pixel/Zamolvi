@@ -816,15 +816,15 @@ def test_api_key_pasted_as_model_is_rejected_and_scrubbed(env):
 def test_style_is_added_to_every_reply_prompt(api29, env):
     from replyai import style
     assert style.apply({"prompt": "P"}, "") == {"prompt": "P"}
-    styled = style.apply({"prompt": "P"}, "gopnik")["prompt"]
-    assert "гопника" in styled and "Не представляйся" in styled and styled.startswith("P\n\n")
+    styled = style.apply({"prompt": "P"}, "gopnik")
+    assert styled["prompt"] == "P" and "гопника" in styled["style"] and "одним абзацем" in styled["style"]
     assert api29.put("/api/style", headers=AUTH, json={"style": "nope"}).status_code == 400
     chosen = api29.put("/api/style", headers=AUTH, json={"style": "gopnik"}).json()
     assert chosen["style"] == "gopnik" and any(s["key"] == "smart" for s in chosen["styles"])
     assert api29.get("/api/style", headers=AUTH).json()["style"] == "gopnik"
     seen = []
     async def answer(config, text, history=()):
-        seen.append(config["prompt"])
+        seen.append(config.get("style", ""))
         return "ок"
     env.engine.ai.answer = answer
     api29.post("/api/notification/answer", headers=AUTH, json={"text": "Привет"})
@@ -839,3 +839,21 @@ def test_computer_style_answers_in_exact_binary():
     assert bytes(int(b, 2) for b in long.split()).decode("utf-8")   # whole characters only
     assert style.finish("pirate", "Йо-хо-хо") == "Йо-хо-хо"
     assert all(style.validate(k) for k in ("ogre", "brute", "master", "cat"))
+
+
+@pytest.mark.asyncio
+async def test_style_goes_last_in_the_system_prompt():
+    from replyai import style
+    client = AiClient()
+    sent = []
+    async def fake_post(config, http, url, headers, body):
+        sent.append(body["messages"][0]["content"])
+        return {"choices": [{"message": {"content": "ок"}}]}
+    client._post = fake_post
+    config = style.apply({"provider": "groq", "key": "k", "model": "openai/gpt-oss-20b", "prompt": "Ты AI-автоответчик.",
+                          "formatting": "plain"}, "gopnik")
+    try:
+        await client.answer(config, "Привет")
+    finally:
+        await client.close()
+    assert sent[0].startswith("Ты AI-автоответчик.") and sent[0].rstrip().endswith(style.STYLES["gopnik"][2])
