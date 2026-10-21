@@ -39,9 +39,11 @@ public final class HomeFeatures {
             {"replyai.approval.navigation.v1", "13. Согласование ответов", "Черновики: отправить, исправить, отклонить"},
             {"replyai.stats.navigation.v1", "14. Подробная статистика", "Расходы AI, чаты, время ответа, ошибки"},
             {"replyai.checkup.navigation.v1", "15. Проверка функций", "Что работает, что нет и почему"},
+            {"replyai.update.navigation.v1", "16. Обновление", "Версия приложения и выпуски на GitHub"},
     };
     private static final Class<?>[] SCREENS = {DeletedMessagesActivity.class, MemoryActivity.class,
-            MediaActivity.class, ApprovalActivity.class, StatsActivity.class, CheckupActivity.class};
+            MediaActivity.class, ApprovalActivity.class, StatsActivity.class, CheckupActivity.class,
+            UpdateActivity.class};
     private static final String NOTIFY_TAG = "replyai.notification.reply.v1";
     private static final String STYLE_TAG = "replyai.style.v1";
     private static final String LANGUAGE_TAG = "replyai.language.v1";
@@ -391,7 +393,7 @@ public final class HomeFeatures {
     private static final int FOLD_FROM = 12; // fold only a complete menu, never one still being built
     /** Folded main menu: group title, then the numbers of the entries inside it. */
     private static final String[][] GROUPS = {
-            {"Настройка", "1.", "2.", "9."},
+            {"Настройка", "1.", "2.", "9.", "16."},
             {"Ответы", "3.", "4.", "5.", "13."},
             {"Данные и память", "10.", "11.", "12."},
             {"Статистика и проверка", "6.", "7.", "8.", "14.", "15."},

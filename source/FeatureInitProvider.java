@@ -43,6 +43,7 @@ public final class FeatureInitProvider extends ContentProvider {
             }
             @Override public void onActivitySaveInstanceState(Activity a, Bundle state) { }
         });
+        UpdateJob.schedule(app); // a daily check for a newer version on GitHub
         return true;
     }
     /**
