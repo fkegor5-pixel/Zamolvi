@@ -794,3 +794,20 @@ def test_notification_answer_works_without_telegram_account(api29, env):
     assert response.status_code == 200
     assert response.json() == {"answer": "[AI-автоответ] Тестовый ответ"}
     assert env.ai.calls[-1][0] == "Привет, ты где?"   # only the message text reaches the AI
+
+
+def test_api_key_pasted_as_model_is_rejected_and_scrubbed(env):
+    key = "sk-or-v1-" + "ab12" * 10
+    with pytest.raises(UserError):
+        media.validate({**media.initial(), "vision_model": key})
+    with pytest.raises(UserError):
+        ai_module.validate({"provider": "groq", "key": "k", "model": key, "prompt": "p", "formatting": "plain"})
+    assert not ai_module.looks_like_key("Skywork/skywork-o1-open-llama-3.1-8b")
+    env.store.update(lambda s: s["media"].update(vision_model=key))
+    from replyai.store import Store
+    env.store.close()
+    reopened = Store(env.store.path, env.key)
+    try:
+        assert reopened.read()["media"]["vision_model"] == ""    # removed from storage on start
+    finally:
+        reopened.close()

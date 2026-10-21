@@ -53,6 +53,9 @@ def validate(config):
         raise UserError("Проверьте ограничения: размер 1–20 МБ, страниц PDF 1–50, сканов 0–5.")
     if config["vision_model"] and not re.fullmatch(r"[A-Za-z0-9_./:-]{1,160}", config["vision_model"]):
         raise UserError("Укажите корректный идентификатор модели для изображений.")
+    from .ai import looks_like_key
+    if looks_like_key(config["vision_model"]):
+        raise UserError("В поле модели для изображений вставлен API-ключ. Укажите идентификатор модели.")
 
 
 def _file_name(document):

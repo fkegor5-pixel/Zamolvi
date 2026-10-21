@@ -1,7 +1,5 @@
 package ru.replyai.android;
 
-import android.app.NotificationManager;
-import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
@@ -73,7 +71,6 @@ public final class NotificationReplyActivity extends FeatureActivity {
     }
 
     private boolean granted() {
-        NotificationManager nm = getSystemService(NotificationManager.class);
-        return nm != null && nm.isNotificationListenerAccessGranted(new ComponentName(this, NotificationReplyService.class));
+        return NotificationReplyService.granted(this);
     }
 }

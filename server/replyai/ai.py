@@ -41,6 +41,14 @@ def purpose(name, chat=None):
         _USAGE.reset(token)
 
 
+_KEY_LIKE = re.compile(r"(?<![A-Za-z0-9])(sk-|gsk_|AIza)[-_A-Za-z0-9]{12,}")
+
+
+def looks_like_key(value):
+    """An API key pasted into a model field: never sent as a model id or shown in errors."""
+    return bool(_KEY_LIKE.search(value or ""))
+
+
 class AiError(Exception):
     def __init__(self, message, retry_after=0, too_large=False):
         super().__init__(message)
@@ -57,6 +65,8 @@ def validate(config):
         raise UserError("Укажите API-ключ AI.")
     if not re.fullmatch(r"[A-Za-z0-9_./:-]{1,160}", config.get("model", "")):
         raise UserError("Укажите корректный идентификатор модели.")
+    if looks_like_key(config["model"]):
+        raise UserError("В поле модели вставлен API-ключ. Укажите идентификатор модели, а ключ — в поле ключа.")
     if config["provider"] == "custom":
         endpoint = config.get("endpoint", "")
         try:
@@ -346,7 +356,7 @@ class AiClient:
                     hint = {400: "Проверьте идентификатор модели и её возможности (например, приём изображений).",
                             404: "Модель не найдена или не поддерживает этот тип запроса (например, изображения)."}.get(
                         response.status_code, "Проверьте ключ, модель и доступность сервиса в регионе.")
-                    raise AiError(f"AI API вернул HTTP {response.status_code} (модель {body.get('model') or '—'}). "
+                    raise AiError(f"AI API вернул HTTP {response.status_code} (модель {_KEY_LIKE.sub('***', body.get('model') or '—')}). "
                                   + (f"Ответ провайдера: {reason}. " if reason else "") + hint)
                 data = bytearray()
                 async for chunk in response.aiter_bytes():
@@ -384,7 +394,7 @@ class AiClient:
         key = config.get("key") or ""
         if key and len(key) > 6:
             message = message.replace(key, "***")
-        message = re.sub(r"(sk|gsk|AIza)[-_A-Za-z0-9]{12,}", "***", message)
+        message = _KEY_LIKE.sub("***", message)
         return message[:200]
 
     @staticmethod

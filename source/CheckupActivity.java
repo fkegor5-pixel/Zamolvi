@@ -25,7 +25,7 @@ import org.json.JSONObject;
  */
 public final class CheckupActivity extends FeatureActivity {
     private static final int SAVE = 2915;
-    static final String MIN_SERVER = "3.1.0";
+    static final String MIN_SERVER = "3.1.1";
     private LinearLayout phone;
     private LinearLayout server;
     private final ArrayList<View> ownedPhone = new ArrayList<>();
@@ -147,6 +147,18 @@ public final class CheckupActivity extends FeatureActivity {
         row(phone, "widget", "Виджет на рабочем столе", widgets > 0 ? "ok" : "off",
                 widgets > 0 ? "Добавлено виджетов: " + widgets + "."
                         : "Не добавлен: долгое нажатие на рабочем столе → Виджеты → " + Brand.NAME + ".", null, null);
+
+        android.content.SharedPreferences np = getSharedPreferences(NotificationReplyService.PREFS, 0);
+        String last = np.getString(NotificationReplyService.LAST, "");
+        boolean listOk = !np.getString(NotificationReplyService.CHATS, "").trim().isEmpty();
+        boolean access = NotificationReplyService.granted(this);
+        boolean notifyOn = np.getBoolean(NotificationReplyService.ENABLED, false);
+        row(phone, "notification_reply", "Ответы из уведомлений",
+                !notifyOn ? "off" : access && listOk ? "ok" : "problem",
+                (!notifyOn ? "Выключено: «2. Telegram» → «Ответы из уведомлений»."
+                        : !access ? "Нет доступа к уведомлениям." : !listOk ? "Список чатов пуст — отвечать некому." : "Включено.")
+                        + (last.isEmpty() ? "" : "\nПоследнее: " + last),
+                "Открыть", () -> startActivity(new Intent(this, NotificationReplyActivity.class)));
     }
 
     private static final String[] AGGRESSIVE_VENDORS = {"Xiaomi", "Redmi", "POCO", "Huawei", "Honor", "OPPO", "realme",

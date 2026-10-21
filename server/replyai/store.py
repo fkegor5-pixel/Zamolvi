@@ -69,6 +69,9 @@ class Store:
                         s[key].setdefault(field, value)
                 for field in ('text_model', 'document_model'):  # per-type models of 2.9.6, removed
                     s['media'].pop(field, None)
+                from .ai import looks_like_key
+                if looks_like_key(s['media'].get('vision_model')):  # a key pasted as a model id
+                    s['media']['vision_model'] = ''
                 stats.ensure(s, time.time())
             self.update(migrate)
         except BaseException:

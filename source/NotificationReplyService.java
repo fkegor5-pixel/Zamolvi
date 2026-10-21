@@ -122,6 +122,12 @@ public final class NotificationReplyService extends NotificationListenerService 
                         .format(new java.util.Date()) + " · " + result).apply();
     }
 
+    static boolean granted(android.content.Context c) {
+        android.app.NotificationManager nm = c.getSystemService(android.app.NotificationManager.class);
+        return nm != null && nm.isNotificationListenerAccessGranted(
+                new android.content.ComponentName(c, NotificationReplyService.class));
+    }
+
     static boolean isTelegram(String pkg) {
         for (String name : TELEGRAM) if (name.equals(pkg)) return true;
         return false;
