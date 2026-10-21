@@ -1083,5 +1083,8 @@
  "Срочное — отвечаю сам": "Acil — kendim yanıtlarım",
  "Слова по одному в строке. Если они есть в сообщении, бот молчит, а вам приходит громкое уведомление «Ответьте сами», которое открывает мессенджер. Пример: срочно, деньги, позвони.": "Satır başına bir sözcük. Bir mesajda geçerlerse bot susar, siz de uygulamayı açan sesli «Kendiniz yanıtlayın» bildirimi alırsınız. Örnek: acil, para, ara.",
  "срочно": "acil",
- "Лимит — целое число, 0 без лимита.": "Sınır bir tam sayıdır, 0 sınırsız demektir."
+ "Лимит — целое число, 0 без лимита.": "Sınır bir tam sayıdır, 0 sınırsız demektir.",
+ "Настройка": "Kurulum",
+ "Данные и память": "Veriler ve hafıza",
+ "Статистика и проверка": "İstatistik ve denetim"
 }

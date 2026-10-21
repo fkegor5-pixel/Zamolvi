@@ -1083,5 +1083,8 @@
  "Срочное — отвечаю сам": "Urgente: respondo yo",
  "Слова по одному в строке. Если они есть в сообщении, бот молчит, а вам приходит громкое уведомление «Ответьте сами», которое открывает мессенджер. Пример: срочно, деньги, позвони.": "Una palabra por línea. Si aparecen en un mensaje, el bot calla y recibes una notificación sonora «Responde tú» que abre la aplicación. Ejemplo: urgente, dinero, llama.",
  "срочно": "urgente",
- "Лимит — целое число, 0 без лимита.": "El límite es un número entero, 0 para sin límite."
+ "Лимит — целое число, 0 без лимита.": "El límite es un número entero, 0 para sin límite.",
+ "Настройка": "Configuración",
+ "Данные и память": "Datos y memoria",
+ "Статистика и проверка": "Estadísticas y comprobación"
 }

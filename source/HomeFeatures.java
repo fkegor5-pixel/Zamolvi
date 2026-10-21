@@ -108,7 +108,10 @@ public final class HomeFeatures {
             if (first == lastFirstChild && count == lastChildCount) return;
             install(activity, content);
             addSectionEntries(activity, content);
-            if (isHome(content)) colorMenu(activity, content);
+            if (isHome(content)) {
+                colorMenu(activity, content);
+                group(activity, content);
+            }
             long now = SystemClock.elapsedRealtime();
             if (count != lastRawCount && now - revealedAt > 800) { // a different screen: the content glides in
                 Ui.reveal(content);
@@ -381,6 +384,114 @@ public final class HomeFeatures {
         return button;
     }
 
+    private static final String GROUP_TAG = "replyai.menu.group.v1";
+    private static final String HEAD_TAG = "replyai.menu.head.v1";
+    private static final String OPEN_PREF = "menu_open";
+    private static final int FOLD_FROM = 12; // fold only a complete menu, never one still being built
+    /** Folded main menu: group title, then the numbers of the entries inside it. */
+    private static final String[][] GROUPS = {
+            {"Настройка", "1.", "2.", "9."},
+            {"Ответы", "3.", "4.", "5.", "13."},
+            {"Данные и память", "10.", "11.", "12."},
+            {"Статистика и проверка", "6.", "7.", "8.", "14.", "15."},
+    };
+
+    /** The 15 entries are folded into four groups; one is open at a time and the choice is remembered. */
+    private static void group(Activity a, ViewGroup menu) {
+        if (menu.findViewWithTag(HEAD_TAG + "0") != null) return; // already folded
+        java.util.List<Button> rows = new java.util.ArrayList<>();
+        for (int i = 0; i < menu.getChildCount(); i++) {
+            View child = menu.getChildAt(i);
+            if (child instanceof Button && number(((Button) child).getText()) != null) rows.add((Button) child);
+        }
+        if (rows.size() < FOLD_FROM) return;
+        int at = menu.indexOfChild(rows.get(0));
+        for (Button row : rows) menu.removeView(row);
+        int open = a.getSharedPreferences("replyai_features", 0).getInt(OPEN_PREF, -1);
+        java.util.List<Button> placed = new java.util.ArrayList<>();
+        int cursor = at;
+        for (int g = 0; g < GROUPS.length; g++) {
+            LinearLayout box = new LinearLayout(a);
+            box.setOrientation(LinearLayout.VERTICAL);
+            box.setTag(GROUP_TAG + g);
+            for (int k = 1; k < GROUPS[g].length; k++) {
+                for (Button row : rows) {
+                    if (!GROUPS[g][k].equals(number(row.getText())) || placed.contains(row)) continue;
+                    placed.add(row);
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+                    lp.topMargin = dp(a, 8);
+                    box.addView(row, lp);
+                }
+            }
+            if (box.getChildCount() == 0) continue;
+            box.setVisibility(g == open ? View.VISIBLE : View.GONE);
+            final int index = g;
+            Button head = head(a, g);
+            label(a, head, g, box.getChildCount(), g == open);
+            head.setOnClickListener(v -> toggle(a, menu, index));
+            LinearLayout.LayoutParams hp = new LinearLayout.LayoutParams(-1, -2);
+            hp.topMargin = dp(a, 11);
+            menu.addView(head, cursor++, hp);
+            menu.addView(box, cursor++, new LinearLayout.LayoutParams(-1, -2));
+        }
+        // An entry of a newer version that no group knows about stays visible below the groups.
+        for (Button row : rows) {
+            if (placed.contains(row)) continue;
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+            lp.topMargin = dp(a, 11);
+            menu.addView(row, cursor++, lp);
+        }
+        Ui.smooth(menu);
+    }
+
+    private static void toggle(Activity a, ViewGroup menu, int index) {
+        android.content.SharedPreferences p = a.getSharedPreferences("replyai_features", 0);
+        int now = p.getInt(OPEN_PREF, -1) == index ? -1 : index;
+        p.edit().putInt(OPEN_PREF, now).apply();
+        for (int g = 0; g < GROUPS.length; g++) {
+            View box = menu.findViewWithTag(GROUP_TAG + g);
+            View head = menu.findViewWithTag(HEAD_TAG + g);
+            if (box == null || !(head instanceof Button)) continue;
+            box.setVisibility(g == now ? View.VISIBLE : View.GONE);
+            label(a, (Button) head, g, ((ViewGroup) box).getChildCount(), g == now);
+        }
+    }
+
+    /** «Ответы · 4   ▾» — already translated, so the branding pass leaves it alone. */
+    private static void label(Activity a, Button head, int group, int count, boolean open) {
+        head.setText(I18n.t(a, GROUPS[group][0]) + " · " + count + (open ? "   ▾" : "   ▸"));
+    }
+
+    private static Button head(Activity a, int group) {
+        ThemeManager.Palette colors = ThemeManager.colors(a);
+        int accent = Ui.accent(group);
+        Button head = new Button(a);
+        head.setTag(HEAD_TAG + group);
+        head.setAllCaps(false);
+        head.setTextSize(17);
+        head.setTextColor(colors.ink);
+        head.setTypeface(null, android.graphics.Typeface.BOLD);
+        head.setGravity(android.view.Gravity.START | android.view.Gravity.CENTER_VERTICAL);
+        head.setMinHeight(dp(a, 56));
+        head.setPadding(dp(a, 18), dp(a, 10), dp(a, 14), dp(a, 10));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(Ui.mix(colors.card, accent, 0.18f));
+        bg.setCornerRadius(dp(a, 18));
+        bg.setStroke(dp(a, 2), Ui.alpha(accent, 0xC0));
+        head.setBackground(new RippleDrawable(ColorStateList.valueOf(Ui.alpha(accent, 0x44)), bg, null));
+        head.setStateListAnimator(null);
+        Ui.press(head);
+        return head;
+    }
+
+    /** Leading «12.» of a menu entry, null for any other button; the number stays in every language. */
+    private static String number(CharSequence value) {
+        if (value == null) return null;
+        int i = 0;
+        while (i < value.length() && Character.isDigit(value.charAt(i))) i++;
+        return i > 0 && i < value.length() && value.charAt(i) == '.' ? value.subSequence(0, i + 1).toString() : null;
+    }
+
     /** Menu rows get their own color: a tinted card, an accent outline and a dot, instead of one gray list. */
     private static void colorMenu(Activity a, ViewGroup menu) {
         ThemeManager.Palette colors = ThemeManager.colors(a);
@@ -388,6 +499,7 @@ public final class HomeFeatures {
         for (int i = 0; i < menu.getChildCount(); i++) {
             if (!(menu.getChildAt(i) instanceof Button)) continue;
             Button row = (Button) menu.getChildAt(i);
+            if (row.getTag() instanceof String && ((String) row.getTag()).startsWith(HEAD_TAG)) continue;
             int accent = Ui.accent(tone++);
             GradientDrawable card = new GradientDrawable();
             card.setColor(Ui.mix(colors.card, accent, 0.10f));

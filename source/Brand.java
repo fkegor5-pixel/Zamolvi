@@ -19,7 +19,7 @@ import java.util.WeakHashMap;
  */
 public final class Brand {
     public static final String NAME = "Zamolvi";
-    public static final String VERSION = "3.5";
+    public static final String VERSION = "3.5.1";
     public static final String AUTHOR = "@stytam";
     public static final String VERSION_LABEL = NAME + " " + VERSION + " · " + AUTHOR;
     static final String FORMER = "Reply AI";
@@ -70,11 +70,34 @@ public final class Brand {
     private static final WeakHashMap<View, String> done = new WeakHashMap<>();
     private static final WeakHashMap<View, Boolean> pressable = new WeakHashMap<>();
 
-    /** Name, device wording and interface language for one text; spans (styled menu entries) are kept. */
+    /** Name, device wording and interface language for one text; styles of menu entries are kept. */
     static CharSequence localize(android.content.Context c, CharSequence value) {
         CharSequence named = text(value);
-        if (named instanceof android.text.Spanned) return named;
+        if (named instanceof android.text.Spanned) return styled(c, (android.text.Spanned) named);
         return I18n.t(c, named);
+    }
+
+    /**
+     * A styled text, translated line by line with its spans moved to the matching new lines.
+     * The menu entries of the original screens are built this way: a bold title and a smaller,
+     * muted subtitle, so translating the whole text at once would drop the styles.
+     */
+    private static CharSequence styled(android.content.Context c, android.text.Spanned source) {
+        String[] lines = source.toString().split("\n", -1);
+        String[] out = new String[lines.length];
+        boolean changed = false;
+        for (int i = 0; i < lines.length; i++) {
+            out[i] = I18n.t(c, lines[i]);
+            if (!out[i].equals(lines[i])) changed = true;
+        }
+        if (!changed) return source;
+        android.text.SpannableString result = new android.text.SpannableString(String.join("\n", out));
+        for (Object span : source.getSpans(0, source.length(), Object.class)) {
+            int start = I18n.remap(source.getSpanStart(span), lines, out);
+            int end = I18n.remap(source.getSpanEnd(span), lines, out);
+            if (start < end) result.setSpan(span, start, end, source.getSpanFlags(span));
+        }
+        return result;
     }
 
     /** Rewrites texts and hints of the view tree. User input in edit fields is never touched. */

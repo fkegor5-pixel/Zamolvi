@@ -116,6 +116,24 @@ public final class I18n {
         return value == null ? null : t(c, (CharSequence) value).toString();
     }
 
+    /**
+     * Where an offset of the original text lands after every line was translated on its own.
+     * Used to put the styles of a menu entry («title\nsubtitle») back on the translated lines.
+     */
+    static int remap(int offset, String[] lines, String[] out) {
+        int from = 0, to = 0;
+        for (int i = 0; i < lines.length; i++) {
+            int end = from + lines[i].length();
+            if (offset <= end) {
+                int within = offset - from;
+                return to + (within >= lines[i].length() ? out[i].length() : Math.min(within, out[i].length()));
+            }
+            from = end + 1;
+            to += out[i].length() + 1;
+        }
+        return Math.max(0, to - 1); // past the end of the text
+    }
+
     private static boolean letter(char ch) {
         return Character.isLetterOrDigit(ch);
     }
