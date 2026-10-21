@@ -12,12 +12,19 @@ jobs:
   server:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - name: Install dependencies
         run: |
           pip install -r server/requirements.txt -r server/requirements-media.txt -r requirements-dev.txt
       - name: Run tests
-        run: pytest -q
+        run: |
+          set -o pipefail
+          pytest -q -rfE 2>&1 | tee pytest.log
+      - name: Show the failure in the run summary
+        if: failure()
+        run: |
+          # Annotations are visible without downloading the log.
+          tail -n 80 pytest.log | python3 -c "import sys; print('::error title=pytest::' + sys.stdin.read().replace('%','%25').replace('\\r','').replace('\\n','%0A'))"
