@@ -5,6 +5,7 @@ from replyai import online
 PAGE_SPACE = ("<html><script>var space = 1;</script><body>Arizona (Staging) 0 / 2000 "
               "<table><tr><td>Space</td><td>840 / 1000</td></tr></table></body></html>")
 PAGE_WED = "<p>Wednesday 12 / 500</p>"
+EXC_JSON = '{"mode":"live","online":true,"players":99,"max_players":1000,"hostname":"Exsellent Role Play"}'
 
 
 def fake(pages):
@@ -38,16 +39,16 @@ def test_count_is_the_one_next_to_the_name():
 
 def test_report_lists_each_server():
     online._cache.clear()
-    result = online.report(fetcher=fake({online.SITES[0][1]: PAGE_SPACE, online.SITES[1][1]: PAGE_WED}),
+    result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.SITES[0][1]: PAGE_SPACE, online.SITES[1][1]: PAGE_WED}),
                            clock=lambda: 1000.0)
-    assert result == "Space - 840\nWednesday - 12"
+    assert result == "Excellent - 99\nSpace - 840\nWednesday - 12"
 
 
 def test_report_says_no_data_when_site_fails():
     online._cache.clear()
     def broken(url):
         raise OSError("timeout")
-    assert online.report(fetcher=broken, clock=lambda: 2000.0) == "Space - нет данных\nWednesday - нет данных"
+    assert online.report(fetcher=broken, clock=lambda: 2000.0) == "Excellent - нет данных\nSpace - нет данных\nWednesday - нет данных"
 
 
 def test_context_empty_without_space_question_and_no_fetch():
@@ -80,3 +81,9 @@ def test_context_gives_the_count_to_the_model():
     block = online.context("сколько онлайн на space", fetcher=fake({online.SITES[0][1]: PAGE_SPACE}),
                            clock=lambda: 9000.0)
     assert "840 / 1000" in block
+
+
+def test_excellent_with_broken_json_says_no_data():
+    online._cache.clear()
+    pages = {online.EXCELLENT: "<html>maintenance</html>", online.SITES[0][1]: PAGE_SPACE, online.SITES[1][1]: PAGE_WED}
+    assert online.report(fetcher=fake(pages), clock=lambda: 3000.0).splitlines()[0] == "Excellent - нет данных"
