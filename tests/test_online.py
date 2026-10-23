@@ -144,3 +144,11 @@ def test_api_hidden_games_fall_back_to_the_profile_page():
     pages[online.STEAM[0][1]] = STEAM_RU
     assert online.cs_hours(fetcher=fake(pages), clock=lambda: 6000.0, key="K").splitlines() == \
         ["sethome43 - 5 864 ч.", "neurax716 - нет данных", "necroa716 - нет данных"]
+
+
+def test_demob_counts_down_and_passes_the_gate():
+    assert online.addressed("Дембель") == "Дембель"
+    end = online.DEMOB_AT.timestamp()
+    left = 2 * 7 * 86400 + 3 * 86400 + 4 * 3600 + 5 * 60 + 6
+    assert online.answer("дембель", clock=lambda: end - left) == "Недель: 2. Дней: 3. Часов: 4. Минут: 5. Секунд: 6"
+    assert online.answer("дембель!", clock=lambda: end + 1) == "Дембель уже наступил!"
