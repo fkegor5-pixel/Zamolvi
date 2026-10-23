@@ -1,59 +1,82 @@
-"""Live «space» player count: only on request, cached, and the page is data, not instructions."""
+"""«бот …» gate, the «онлайн» command and the arzdata counts: only the count next to the server name counts."""
 from replyai import online
 
 
-PAGE = """<html><head><script>var space = 1;</script></head><body>
-<table><tr><td>Arizona RP</td><td>32</td><td>Space</td><td>840 / 1000</td></tr></table>
-<p>Обновлено 11:36:02</p></body></html>"""
+PAGE_SPACE = ("<html><script>var space = 1;</script><body>Arizona (Staging) 0 / 2000 "
+              "<table><tr><td>Space</td><td>840 / 1000</td></tr></table></body></html>")
+PAGE_WED = "<p>Wednesday 12 / 500</p>"
 
 
-def test_asks_about_space_only_with_a_count_question():
-    assert online.wanted("Сколько онлайн на space?")
-    assert online.wanted("сколько человек на сервере Space")
-    assert not online.wanted("Привет, как дела?")          # no server named
-    assert not online.wanted("space — хорошее слово")      # no question about the count
+def fake(pages):
+    def fetcher(url):
+        if url not in pages:
+            raise OSError("no route")
+        return pages[url]
+    return fetcher
 
 
-def test_excerpt_drops_scripts_and_tags_and_keeps_the_count():
-    text = online.excerpt(PAGE)
-    assert "840 / 1000" in text
+def test_only_bot_or_command_gets_an_answer():
+    assert online.addressed("бот сколько онлайн на space") == "сколько онлайн на space"
+    assert online.addressed("Бот, онлайн") == "онлайн"
+    assert online.addressed("онлайн") == "онлайн"
+    assert online.addressed("привет") is None
+    assert online.addressed("ботинки лучше") is None   # «бот» must be a whole word
+    assert online.addressed("робот, онлайн") is None
+    assert online.addressed("") is None
+
+
+def test_command_is_only_the_word_online():
+    assert online.is_command("онлайн!")
+    assert not online.is_command("онлайн space")
+
+
+def test_count_is_the_one_next_to_the_name():
+    text = online.plain(PAGE_SPACE)
+    assert online.count(text, "Space") == "840"
     assert "var space" not in text
-    assert "<" not in text
 
 
-def test_excerpt_none_without_space():
-    assert online.excerpt("<p>Нет данных</p>") is None
+def test_report_lists_each_server():
+    online._cache.clear()
+    result = online.report(fetcher=fake({online.SITES[0][1]: PAGE_SPACE, online.SITES[1][1]: PAGE_WED}),
+                           clock=lambda: 1000.0)
+    assert result == "Space - 840\nWednesday - 12"
 
 
-def test_context_empty_for_other_messages():
+def test_report_says_no_data_when_site_fails():
+    online._cache.clear()
+    def broken(url):
+        raise OSError("timeout")
+    assert online.report(fetcher=broken, clock=lambda: 2000.0) == "Space - нет данных\nWednesday - нет данных"
+
+
+def test_context_empty_without_space_question_and_no_fetch():
     calls = []
-    assert online.context("Привет", fetcher=lambda: calls.append(1) or PAGE) == ""
-    assert calls == []  # nothing fetched for an ordinary message
+    assert online.context("Привет", fetcher=lambda u: calls.append(u) or PAGE_SPACE) == ""
+    assert calls == []
 
 
-def test_context_gives_data_and_caches_it():
+def test_page_is_cached_for_a_minute():
     calls = []
 
-    def fetcher():
-        calls.append(1)
-        return PAGE
+    def fetcher(url):
+        calls.append(url)
+        return PAGE_SPACE
 
-    now = [1000.0]
+    now = [5000.0]
     clock = lambda: now[0]
-    first = online.context("сколько онлайн на space", fetcher=fetcher, clock=clock)
-    assert "840 / 1000" in first
+    online._cache.clear()
+    online.page(online.SITES[0][1], fetcher, clock)
     now[0] += 30
-    online.context("онлайн space", fetcher=fetcher, clock=clock)
-    assert len(calls) == 1  # second request within a minute reuses the cache
+    online.page(online.SITES[0][1], fetcher, clock)
+    assert len(calls) == 1
     now[0] += 120
-    online.context("онлайн space", fetcher=fetcher, clock=clock)
+    online.page(online.SITES[0][1], fetcher, clock)
     assert len(calls) == 2
 
 
-def test_context_says_unavailable_when_site_fails():
-    def broken():
-        raise OSError("timeout")
-
-    block = online.context("онлайн space", fetcher=broken, clock=lambda: 5000.0)
-    assert "НЕДОСТУПНЫ" in block
-    assert "не называй никаких цифр" in block
+def test_context_gives_the_count_to_the_model():
+    online._cache.clear()
+    block = online.context("сколько онлайн на space", fetcher=fake({online.SITES[0][1]: PAGE_SPACE}),
+                           clock=lambda: 9000.0)
+    assert "840 / 1000" in block
