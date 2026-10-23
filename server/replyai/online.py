@@ -4,10 +4,12 @@ Pages are fetched by the server and reduced to text. Only the text around a serv
 and the count is the «N / M» nearest to that name. The model never fetches anything itself.
 """
 import html
+import json
 import re
 import time
 import urllib.request
 
+EXCELLENT = "https://exsellentrp.com/api/server/status"  # JSON with "players"
 SITES = (("Space", "https://arzdata.com/online?q=Space"),
          ("Wednesday", "https://arzdata.com/online?q=Wednesday"))
 TIMEOUT = 10
@@ -106,7 +108,12 @@ def page(url, fetcher=fetch, clock=time.time):
 
 def report(fetcher=fetch, clock=time.time):
     """The answer to «онлайн»: one line per server."""
-    lines = []
+    data = page(EXCELLENT, fetcher, clock)
+    try:
+        players = json.loads(data)["players"] if data else None
+    except (ValueError, KeyError, TypeError):
+        players = None
+    lines = [f"Excellent - {players if isinstance(players, int) else 'нет данных'}"]
     for name, url in SITES:
         text = page(url, fetcher, clock)
         number = count(text, name) if text else None
