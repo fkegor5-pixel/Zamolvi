@@ -530,6 +530,10 @@ class Engine:
         self.remember_message(event, sender)
         if text.startswith(PREFIX):
             return
+        body = online.addressed(text)
+        if body is None:  # only «бот …» and «онлайн» get an answer
+            return
+        text = body
         if getattr(message, 'voice', None):
             try:
                 self.enqueue_voice(chat, event.id, message, event.date.timestamp())
@@ -902,6 +906,8 @@ class Engine:
             return
         try:
             answer = job.get('answer')
+            if not answer and online.is_command(job['text']):
+                answer = await asyncio.to_thread(online.report)
             if not answer:
                 self.metric(ai_calls=1)
                 started = time.perf_counter()
