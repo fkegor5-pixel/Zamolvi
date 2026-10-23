@@ -533,7 +533,6 @@ class Engine:
         body = online.addressed(text)
         if body is None:  # only «бот …» and «онлайн» get an answer
             return
-        text = body
         if getattr(message, 'voice', None):
             try:
                 self.enqueue_voice(chat, event.id, message, event.date.timestamp())
@@ -548,8 +547,8 @@ class Engine:
             # The file itself is skipped; a caption is still answered as ordinary text.
             self.error_metric('media', chat)
             self.feature_event('media', str(exc))
-        if not handled and text:
-            self.enqueue(chat, event.id, text, event.date.timestamp())
+        if not handled and body:
+            self.enqueue(chat, event.id, body, event.date.timestamp(), original=text)
 
     def remember_message(self, event, sender=None, edited=False):
         state = self.store.read()
@@ -604,11 +603,13 @@ class Engine:
             return result
         return self.store.update(edit)
 
-    def enqueue(self, chat, message_id, text, timestamp):
+    def enqueue(self, chat, message_id, text, timestamp, original=None):
         text = text[:4000]
         if not text.strip():
             return False
-        return self._enqueue_part(chat, {'id': message_id, 'kind': 'text', 'text': text, 'original': text}, timestamp)
+        # original is the message as Telegram has it (with «бот»): it is compared before sending
+        original = text if original is None else original[:4000]
+        return self._enqueue_part(chat, {'id': message_id, 'kind': 'text', 'text': text, 'original': original}, timestamp)
 
     def enqueue_voice(self, chat, message_id, message, timestamp):
         state = self.store.read()
@@ -725,7 +726,7 @@ class Engine:
                 transcript = await self.voice.transcribe(config, key_for(config, state['ai']), audio.getvalue(), part['mime'])
             if not self.work_allowed(job):
                 raise VoiceCancelled()
-            part['text'] = '\n'.join(x for x in (part.get('original', ''), transcript) if x)[:queueing.MAX_INPUT]
+            part['text'] = '\n'.join(x for x in (online.without_bot(part.get('original', '')), transcript) if x)[:queueing.MAX_INPUT]
             part['transcribed'] = True
             def save(s):
                 for stored in s['queue']:
@@ -780,7 +781,7 @@ class Engine:
                 text = media.failure_text(part, str(exc).rstrip('.'))
         if not self.work_allowed(job):
             raise VoiceCancelled()
-        part['text'] = '\n'.join(x for x in (part.get('original', ''), text) if x)[:queueing.MAX_INPUT]
+        part['text'] = '\n'.join(x for x in (online.without_bot(part.get('original', '')), text) if x)[:queueing.MAX_INPUT]
         part['extracted'] = True
         counter = 'photos' if part['media'] in ('photo', 'image') else 'documents'
         def save(s):
