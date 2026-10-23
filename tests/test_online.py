@@ -101,17 +101,46 @@ def test_hours_command_passes_the_gate_and_reads_each_profile():
     assert online.is_command("часы в кс!")
     online._cache.clear()
     pages = {online.STEAM[0][1]: STEAM_RU, online.STEAM[1][1]: STEAM_EN}
-    assert online.answer("часы в кс", fetcher=fake(pages), clock=lambda: 4000.0) == \
-        "sethome43 - 5 864 ч.\nneurax716 - 1,234.5 ч."
+    assert online.cs_hours(fetcher=fake(pages), clock=lambda: 4000.0, key="") == \
+        "sethome43 - 5 864 ч.\nneurax716 - 1,234.5 ч.\nnecroa716 - нет данных"
 
 
 def test_hours_missing_when_cs2_is_not_on_the_profile():
     online._cache.clear()
     pages = {online.STEAM[0][1]: "<div>Dota 2 10 hrs on record</div>", online.STEAM[1][1]: STEAM_RU}
-    assert online.answer("часы в кс", fetcher=fake(pages), clock=lambda: 4100.0).splitlines()[0] == "sethome43 - нет данных"
+    assert online.cs_hours(fetcher=fake(pages), clock=lambda: 4100.0, key="").splitlines()[0] == "sethome43 - нет данных"
 
 
 def test_online_command_still_lists_servers():
     online._cache.clear()
     pages = {online.EXCELLENT: EXC_JSON, online.SITES[0][1]: PAGE_SPACE, online.SITES[1][1]: PAGE_WED}
     assert online.answer("онлайн", fetcher=fake(pages), clock=lambda: 4200.0).startswith("Excellent - 99")
+
+
+def api_pages(key, name, steamid, games):
+    import json
+    resolve = f"{online.STEAM_API}/ISteamUser/ResolveVanityURL/v1/?key={key}&vanityurl={name}"
+    owned = (f"{online.STEAM_API}/IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}"
+             f"&include_played_free_games=1&appids_filter%5B0%5D=730")
+    return {resolve: json.dumps({"response": {"steamid": steamid, "success": 1}}),
+            owned: json.dumps({"response": {"game_count": len(games), "games": games}})}
+
+
+def test_api_gives_total_hours_for_every_account():
+    online._cache.clear()
+    pages = {}
+    pages.update(api_pages("K", "sethome43", "1", [{"appid": 730, "playtime_forever": 351840}]))
+    pages.update(api_pages("K", "neurax716", "2", [{"appid": 730, "playtime_forever": 59}]))
+    pages.update(api_pages("K", "necroa716", "3", [{"appid": 730, "playtime_forever": 125 * 60}]))
+    assert online.cs_hours(fetcher=fake(pages), clock=lambda: 5000.0, key="K") == \
+        "sethome43 - 5 864 ч.\nneurax716 - 0 ч.\nnecroa716 - 125 ч."
+
+
+def test_api_hidden_games_fall_back_to_the_profile_page():
+    online._cache.clear()
+    pages = {}
+    for i, (name, _) in enumerate(online.STEAM):
+        pages.update(api_pages("K", name, str(i), []))  # games hidden: the API returns no games
+    pages[online.STEAM[0][1]] = STEAM_RU
+    assert online.cs_hours(fetcher=fake(pages), clock=lambda: 6000.0, key="K").splitlines() == \
+        ["sethome43 - 5 864 ч.", "neurax716 - нет данных", "necroa716 - нет данных"]
