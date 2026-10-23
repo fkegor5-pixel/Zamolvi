@@ -9,6 +9,7 @@ import os
 import re
 import time
 import urllib.request
+from datetime import datetime, timedelta, timezone
 
 EXCELLENT = "https://exsellentrp.com/api/server/status"  # JSON with "players"
 SITES = (("Space", "https://arzdata.com/online?q=Space"),
@@ -23,6 +24,8 @@ NEAR = 300         # how far from the name a «N / M» count may be
 WANTS_COUNT = re.compile(r"онлайн|онлайна|сколько|игрок|человек", re.IGNORECASE)
 BOT = re.compile(r"^\s*бот\b[\s,:.!-]*", re.IGNORECASE)   # the owner's bot answers only «бот …»
 COMMAND = re.compile(r"^онлайн[.!?\s]*$", re.IGNORECASE)
+DEMOB_COMMAND = re.compile(r"^дембель[.!?\s]*$", re.IGNORECASE)
+DEMOB_AT = datetime(2026, 11, 15, tzinfo=timezone(timedelta(hours=3)))  # 15.11.2026 00:00 по Москве
 HOURS_COMMAND = re.compile(r"^часы\s+в\s+кс[.!?\s]*$", re.IGNORECASE)
 # a whole number like «5 864», «5,864» or «1 234,5», so the «31» of «0 из 31 5 864» stays apart
 HOURS = re.compile(r"(\d{1,3}(?:[ \u00a0,]\d{3})*(?:[.,]\d+)?)\s*(?:ч\.\s*всего|hrs on record)", re.IGNORECASE)
@@ -58,11 +61,13 @@ def without_bot(text):
 
 
 def is_command(text):
-    return bool(COMMAND.match(text or "") or HOURS_COMMAND.match(text or ""))
+    return any(c.match(text or "") for c in (COMMAND, HOURS_COMMAND, DEMOB_COMMAND))
 
 
 def answer(text, fetcher=None, clock=time.time):
-    """The fixed answer to a command: «часы в кс» or «онлайн»."""
+    """The fixed answer to a command: «дембель», «часы в кс» or «онлайн»."""
+    if DEMOB_COMMAND.match(text or ""):
+        return demob(clock)
     fetcher = fetcher or fetch
     return cs_hours(fetcher, clock) if HOURS_COMMAND.match(text or "") else report(fetcher, clock)
 
@@ -196,3 +201,15 @@ def cs_hours(fetcher=fetch, clock=time.time, key=None):
             value = hours(text) if text else None
         lines.append(f"{name} - {value + ' ч.' if value else 'нет данных'}")
     return "\n".join(lines)
+
+
+def demob(clock=time.time):
+    """The answer to «дембель»: time left until DEMOB_AT."""
+    left = int(DEMOB_AT.timestamp() - clock())
+    if left <= 0:
+        return "Дембель уже наступил!"
+    weeks, left = divmod(left, 7 * 86400)
+    days, left = divmod(left, 86400)
+    hours, left = divmod(left, 3600)
+    minutes, seconds = divmod(left, 60)
+    return f"Недель: {weeks}. Дней: {days}. Часов: {hours}. Минут: {minutes}. Секунд: {seconds}"
