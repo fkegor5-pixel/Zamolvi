@@ -908,7 +908,7 @@ class Engine:
         try:
             answer = job.get('answer')
             if not answer and online.is_command(job['text']):
-                answer = await asyncio.to_thread(online.report)
+                answer = await asyncio.to_thread(online.answer, job['text'])
             if not answer:
                 self.metric(ai_calls=1)
                 started = time.perf_counter()
