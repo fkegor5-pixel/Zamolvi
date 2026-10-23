@@ -14,7 +14,7 @@ from .ai import AiClient, AiError, PREFIX, validate, purpose as ai_purpose
 from .diagnostics import Diagnostics
 from .qr import QrLogin
 from .formatting import render, MODES
-from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style
+from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style, online
 from .media import MediaError
 import importlib.util
 
@@ -909,6 +909,9 @@ class Engine:
                 remembered = memory.context(s, job['chat'])
                 if remembered:
                     config = dict(config, prompt=config['prompt'] + '\n\n' + remembered)
+                live = await asyncio.to_thread(online.context, job['text'])
+                if live:
+                    config = dict(config, prompt=config['prompt'] + '\n\n' + live)
                 with ai_purpose('reply', job['chat']):
                     answer = style.finish(s.get('style', ''), await self.ai.answer(config, job['text'], s['history'].get(job['chat'], [])))
                 self.metric(ai_success=1, ai_ms=(time.perf_counter() - started) * 1000)
