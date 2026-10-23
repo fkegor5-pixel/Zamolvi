@@ -5,6 +5,7 @@ and the count is the «N / M» nearest to that name. The model never fetches any
 """
 import html
 import json
+import os
 import re
 import time
 import urllib.request
@@ -28,7 +29,13 @@ HOURS = re.compile(r"(\d{1,3}(?:[ \u00a0,]\d{3})*(?:[.,]\d+)?)\s*(?:ч\.\s*вс�
 CS2 = "Counter-Strike 2"
 # shortcut: Steam shows the hours only under «Недавняя активность», i.e. if CS2 was played in the last 2 weeks
 STEAM = (("sethome43", "https://steamcommunity.com/id/sethome43/?l=russian"),
-         ("neurax716", "https://steamcommunity.com/id/neurax716/?l=russian"))
+         ("neurax716", "https://steamcommunity.com/id/neurax716/?l=russian"),
+         ("necroa716", "https://steamcommunity.com/id/necroa716/?l=russian"))
+# With this key (on the server only) the total CS2 time comes from the official Steam Web API, without
+# the 2-week limit of the profile page. https://steamcommunity.com/dev/apikey
+STEAM_KEY_ENV = "STEAM_API_KEY"
+STEAM_API = "https://api.steampowered.com"
+CS2_APP = 730
 COUNT = re.compile(r"(\d[\d ]*)\s*/\s*\d+")
 TAGS = re.compile(r"<(script|style)\b.*?</\1>|<[^>]+>", re.IGNORECASE | re.DOTALL)
 
@@ -163,11 +170,29 @@ def hours(text):
     return None
 
 
-def cs_hours(fetcher=fetch, clock=time.time):
+def api_hours(name, key, fetcher=fetch, clock=time.time):
+    """Total CS2 hours from the Steam Web API; None when the account, its games or the key are unavailable."""
+    try:
+        found = json.loads(page(f"{STEAM_API}/ISteamUser/ResolveVanityURL/v1/?key={key}&vanityurl={name}",
+                                fetcher, clock))["response"]
+        steamid = found["steamid"]
+        owned = json.loads(page(f"{STEAM_API}/IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}"
+                                f"&include_played_free_games=1&appids_filter%5B0%5D={CS2_APP}", fetcher, clock))
+        games = owned["response"].get("games", [])
+    except (TypeError, ValueError, KeyError):  # page() gave None, not JSON, or no such field
+        return None
+    minutes = next((g.get("playtime_forever") for g in games if g.get("appid") == CS2_APP), None)
+    return None if minutes is None else f"{minutes // 60:,}".replace(",", " ")
+
+
+def cs_hours(fetcher=fetch, clock=time.time, key=None):
     """The answer to «часы в кс»: one line per Steam profile."""
+    key = (os.environ.get(STEAM_KEY_ENV, "") if key is None else key).strip()
     lines = []
     for name, url in STEAM:
-        text = page(url, fetcher, clock)
-        value = hours(text) if text else None
+        value = api_hours(name, key, fetcher, clock) if key else None
+        if value is None:
+            text = page(url, fetcher, clock)
+            value = hours(text) if text else None
         lines.append(f"{name} - {value + ' ч.' if value else 'нет данных'}")
     return "\n".join(lines)
