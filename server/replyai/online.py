@@ -37,6 +37,7 @@ STEAM = (("sethome43", "https://steamcommunity.com/id/sethome43/?l=russian"),
 # With this key (on the server only) the total CS2 time comes from the official Steam Web API, without
 # the 2-week limit of the profile page. https://steamcommunity.com/dev/apikey
 STEAM_KEY_ENV = "STEAM_API_KEY"
+COMMANDS_ENV = "ZAMOLVI_COMMANDS"
 STEAM_API = "https://api.steampowered.com"
 CS2_APP = 730
 COUNT = re.compile(r"(\d[\d ]*)\s*/\s*\d+")
@@ -60,8 +61,13 @@ def without_bot(text):
     return text[match.end():] if match else text
 
 
+def enabled():
+    """The owner's commands work only on a server with ZAMOLVI_COMMANDS=1, not in other installations."""
+    return os.environ.get(COMMANDS_ENV, "").strip() == "1"
+
+
 def is_command(text):
-    return any(c.match(text or "") for c in (COMMAND, HOURS_COMMAND, DEMOB_COMMAND))
+    return enabled() and any(c.match(text or "") for c in (COMMAND, HOURS_COMMAND, DEMOB_COMMAND))
 
 
 def answer(text, fetcher=None, clock=time.time):
@@ -150,7 +156,7 @@ def report(fetcher=fetch, clock=time.time):
 
 def context(message, fetcher=fetch, clock=time.time):
     """Block for the prompt when the owner's bot is asked about «Space»; empty otherwise."""
-    if not wanted(message):
+    if not enabled() or not wanted(message):
         return ""
     text = page(SITES[0][1], fetcher, clock)
     data = excerpt(text, "Space") if text else None

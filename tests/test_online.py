@@ -1,5 +1,9 @@
 """«бот …» gate, the «онлайн» command and the arzdata counts: only the count next to the server name counts."""
+import os
+
 from replyai import online
+
+os.environ[online.COMMANDS_ENV] = "1"  # the owner's server: commands on
 
 
 PAGE_SPACE = ("<html><script>var space = 1;</script><body>Arizona (Staging) 0 / 2000 "
@@ -152,3 +156,14 @@ def test_demob_counts_down_and_passes_the_gate():
     left = 2 * 7 * 86400 + 3 * 86400 + 4 * 3600 + 5 * 60 + 6
     assert online.answer("дембель", clock=lambda: end - left) == "Недель: 2. Дней: 3. Часов: 4. Минут: 5. Секунд: 6"
     assert online.answer("дембель!", clock=lambda: end + 1) == "Дембель уже наступил!"
+
+
+def test_commands_are_off_without_the_owner_setting():
+    os.environ.pop(online.COMMANDS_ENV)
+    try:
+        for command in ("онлайн", "часы в кс", "дембель"):
+            assert not online.is_command(command)
+            assert online.addressed(command) is None  # no «бот»: no answer at all
+        assert online.context("бот сколько онлайн на space", fetcher=lambda u: 1 / 0) == ""  # nothing fetched
+    finally:
+        os.environ[online.COMMANDS_ENV] = "1"
