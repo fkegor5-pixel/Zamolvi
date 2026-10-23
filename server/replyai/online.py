@@ -23,7 +23,8 @@ WANTS_COUNT = re.compile(r"онлайн|онлайна|сколько|игрок
 BOT = re.compile(r"^\s*бот\b[\s,:.!-]*", re.IGNORECASE)   # the owner's bot answers only «бот …»
 COMMAND = re.compile(r"^онлайн[.!?\s]*$", re.IGNORECASE)
 HOURS_COMMAND = re.compile(r"^часы\s+в\s+кс[.!?\s]*$", re.IGNORECASE)
-HOURS = re.compile(r"(\d[\d,.\s]*?)\s*(?:ч\.\s*всего|hrs on record)", re.IGNORECASE)
+# a whole number like «5 864», «5,864» or «1 234,5», so the «31» of «0 из 31 5 864» stays apart
+HOURS = re.compile(r"(\d{1,3}(?:[ \u00a0,]\d{3})*(?:[.,]\d+)?)\s*(?:ч\.\s*всего|hrs on record)", re.IGNORECASE)
 CS2 = "Counter-Strike 2"
 # shortcut: Steam shows the hours only under «Недавняя активность», i.e. if CS2 was played in the last 2 weeks
 STEAM = (("sethome43", "https://steamcommunity.com/id/sethome43/?l=russian"),
@@ -99,7 +100,9 @@ def count(text, name):
 
 def fetch(url):
     """Raw page; raises OSError on network errors and timeouts."""
-    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 Zamolvi"})
+    # Steam answers 429 to a request without Accept and Accept-Language
+    request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 Zamolvi", "Accept": "text/html,*/*",
+                                                   "Accept-Language": "ru,en;q=0.8"})
     with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
         return response.read(MAX_BYTES).decode("utf-8", "replace")
 
@@ -148,11 +151,15 @@ def context(message, fetcher=fetch, clock=time.time):
 
 
 def hours(text):
-    """Total CS2 hours shown right after «Counter-Strike 2»; None when the profile does not show them."""
+    """Total CS2 hours; None when the profile does not show them.
+
+    Steam prints «5 864 ч. всего последний запуск 23 окт» just before the game name, so the hours are the
+    last ones before «Counter-Strike 2».
+    """
     for m in mentions(text, CS2):
-        found = HOURS.search(text, m.end(), m.end() + NEAR)
+        found = list(HOURS.finditer(text, max(0, m.start() - NEAR), m.start()))
         if found:
-            return found.group(1).strip()
+            return found[-1].group(1)
     return None
 
 

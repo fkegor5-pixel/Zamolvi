@@ -89,17 +89,20 @@ def test_excellent_with_broken_json_says_no_data():
     assert online.report(fetcher=fake(pages), clock=lambda: 3000.0).splitlines()[0] == "Excellent - нет данных"
 
 
-STEAM_EN = "<div>Recent Activity</div><div>Counter-Strike 2</div><div>5,864 hrs on record</div><div>last played on Oct 23</div>"
-STEAM_RU = "<div>Недавняя активность</div><a>Counter-Strike 2</a><span>1 234,5 ч. всего</span>"
+# real order from the profile: hours, last launch, then the game name; the previous game comes first
+STEAM_RU = ("<div>Недавняя активность 660,4 ч. за последние 2 недели</div><div>357 ч. всего последний запуск 23 окт</div>"
+            "<a>Pummel Party</a> Достижения: 0 из 31 <div>5 864 ч. всего<br>последний запуск 23 окт</div>"
+            "<a>Counter-Strike 2</a> Global Sentinel")
+STEAM_EN = "<div>1,234.5 hrs on record<br>last played on Oct 23</div><a>Counter-Strike 2</a>"
 
 
 def test_hours_command_passes_the_gate_and_reads_each_profile():
     assert online.addressed("Часы в кс") == "Часы в кс"
     assert online.is_command("часы в кс!")
     online._cache.clear()
-    pages = {online.STEAM[0][1]: STEAM_EN, online.STEAM[1][1]: STEAM_RU}
+    pages = {online.STEAM[0][1]: STEAM_RU, online.STEAM[1][1]: STEAM_EN}
     assert online.answer("часы в кс", fetcher=fake(pages), clock=lambda: 4000.0) == \
-        "sethome43 - 5,864 ч.\nneurax716 - 1 234,5 ч."
+        "sethome43 - 5 864 ч.\nneurax716 - 1,234.5 ч."
 
 
 def test_hours_missing_when_cs2_is_not_on_the_profile():
