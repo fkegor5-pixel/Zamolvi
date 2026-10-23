@@ -72,6 +72,8 @@ def setup_chats(env, chats=("123",), **ai):
 
 
 def incoming(env, message_id=1, chat=123, text="Привет", **attachment):
+    if not text.startswith("/"):  # commands like /ai_off work without «бот»
+        text = "бот " + text  # the bot answers only messages that start with «бот»
     message = SimpleNamespace(raw_text=text, **attachment)
     return SimpleNamespace(is_private=True, out=False, raw_text=text, chat_id=chat, id=message_id,
                            date=dt.datetime.fromtimestamp(env.clock[0], dt.timezone.utc),
@@ -80,7 +82,7 @@ def incoming(env, message_id=1, chat=123, text="Привет", **attachment):
 
 
 async def reply(env, message_id, chat=123, text="Привет"):
-    env.engine.client.source_text = text
+    env.engine.client.source_text = "бот " + text
     await env.engine.on_message(incoming(env, message_id, chat, text))
     await env.engine.process_one()
 
@@ -289,7 +291,7 @@ async def test_photo_is_recognised_and_answered(env):
     env.engine.client = MediaTelegram()
     env.engine.client.attachment = {"photo": photo()}
     env.engine.client.payload = jpeg()
-    env.engine.client.source_text = "Что это?"
+    env.engine.client.source_text = "бот Что это?"
     await env.engine.on_message(incoming(env, 3, text="Что это?", photo=photo()))
     await env.engine.process_one()
     assert len(env.engine.client.sent) == 1
@@ -307,7 +309,7 @@ async def test_unreadable_attachment_still_answers_the_caption(env):
     env.engine.client = MediaTelegram()
     env.engine.client.attachment = {"photo": photo()}
     env.engine.client.payload = jpeg()
-    env.engine.client.source_text = "Посмотри"
+    env.engine.client.source_text = "бот Посмотри"
     await env.engine.on_message(incoming(env, 4, text="Посмотри", photo=photo()))
     await env.engine.process_one()
     assert len(env.engine.client.sent) == 1
@@ -324,7 +326,7 @@ async def test_pdf_document_text_is_passed_to_the_reply(env):
     doc = document("application/pdf", "plan.pdf", size=len(pdf))
     env.engine.client.attachment = {"document": doc}
     env.engine.client.payload = pdf
-    env.engine.client.source_text = ""
+    env.engine.client.source_text = "бот "
     await env.engine.on_message(incoming(env, 6, text="", document=doc))
     await env.engine.process_one()
     assert "[PDF «plan.pdf», 1 стр.]" in ai.calls[-1][0] and "Delivery on Monday" in ai.calls[-1][0]
@@ -883,3 +885,15 @@ def test_notification_answer_takes_style_and_note_of_a_profile(api29, env):
     assert seen[-1] == ""  # a profile may switch the saved style off
     assert api29.post("/api/notification/answer", headers=AUTH,
                       json={"text": "Привет", "style": "nope"}).status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_message_without_bot_gets_no_answer_and_with_bot_is_sent(env):
+    setup_chats(env)
+    plain = incoming(env, 7)
+    plain.raw_text = plain.message.raw_text = "Привет"
+    await env.engine.on_message(plain)
+    await env.engine.process_one()
+    assert env.engine.client.sent == []
+    await reply(env, 8)  # «бот Привет»: the source check sees the text Telegram has
+    assert len(env.engine.client.sent) == 1

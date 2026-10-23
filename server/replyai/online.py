@@ -35,6 +35,12 @@ def addressed(text):
     return text if COMMAND.match(text) else None
 
 
+def without_bot(text):
+    """A caption without the leading «бот», for the model."""
+    match = BOT.match(text or "")
+    return text[match.end():] if match else text
+
+
 def is_command(text):
     return bool(COMMAND.match(text or ""))
 
