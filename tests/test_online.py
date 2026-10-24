@@ -315,31 +315,12 @@ def test_inventories_in_rubles_with_private_and_missing():
     assert "WOK_API_KEY" in online.inventories(wok="", key="K")
 
 
-def test_item_price_with_rubles_and_not_found():
+def test_levels_from_the_official_steam_api_and_removed_commands():
     online._cache.clear()
-    name = "AK-47 | Redline (Field-Tested)"
-    url = online.WOK_BASE + "/v1/price?game=cs2&name=" + urllib.parse.quote(name)
-    body = json.dumps({"name": name, "price": 12.345, "source": "steam", "sources": {}, "native_prices": {"RUB": 1001.4}})
-    assert online.item_price(name, fetcher=fake({url: body}), clock=lambda: 900.0, wok="wok_x") == \
-        "AK-47 | Redline (Field-Tested): $12.35, 1 001 ₽ (steam)"
-    online._cache.clear()
-    assert "не найдена" in online.item_price("нечто", fetcher=fake({}), clock=lambda: 901.0, wok="wok_x")
-    assert online.is_command("цена AK-47 | Redline (Field-Tested)") and not online.is_command("цена")
-
-
-def test_bans_and_levels_from_the_official_steam_api():
-    online._cache.clear()
-    ids = "76561198000000000,76561198000000001,76561198000000002"
     pages = resolved({
-        f"{online.STEAM_API}/ISteamUser/GetPlayerBans/v1/?key=K&steamids={ids}": json.dumps({"players": [
-            {"SteamId": "76561198000000000", "VACBanned": False, "NumberOfVACBans": 0, "NumberOfGameBans": 0,
-             "CommunityBanned": False, "EconomyBan": "none", "DaysSinceLastBan": 0},
-            {"SteamId": "76561198000000001", "VACBanned": True, "NumberOfVACBans": 1, "NumberOfGameBans": 2,
-             "CommunityBanned": False, "EconomyBan": "none", "DaysSinceLastBan": 120}]}),
         f"{online.STEAM_API}/IPlayerService/GetSteamLevel/v1/?key=K&steamid=76561198000000000":
             json.dumps({"response": {"player_level": 25}}),
         f"{online.STEAM_API}/IPlayerService/GetSteamLevel/v1/?key=K&steamid=76561198000000001": json.dumps({"response": {}})})
-    assert online.bans(fetcher=fake(pages), clock=lambda: 1000.0, key="K").splitlines() == [
-        "sethome43 - банов нет", "neurax716 - VAC: 1, игровых: 2, последний 120 дн. назад", "necroa716 - нет данных"]
     assert online.steam_levels(fetcher=fake(pages), clock=lambda: 1000.0, key="K").splitlines() == [
         "sethome43 - 25 ур.", "neurax716 - скрыт или нет данных", "necroa716 - скрыт или нет данных"]
+    assert not online.is_command("баны") and not online.is_command("цена AK-47 | Redline (Field-Tested)")

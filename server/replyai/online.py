@@ -55,8 +55,6 @@ RANDOM_COMMAND = re.compile(r"^рандом(?:\s+(\d{1,9})(?:\s*-\s*(\d{1,9}))?)
 FACEIT_COMMAND = re.compile(r"^фейсит\s+([A-Za-z0-9_-]{2,32})[.!?\s]*$", re.IGNORECASE)
 FACEIT_OURS_COMMAND = re.compile(r"^фейсит[.!?\s]*$", re.IGNORECASE)
 INVENTORY_COMMAND = re.compile(r"^инвентар[ьи][.!?\s]*$", re.IGNORECASE)
-PRICE_COMMAND = re.compile(r"^цена\s+(\S.{2,119}?)\s*$", re.IGNORECASE)
-BANS_COMMAND = re.compile(r"^баны[.!?\s]*$", re.IGNORECASE)
 LEVEL_COMMAND = re.compile(r"^уровень\s+(?:стим|steam)[.!?\s]*$", re.IGNORECASE)
 REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,4})\s*(минут\w*|мин|м|час\w*|ч|дн\w*|день|д)\s+(.{1,200}?)\s*$",
                        re.IGNORECASE | re.DOTALL)
@@ -79,7 +77,7 @@ FACEIT_API = "https://open.faceit.com/data/v4/players?game=cs2&nickname="
 WOK_KEY_ENV = "WOK_API_KEY"
 WOK_BASE = "https://woksteamapi.com"
 WOK_FACEIT = WOK_BASE + "/faceit/data/v4/players?game=cs2&game_player_id="
-WOK_INVENTORY_CACHE = 1800  # inventories and prices change slowly; saves the daily units
+WOK_INVENTORY_CACHE = 1800  # inventories change slowly; saves the daily units
 WOK_CACHE_SECONDS = 600
 PERSONA = {0: "не в сети", 1: "в сети", 2: "занят", 3: "отошёл", 4: "спит", 5: "в сети", 6: "в сети"}
 COOLDOWN = 10          # seconds between commands of one chat
@@ -94,8 +92,6 @@ HELP = ("Команды (можно с «бот» или без):\n"
         "кто в игре — кто сейчас в Steam\n"
         "фейсит — уровень и Elo FACEIT наших аккаунтов\n"
         "инвентарь — стоимость инвентарей CS2\n"
-        "цена <предмет> — цена скина, точное название: AK-47 | Redline (Field-Tested)\n"
-        "баны — VAC и игровые баны\n"
         "уровень стим — уровень Steam\n"
         "дембель — сколько осталось\n"
         "курс — доллар и евро по ЦБ\n"
@@ -165,8 +161,6 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
         return faceit_accounts(fetcher, clock)
     if INVENTORY_COMMAND.match(text):
         return inventories(fetcher, clock)
-    if BANS_COMMAND.match(text):
-        return bans(fetcher, clock)
     if LEVEL_COMMAND.match(text):
         return steam_levels(fetcher, clock)
     if COIN_COMMAND.match(text):
@@ -174,7 +168,6 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
     for pattern, handler in ((SERVER_COMMAND, lambda m: server_online(m.group(1), fetcher, clock)),
                              (WEATHER_COMMAND, lambda m: weather(m.group(1), fetcher, clock)),
                              (RANDOM_COMMAND, lambda m: random_number(m, rng)),
-                             (PRICE_COMMAND, lambda m: item_price(m.group(1), fetcher, clock)),
                              (FACEIT_COMMAND, lambda m: faceit(m.group(1), fetcher, clock))):
         m = pattern.match(text)
         if m:
@@ -339,7 +332,7 @@ def demob(clock=time.time):
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
                 RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
-                INVENTORY_COMMAND, PRICE_COMMAND, BANS_COMMAND, LEVEL_COMMAND, REMIND_IN, REMIND_AT)
+                INVENTORY_COMMAND, LEVEL_COMMAND, REMIND_IN, REMIND_AT)
 
 
 def steam_key(key=None):
@@ -551,54 +544,6 @@ def inventories(fetcher=fetch, clock=time.time, wok=None, key=None):
             lines.append(f"{name} - {rubles(data['total'])} ({data.get('items_total', '?')} предм.)")
         else:
             lines.append(f"{name} - " + {"private": "инвентарь скрыт", "empty": "пусто"}.get(status, "нет данных"))
-    return "\n".join(lines)
-
-
-def item_price(name, fetcher=fetch, clock=time.time, wok=None):
-    """The answer to «цена <предмет>»: market price of a CS2 item (WOK API)."""
-    wok, name = wok_key(wok), name.strip()
-    if not wok:
-        return "Цены не настроены: нужен ключ WOK_API_KEY на сервере."
-    data = wok_get("/v1/price?game=cs2&name=" + urllib.parse.quote(name), wok, fetcher, clock, WOK_INVENTORY_CACHE)
-    price = data.get("price") if isinstance(data, dict) else None
-    if not isinstance(price, (int, float)):
-        return f"Цена «{name}» не найдена. Нужно точное название, например: AK-47 | Redline (Field-Tested)"
-    rub = (data.get("native_prices") or {}).get("RUB")
-    extra = f", {rubles(rub)}" if isinstance(rub, (int, float)) else ""
-    return f"{data.get('name', name)}: ${price:.2f}{extra} ({data.get('source', '?')})"
-
-
-def bans(fetcher=fetch, clock=time.time, key=None):
-    """The answer to «баны»: VAC, game and trade bans from the official Steam API (no WOK units)."""
-    key = steam_key(key)
-    if not key:
-        return "Нужен ключ Steam на сервере (STEAM_API_KEY)."
-    ids = our_ids(key, fetcher, clock)
-    known = [i for _, i in ids if i]
-    data = get_json(f"{STEAM_API}/ISteamUser/GetPlayerBans/v1/?key={key}&steamids={','.join(known)}",
-                    fetcher, clock) if known else None
-    try:
-        found = {p["SteamId"]: p for p in data["players"]}
-    except (TypeError, KeyError):
-        found = {}
-    lines = []
-    for name, steamid in ids:
-        p = found.get(steamid)
-        if not p:
-            lines.append(f"{name} - нет данных")
-            continue
-        parts = []
-        if p.get("NumberOfVACBans"):
-            parts.append(f"VAC: {p['NumberOfVACBans']}")
-        if p.get("NumberOfGameBans"):
-            parts.append(f"игровых: {p['NumberOfGameBans']}")
-        if p.get("CommunityBanned"):
-            parts.append("бан сообщества")
-        if p.get("EconomyBan") not in (None, "none"):
-            parts.append("ограничение обмена")
-        if parts and p.get("DaysSinceLastBan"):
-            parts.append(f"последний {p['DaysSinceLastBan']} дн. назад")
-        lines.append(f"{name} - " + (", ".join(parts) if parts else "банов нет"))
     return "\n".join(lines)
 
 
