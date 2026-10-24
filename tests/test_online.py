@@ -366,3 +366,14 @@ def test_pgl_without_live_or_site():
         "Сыграно сегодня:\nпока ничего\n\nОнлайн:\nсейчас матчей нет\n\nОжидаются игры:\n16:00 Vitality - 9z Team"
     online._cache.clear()
     assert online.answer("pgl", fetcher=fake({}), clock=lambda: 1300.0) == "PGL: данные сейчас недоступны."
+
+
+
+def test_pgl_map_being_played_shows_in_progress_not_zero():
+    online._cache.clear()
+    live = MATCH_PAGE.replace("<b>7</b><b>:</b><b>5</b>", "<b>0</b><b>:</b><b>0</b>") + \
+        "<div>06.06.26 в 16:50</div><div>MOUZ</div><div>Liquid</div><b>1</b><b>:</b><b>0</b>"  # a past meeting
+    best, maps = online.pgl_maps(live)
+    assert best == 3 and [m[0] for m in maps] == ["Ancient", "Inferno", "Mirage"]
+    pages = {online.PGL_URL: PGL_PAGE, online.CYBERSPORT + "/matches/cs2/2": live}
+    assert "Карта 3/3: Mirage идёт" in online.answer("pgl", fetcher=fake(pages), clock=lambda: 1400.0)
