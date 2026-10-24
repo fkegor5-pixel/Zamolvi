@@ -59,6 +59,9 @@ PGL_COMMAND = re.compile(r"^(?:pgl|пгл)[.!?\s]*$", re.IGNORECASE)
 # cybersport.ru renders the matches into the page in Moscow time; a live match page has BEST-OF-N and map scores
 PGL_URL = "https://www.cybersport.ru/tournaments/cs2/pgl-masters-bucharest-2026"
 CYBERSPORT = "https://www.cybersport.ru"
+# A live row shows «LIVE» instead of its time and the match page has none, so the time is remembered while the
+# match is still listed with it. shortcut: lost on restart; matches already live then show no time
+_pgl_times = {}  # match path -> «13:00»
 LEVEL_COMMAND = re.compile(r"^уровень\s+(?:стим|steam)[.!?\s]*$", re.IGNORECASE)
 REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,4})\s*(минут\w*|мин|м|час\w*|ч|дн\w*|день|д)\s+(.{1,200}?)\s*$",
                        re.IGNORECASE | re.DOTALL)
@@ -615,15 +618,22 @@ def short_time(when):
 
 
 def pgl(fetcher=fetch, clock=time.time):
-    """The answer to «pgl»: live matches with the current map, then the upcoming ones (cybersport.ru)."""
+    """The answer to «pgl»: today's results, live matches with the current map, the upcoming ones (cybersport.ru)."""
     raw = page(PGL_URL, fetcher, clock, raw=True)
     if raw is None:
         return "PGL: данные сейчас недоступны."
     matches = pgl_matches(raw)
+    for when, *_, link in matches:
+        if link and when.upper() != "LIVE":
+            _pgl_times[link] = short_time(when)
+    played = [m for m in matches if m[3] is not None and m[0].startswith("Сегодня")]
     live = [m for m in matches if m[0].upper() == "LIVE"]
-    lines = ["Онлайн:"]
+    lines = ["Сыграно сегодня:"]
+    lines += [f"{short_time(when)} {one} {a}-{b} {two}" for when, one, two, a, b, _ in played] or ["пока ничего"]
+    lines += ["", "Онлайн:"]
     for when, one, two, a, b, link in live:
-        lines.append(f"{one} {a}-{b} {two}")
+        started = _pgl_times.get(link)
+        lines.append((f"{started} " if started else "") + f"{one} {a}-{b} {two}")
         detail = page(CYBERSPORT + link, fetcher, clock, raw=True) if link else None
         best, maps = pgl_maps(detail) if detail else (None, [])
         number = int(a) + int(b) + 1 if a.isdigit() and b.isdigit() else None
