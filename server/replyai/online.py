@@ -53,6 +53,7 @@ WEATHER_COMMAND = re.compile(r"^погода\s+([^\n]{2,60}?)[.!?\s]*$", re.IGNO
 COIN_COMMAND = re.compile(r"^монетка[.!?\s]*$", re.IGNORECASE)
 RANDOM_COMMAND = re.compile(r"^рандом(?:\s+(\d{1,9})(?:\s*-\s*(\d{1,9}))?)?[.!?\s]*$", re.IGNORECASE)
 FACEIT_COMMAND = re.compile(r"^фейсит\s+([A-Za-z0-9_-]{2,32})[.!?\s]*$", re.IGNORECASE)
+FACEIT_OURS_COMMAND = re.compile(r"^фейсит[.!?\s]*$", re.IGNORECASE)
 REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,4})\s*(минут\w*|мин|м|час\w*|ч|дн\w*|день|д)\s+(.{1,200}?)\s*$",
                        re.IGNORECASE | re.DOTALL)
 REMIND_AT = re.compile(r"^напомни\s+в\s+(\d{1,2})[:.](\d{2})\s+(.{1,200}?)\s*$", re.IGNORECASE | re.DOTALL)
@@ -70,6 +71,10 @@ SKY = ((0, "ясно"), (1, "в основном ясно"), (2, "перемен
        (57, "морось"), (67, "дождь"), (77, "снег"), (82, "ливень"), (86, "снегопад"), (99, "гроза"))
 FACEIT_ENV = "FACEIT_API_KEY"
 FACEIT_API = "https://open.faceit.com/data/v4/players?game=cs2&nickname="
+# WOK API (woksteamapi.com): FACEIT profile by SteamID64 with its own key; 100 free units a day, so cached longer
+WOK_KEY_ENV = "WOK_API_KEY"
+WOK_FACEIT = "https://woksteamapi.com/faceit/data/v4/players?game=cs2&game_player_id="
+WOK_CACHE_SECONDS = 600
 PERSONA = {0: "не в сети", 1: "в сети", 2: "занят", 3: "отошёл", 4: "спит", 5: "в сети", 6: "в сети"}
 COOLDOWN = 10          # seconds between commands of one chat
 MAX_REMINDERS = 5      # per chat
@@ -81,7 +86,7 @@ HELP = ("Команды (можно с «бот» или без):\n"
         "топ онлайн — 5 самых заполненных серверов\n"
         "часы в кс — часы в CS2\n"
         "кто в игре — кто сейчас в Steam\n"
-        "фейсит <ник> — уровень и Elo FACEIT\n"
+        "фейсит — уровень и Elo FACEIT наших аккаунтов\n"
         "дембель — сколько осталось\n"
         "курс — доллар и евро по ЦБ\n"
         "погода <город>\n"
@@ -146,6 +151,8 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
         return in_game(fetcher, clock)
     if RATES_COMMAND.match(text):
         return rates(fetcher, clock)
+    if FACEIT_OURS_COMMAND.match(text):
+        return faceit_accounts(fetcher, clock)
     if COIN_COMMAND.match(text):
         return "Выпало: " + rng.choice(("Орёл", "Решка"))
     for pattern, handler in ((SERVER_COMMAND, lambda m: server_online(m.group(1), fetcher, clock)),
@@ -205,11 +212,11 @@ def fetch(url, headers=None):
         return response.read(MAX_BYTES).decode("utf-8", "replace")
 
 
-def page(url, fetcher=fetch, clock=time.time, raw=False):
+def page(url, fetcher=fetch, clock=time.time, raw=False, ttl=CACHE_SECONDS):
     """Plain text (or the raw body) of the page, cached for about a minute; None when it cannot be read now."""
     now, slot = clock(), url + ("#raw" if raw else "")
     hit = _cache.get(slot)
-    if hit and now - hit[0] < CACHE_SECONDS:
+    if hit and now - hit[0] < ttl:
         return hit[1]
     try:
         body = fetcher(url)
@@ -220,9 +227,9 @@ def page(url, fetcher=fetch, clock=time.time, raw=False):
     return text
 
 
-def get_json(url, fetcher=fetch, clock=time.time):
+def get_json(url, fetcher=fetch, clock=time.time, ttl=CACHE_SECONDS):
     """Parsed JSON of the URL; None when it cannot be read or is not JSON."""
-    body = page(url, fetcher, clock, raw=True)
+    body = page(url, fetcher, clock, raw=True, ttl=ttl)
     try:
         return json.loads(body) if body else None
     except ValueError:
@@ -314,7 +321,8 @@ def demob(clock=time.time):
 
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
-                RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, REMIND_IN, REMIND_AT)
+                RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
+                REMIND_IN, REMIND_AT)
 
 
 def steam_key(key=None):
@@ -469,3 +477,27 @@ def reminder(text, now):
 
 def when(due):
     return datetime.fromtimestamp(due, MSK).strftime("%d.%m в %H:%M") + " (МСК)"
+
+
+def faceit_line(data):
+    """«nick: уровень N, Elo M»; an unranked account has 0 in both, which is not a real level."""
+    try:
+        cs = data["games"]["cs2"]
+        level, elo = cs["skill_level"], cs["faceit_elo"]
+    except (TypeError, KeyError):
+        return "нет аккаунта FACEIT или данные недоступны"
+    return f"{data.get('nickname', '?')}: " + (f"уровень {level}, Elo {elo}" if level else "нет уровня")
+
+
+def faceit_accounts(fetcher=fetch, clock=time.time, wok=None, key=None):
+    """The answer to «фейсит»: FACEIT level and Elo of every Steam account, through WOK API."""
+    wok, key = (os.environ.get(WOK_KEY_ENV, "") if wok is None else wok).strip(), steam_key(key)
+    if not wok or not key:
+        return "FACEIT не настроен: нужны ключи WOK_API_KEY и STEAM_API_KEY на сервере."
+    get = (lambda url: fetch(url, {"Authorization": "Bearer " + wok})) if fetcher is fetch else fetcher
+    lines = []
+    for name, _ in STEAM:
+        steamid = steam_id(name, key, fetcher, clock)
+        data = get_json(WOK_FACEIT + steamid, get, clock, ttl=WOK_CACHE_SECONDS) if steamid else None
+        lines.append(f"{name} - {faceit_line(data)}")
+    return "\n".join(lines)

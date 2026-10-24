@@ -272,3 +272,26 @@ def test_one_command_per_cooldown_in_a_chat():
 def test_owner_switch_words():
     assert online.owner_switch("бот выкл") is False and online.owner_switch("Бот вкл!") is True
     assert online.owner_switch("бот привет") is None
+
+
+def test_faceit_of_our_accounts_through_wok():
+    online._cache.clear()
+    assert online.is_command("фейсит")
+    pages = {}
+    for i, (name, _) in enumerate(online.STEAM):
+        pages[f"{online.STEAM_API}/ISteamUser/ResolveVanityURL/v1/?key=K&vanityurl={name}"] = \
+            json.dumps({"response": {"steamid": f"7656119800000000{i}", "success": 1}})
+    pages[online.WOK_FACEIT + "76561198000000000"] = json.dumps(
+        {"nickname": "Stytamimamo", "games": {"cs2": {"faceit_elo": 0, "skill_level": 0}}})
+    pages[online.WOK_FACEIT + "76561198000000001"] = json.dumps(
+        {"nickname": "neur", "games": {"cs2": {"faceit_elo": 1840, "skill_level": 8}}})
+    calls = []
+    get = fake(pages)
+    counting = lambda url: calls.append(url) or get(url)
+    answer = online.faceit_accounts(fetcher=counting, clock=lambda: 700.0, wok="wok_x", key="K")
+    assert answer.splitlines() == ["sethome43 - Stytamimamo: нет уровня", "neurax716 - neur: уровень 8, Elo 1840",
+                                   "necroa716 - нет аккаунта FACEIT или данные недоступны"]
+    wok_calls = len([c for c in calls if c.startswith(online.WOK_FACEIT)])
+    online.faceit_accounts(fetcher=counting, clock=lambda: 700.0 + 300, wok="wok_x", key="K")
+    assert len([c for c in calls if c.startswith(online.WOK_FACEIT)]) == wok_calls + 1  # found ones cached 10 min
+    assert "WOK_API_KEY" in online.faceit_accounts(wok="", key="K")
