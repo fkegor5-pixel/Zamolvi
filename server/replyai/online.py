@@ -70,6 +70,8 @@ SKY = ((0, "ясно"), (1, "в основном ясно"), (2, "перемен
        (57, "морось"), (67, "дождь"), (77, "снег"), (82, "ливень"), (86, "снегопад"), (99, "гроза"))
 FACEIT_ENV = "FACEIT_API_KEY"
 FACEIT_API = "https://open.faceit.com/data/v4/players?game=cs2&nickname="
+# WOK API (woksteamapi.com) answers the same FACEIT request with its own key «wok_…»
+WOK_FACEIT_API = "https://woksteamapi.com/faceit/data/v4/players?game=cs2&nickname="
 PERSONA = {0: "не в сети", 1: "в сети", 2: "занят", 3: "отошёл", 4: "спит", 5: "в сети", 6: "в сети"}
 COOLDOWN = 10          # seconds between commands of one chat
 MAX_REMINDERS = 5      # per chat
@@ -434,7 +436,8 @@ def faceit(nick, fetcher=fetch, clock=time.time, key=None):
     if not key:
         return "FACEIT не настроен: нужен ключ FACEIT_API_KEY на сервере."
     get = (lambda url: fetch(url, {"Authorization": "Bearer " + key})) if fetcher is fetch else fetcher
-    data = get_json(FACEIT_API + urllib.parse.quote(nick), get, clock)
+    base = WOK_FACEIT_API if key.startswith("wok_") else FACEIT_API
+    data = get_json(base + urllib.parse.quote(nick), get, clock)
     try:
         cs = data["games"]["cs2"]
         return f"{data['nickname']}: уровень {cs['skill_level']}, Elo {cs['faceit_elo']}"

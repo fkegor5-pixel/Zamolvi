@@ -272,3 +272,10 @@ def test_one_command_per_cooldown_in_a_chat():
 def test_owner_switch_words():
     assert online.owner_switch("бот выкл") is False and online.owner_switch("Бот вкл!") is True
     assert online.owner_switch("бот привет") is None
+
+
+def test_faceit_through_wok_api_with_a_wok_key():
+    online._cache.clear()
+    body = json.dumps({"nickname": "s1mple", "games": {"cs2": {"skill_level": 10, "faceit_elo": 3500}}})
+    pages = {online.WOK_FACEIT_API + "s1mple": body}  # the official address is not asked
+    assert online.faceit("s1mple", fetcher=fake(pages), clock=lambda: 600.0, key="wok_x") == "s1mple: уровень 10, Elo 3500"
