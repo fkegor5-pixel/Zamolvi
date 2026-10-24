@@ -8,12 +8,14 @@ def restrict(state):
     memory.restrict(state)
     approval.restrict(state)
     stats.restrict(state)
+    state["reminders"] = [r for r in state.get("reminders", []) if r["chat"] in state["selected"]]
 
 
 def forget_account(state):
     """Logout, revoked session or another account: nothing of the old account may remain."""
     state["message_archive"] = archive.initial()
     state["memory"] = memory.initial()
+    state["reminders"] = []
     state["approval"]["chats"] = []
     if state["approval"]["mode"] == "chats":
         state["approval"]["mode"] = "off"
