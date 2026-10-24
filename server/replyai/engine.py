@@ -511,6 +511,9 @@ class Engine:
             self.remember_message(event)
             if not text.startswith(PREFIX):
                 self.cancel_chat(chat)
+            switch = online.owner_switch(text)
+            if switch is not None:
+                await self.owner_switch(event, switch)
             return
         sender = await event.get_sender()
         if not isinstance(sender, types.User) or sender.bot or sender.is_self or sender.id == 777000:
@@ -908,7 +911,12 @@ class Engine:
         try:
             answer = job.get('answer')
             if not answer and online.is_command(job['text']):
-                answer = await asyncio.to_thread(online.answer, job['text'])
+                if not online.allowed(job['chat'], self.clock()):  # commands too often: no answer at all
+                    self.remove_job(job)
+                    return
+                plan = online.reminder(job['text'], self.clock())
+                answer = (self.add_reminder(job['chat'], *plan) if plan
+                          else await asyncio.to_thread(online.answer, job['text']))
             if not answer:
                 self.metric(ai_calls=1)
                 started = time.perf_counter()
@@ -1023,11 +1031,65 @@ class Engine:
                     expired = self.store.update(lambda s: approval.expire(s, self.clock()))
                     if expired:
                         self.log(f'Черновиков без ответа удалено по сроку: {expired}.')
+            await self.send_reminders()
             await self.process_memory()
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             self.diagnostics.emit('worker', 'housekeeping', exc)
+
+    def add_reminder(self, chat, due, note):
+        """Stores a reminder of «напомни …» and returns the answer; due is None for a wrong request."""
+        if due is None:
+            return note
+        def edit(s):
+            mine = [r for r in s.setdefault('reminders', []) if r['chat'] == chat]
+            if len(mine) >= online.MAX_REMINDERS:
+                return False
+            s['reminders'].append({'chat': chat, 'due': due, 'text': note})
+            return True
+        if not self.store.update(edit):
+            return f'Не больше {online.MAX_REMINDERS} напоминаний в одном чате.'
+        return 'Напомню ' + online.when(due) + '.'
+
+    async def send_reminders(self):
+        """Sends due reminders once (they are removed before sending, so never twice)."""
+        s = self.store.read()
+        due = [r for r in s.get('reminders', []) if r['due'] <= self.clock()]
+        if not due or not s['enabled'] or not self.authorized or not self.client:
+            return
+        self.store.update(lambda x: x.update(reminders=[r for r in x.get('reminders', []) if r not in due]))
+        for r in due:
+            if r['chat'] not in s['selected']:
+                continue
+            try:
+                async with self.telegram_lock:
+                    peer = await self.client.get_input_entity(int(r['chat']))
+                    await self.client(functions.messages.SendMessageRequest(
+                        peer=peer, message=PREFIX + 'Напоминание: ' + r['text'], random_id=secrets.randbits(63),
+                        no_webpage=True))
+            except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+                self.log('Напоминание не отправлено: ' + type(exc).__name__)
+
+    async def owner_switch(self, event, on):
+        """«бот вкл» / «бот выкл» written by the owner in «Избранное» (Saved Messages) only."""
+        if not getattr(await event.get_chat(), 'is_self', False):
+            return
+        try:
+            if on:
+                self.enable()
+            else:
+                self.disable()
+            note = 'Автоответчик включён.' if on else 'Автоответчик выключен.'
+        except UserError as exc:
+            note = str(exc)
+        self.log('Из «Избранного»: ' + note)
+        try:
+            async with self.telegram_lock:
+                await self.client(functions.messages.SendMessageRequest(
+                    peer=types.InputPeerSelf(), message=PREFIX + note, random_id=secrets.randbits(63), no_webpage=True))
+        except (errors.RPCError, OSError, asyncio.TimeoutError) as exc:
+            self.log('Ответ в «Избранное» не отправлен: ' + type(exc).__name__)
 
     async def process_memory(self):
         if self.clock() < self.memory_next:

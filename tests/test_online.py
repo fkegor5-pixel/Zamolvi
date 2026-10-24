@@ -30,9 +30,10 @@ def test_only_bot_or_command_gets_an_answer():
     assert online.addressed("") is None
 
 
-def test_command_is_only_the_word_online():
+def test_online_alone_or_with_a_server_name_is_a_command():
     assert online.is_command("онлайн!")
-    assert not online.is_command("онлайн space")
+    assert online.is_command("онлайн space")  # «онлайн <сервер>»
+    assert not online.is_command("онлайн 123") and not online.is_command("сколько онлайн")
 
 
 def test_count_is_the_one_next_to_the_name():
@@ -154,7 +155,8 @@ def test_demob_counts_down_and_passes_the_gate():
     assert online.addressed("Дембель") == "Дембель"
     end = online.DEMOB_AT.timestamp()
     left = 2 * 7 * 86400 + 3 * 86400 + 4 * 3600 + 5 * 60 + 6
-    assert online.answer("дембель", clock=lambda: end - left) == "Недель: 2. Дней: 3. Часов: 4. Минут: 5. Секунд: 6"
+    assert online.answer("дембель", clock=lambda: end - left).splitlines()[0] == \
+        "Недель: 2. Дней: 3. Часов: 4. Минут: 5. Секунд: 6"
     assert online.answer("дембель!", clock=lambda: end + 1) == "Дембель уже наступил!"
 
 
@@ -167,3 +169,106 @@ def test_commands_are_off_without_the_owner_setting():
         assert online.context("бот сколько онлайн на space", fetcher=lambda u: 1 / 0) == ""  # nothing fetched
     finally:
         os.environ[online.COMMANDS_ENV] = "1"
+
+
+
+import json
+import random
+import urllib.parse
+
+ROWS_PAGE = ("<h2>Arizona RP</h2> Arizona (Staging) 0 / 2000 0% · очередь 0 "
+             "<div>1</div><div>Phoenix</div><div>331 / 1000</div><div>33%</div><div>Свободен</div><b>0</b>"
+             "<div>2</div><div>Saint-Rose</div><div>180 / 1000</div><div>18%</div><div>Свободен</div><b>0</b>"
+             "<div>32</div><div>Space</div><div>854 / 1000</div><div>85%</div><div>Загружен</div><b>3</b>"
+             "<h2>Vice City</h2><div>1</div><div>Vice City</div><div>423 / 750</div><div>56%</div><div>Свободен</div><b>0</b>")
+
+
+def test_help_lists_the_commands():
+    assert "погода <город>" in online.answer("команды") and online.answer("Помощь") == online.HELP
+
+
+def test_server_by_name_and_top_from_the_full_list():
+    online._cache.clear()
+    get = fake({online.ARZ_ALL: ROWS_PAGE})
+    assert online.answer("онлайн space", fetcher=get, clock=lambda: 100.0) == "Space - 854 / 1000"
+    assert online.answer("онлайн Saint-Rose", fetcher=get, clock=lambda: 100.0) == "Saint-Rose - 180 / 1000"
+    assert "не найден" in online.answer("онлайн Нигде", fetcher=get, clock=lambda: 100.0)
+    assert online.answer("топ онлайн", fetcher=get, clock=lambda: 100.0).splitlines() == [
+        "1. Space - 854 / 1000", "2. Vice City - 423 / 750", "3. Phoenix - 331 / 1000", "4. Saint-Rose - 180 / 1000"]
+
+
+def test_who_is_in_game():
+    online._cache.clear()
+    pages = {}
+    for i, (name, _) in enumerate(online.STEAM):
+        pages[f"{online.STEAM_API}/ISteamUser/ResolveVanityURL/v1/?key=K&vanityurl={name}"] = \
+            json.dumps({"response": {"steamid": str(i), "success": 1}})
+    pages[f"{online.STEAM_API}/ISteamUser/GetPlayerSummaries/v2/?key=K&steamids=0,1,2"] = json.dumps({"response": {
+        "players": [{"steamid": "0", "personastate": 1, "gameextrainfo": "Counter-Strike 2"},
+                    {"steamid": "1", "personastate": 0}]}})
+    assert online.in_game(fetcher=fake(pages), clock=lambda: 200.0, key="K").splitlines() == [
+        "sethome43 - в игре: Counter-Strike 2", "neurax716 - не в сети", "necroa716 - нет данных"]
+    assert "ключ Steam" in online.in_game(key="")
+
+
+def test_rates_of_the_central_bank():
+    online._cache.clear()
+    body = json.dumps({"Date": "2026-10-24T11:30:00+03:00", "Valute": {"USD": {"Value": 81.2345}, "EUR": {"Value": 94.1}}})
+    assert online.answer("курс", fetcher=fake({online.CBR: body}), clock=lambda: 300.0) == \
+        "Курс ЦБ на 24.10: доллар 81,23 ₽, евро 94,10 ₽"
+    online._cache.clear()
+    assert online.answer("курс", fetcher=fake({}), clock=lambda: 301.0) == "Курс сейчас недоступен."
+
+
+def test_weather_now_and_tomorrow():
+    online._cache.clear()
+    geo = online.GEO + urllib.parse.quote("Москва")
+    pages = {geo: json.dumps({"results": [{"name": "Москва", "latitude": 55.75, "longitude": 37.62}]}),
+             f"{online.FORECAST}&latitude=55.75&longitude=37.62": json.dumps({
+                 "current": {"temperature_2m": 4.6, "apparent_temperature": 0.2, "weather_code": 3, "wind_speed_10m": 3.4},
+                 "daily": {"temperature_2m_min": [1, -2.4], "temperature_2m_max": [6, 3.5], "weather_code": [3, 71]}})}
+    assert online.answer("погода Москва", fetcher=fake(pages), clock=lambda: 400.0) == \
+        "Москва: сейчас +5°, ощущается 0°, пасмурно, ветер 3 м/с\nЗавтра: от -2° до +4°, снег"
+    online._cache.clear()
+    assert "не найден" in online.answer("погода Атлантида", fetcher=fake({}), clock=lambda: 401.0)
+
+
+def test_coin_and_random_stay_in_range():
+    rng = random.Random(7)
+    assert online.answer("монетка", rng=rng) in ("Выпало: Орёл", "Выпало: Решка")
+    for text, low, high in (("рандом", 1, 100), ("рандом 6", 1, 6), ("рандом 20-10", 10, 20)):
+        for _ in range(30):
+            assert low <= int(online.answer(text, rng=rng).split()[-1]) <= high
+
+
+def test_faceit_level_and_elo():
+    online._cache.clear()
+    url = online.FACEIT_API + "s1mple"
+    body = json.dumps({"nickname": "s1mple", "games": {"cs2": {"skill_level": 10, "faceit_elo": 3500}}})
+    assert online.faceit("s1mple", fetcher=fake({url: body}), clock=lambda: 500.0, key="F") == "s1mple: уровень 10, Elo 3500"
+    assert "не найден" in online.faceit("nobody", fetcher=fake({}), clock=lambda: 501.0, key="F")
+    assert "FACEIT_API_KEY" in online.faceit("s1mple", key="")
+
+
+def test_reminders_are_parsed_with_limits():
+    now = 1_800_000_000.0
+    assert online.reminder("напомни через 2 часа купить хлеб", now) == (now + 7200, "купить хлеб")
+    assert online.reminder("Напомни через 15 мин позвонить", now) == (now + 900, "позвонить")
+    due, note = online.reminder("напомни в 18:30 тренировка", now)
+    local = online.datetime.fromtimestamp(due, online.MSK)
+    assert (local.hour, local.minute, note) == (18, 30, "тренировка") and now < due <= now + 86400
+    assert online.reminder("напомни через 8 дней что-то", now)[0] is None
+    assert online.reminder("напомни в 25:00 что-то", now)[0] is None
+    assert online.reminder("онлайн", now) is None
+    assert online.is_command("напомни через 5 минут чай")
+
+
+def test_one_command_per_cooldown_in_a_chat():
+    online._last_command.clear()
+    assert online.allowed("1", 100.0) and not online.allowed("1", 105.0) and online.allowed("2", 105.0)
+    assert online.allowed("1", 100.0 + online.COOLDOWN)
+
+
+def test_owner_switch_words():
+    assert online.owner_switch("бот выкл") is False and online.owner_switch("Бот вкл!") is True
+    assert online.owner_switch("бот привет") is None

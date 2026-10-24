@@ -897,3 +897,72 @@ async def test_message_without_bot_gets_no_answer_and_with_bot_is_sent(env):
     assert env.engine.client.sent == []
     await reply(env, 8)  # «бот Привет»: the source check sees the text Telegram has
     assert len(env.engine.client.sent) == 1
+
+
+
+def owner_commands_on():
+    import os
+    from replyai import online
+    online._last_command.clear()
+    previous = os.environ.get(online.COMMANDS_ENV)
+    os.environ[online.COMMANDS_ENV] = "1"
+    def restore():
+        if previous is None:
+            os.environ.pop(online.COMMANDS_ENV, None)
+        else:
+            os.environ[online.COMMANDS_ENV] = previous
+    return restore
+
+
+@pytest.mark.asyncio
+async def test_reminder_is_answered_stored_and_sent_once(env):
+    restore = owner_commands_on()
+    try:
+        setup_chats(env)
+        sent = env.engine.client.sent
+        await reply(env, 11, text="напомни через 2 минуты купить хлеб")
+        assert len(sent) == 1 and "Напомню" in sent[-1].message
+        assert len(env.store.read()["reminders"]) == 1
+        await env.engine.send_reminders()
+        assert len(sent) == 1  # not due yet
+        env.clock[0] += 121
+        await env.engine.send_reminders()
+        await env.engine.send_reminders()
+        assert len(sent) == 2 and sent[-1].message.endswith("Напоминание: купить хлеб")
+        assert env.store.read()["reminders"] == []
+    finally:
+        restore()
+
+
+@pytest.mark.asyncio
+async def test_second_command_within_cooldown_gets_no_answer(env):
+    restore = owner_commands_on()
+    try:
+        setup_chats(env)
+        await reply(env, 12, text="монетка")
+        await reply(env, 13, text="монетка")
+        assert len(env.engine.client.sent) == 1
+    finally:
+        restore()
+
+
+@pytest.mark.asyncio
+async def test_owner_turns_the_bot_off_from_saved_messages_only(env):
+    restore = owner_commands_on()
+    try:
+        setup_chats(env)
+        other = incoming(env, 20, 456)
+        other.raw_text = other.message.raw_text = "бот выкл"
+        other.out = True
+        other.get_chat = AsyncMock(return_value=SimpleNamespace(is_self=False))
+        await env.engine.on_message(other)
+        assert env.store.read()["enabled"] is True  # written in another chat: ignored
+        own = incoming(env, 21, 999)
+        own.raw_text = own.message.raw_text = "бот выкл"
+        own.out = True
+        own.get_chat = AsyncMock(return_value=SimpleNamespace(is_self=True))
+        await env.engine.on_message(own)
+        assert env.store.read()["enabled"] is False
+        assert env.engine.client.sent[-1].message.endswith("Автоответчик выключен.")
+    finally:
+        restore()

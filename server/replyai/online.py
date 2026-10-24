@@ -6,8 +6,10 @@ and the count is the «N / M» nearest to that name. The model never fetches any
 import html
 import json
 import os
+import random
 import re
 import time
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -25,7 +27,9 @@ WANTS_COUNT = re.compile(r"онлайн|онлайна|сколько|игрок
 BOT = re.compile(r"^\s*бот\b[\s,:.!-]*", re.IGNORECASE)   # the owner's bot answers only «бот …»
 COMMAND = re.compile(r"^онлайн[.!?\s]*$", re.IGNORECASE)
 DEMOB_COMMAND = re.compile(r"^дембель[.!?\s]*$", re.IGNORECASE)
-DEMOB_AT = datetime(2026, 11, 15, tzinfo=timezone(timedelta(hours=3)))  # 15.11.2026 00:00 по Москве
+MSK = timezone(timedelta(hours=3))
+DEMOB_FROM = datetime(2025, 11, 15, tzinfo=MSK)  # начало службы, для процента
+DEMOB_AT = datetime(2026, 11, 15, tzinfo=MSK)  # 15.11.2026 00:00 по Москве
 HOURS_COMMAND = re.compile(r"^часы\s+в\s+кс[.!?\s]*$", re.IGNORECASE)
 # a whole number like «5 864», «5,864» or «1 234,5», so the «31» of «0 из 31 5 864» stays apart
 HOURS = re.compile(r"(\d{1,3}(?:[ \u00a0,]\d{3})*(?:[.,]\d+)?)\s*(?:ч\.\s*всего|hrs on record)", re.IGNORECASE)
@@ -40,10 +44,55 @@ STEAM_KEY_ENV = "STEAM_API_KEY"
 COMMANDS_ENV = "ZAMOLVI_COMMANDS"
 STEAM_API = "https://api.steampowered.com"
 CS2_APP = 730
+HELP_COMMAND = re.compile(r"^(?:команды|помощь)[.!?\s]*$", re.IGNORECASE)
+TOP_COMMAND = re.compile(r"^топ\s+онлайн[.!?\s]*$", re.IGNORECASE)
+SERVER_COMMAND = re.compile(r"^онлайн\s+([^\d\s][^\n]{1,40}?)[.!?\s]*$", re.IGNORECASE)
+INGAME_COMMAND = re.compile(r"^кто\s+в\s+игре[.!?\s]*$", re.IGNORECASE)
+RATES_COMMAND = re.compile(r"^курс[.!?\s]*$", re.IGNORECASE)
+WEATHER_COMMAND = re.compile(r"^погода\s+([^\n]{2,60}?)[.!?\s]*$", re.IGNORECASE)
+COIN_COMMAND = re.compile(r"^монетка[.!?\s]*$", re.IGNORECASE)
+RANDOM_COMMAND = re.compile(r"^рандом(?:\s+(\d{1,9})(?:\s*-\s*(\d{1,9}))?)?[.!?\s]*$", re.IGNORECASE)
+FACEIT_COMMAND = re.compile(r"^фейсит\s+([A-Za-z0-9_-]{2,32})[.!?\s]*$", re.IGNORECASE)
+REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,4})\s*(минут\w*|мин|м|час\w*|ч|дн\w*|день|д)\s+(.{1,200}?)\s*$",
+                       re.IGNORECASE | re.DOTALL)
+REMIND_AT = re.compile(r"^напомни\s+в\s+(\d{1,2})[:.](\d{2})\s+(.{1,200}?)\s*$", re.IGNORECASE | re.DOTALL)
+OWNER_SWITCH = re.compile(r"^бот\s+(вкл|выкл)\w*[.!\s]*$", re.IGNORECASE)
+ARZ_ALL = "https://arzdata.com/online"
+# a row of the full list as plain text: «1 Phoenix 331 / 1000 33% Свободен 0» (number, name, online, status, queue)
+# shortcut: server names with digits are not matched; switch to the HTML table if such servers appear
+ROW = re.compile(r"(?<!\d)(\d{1,3}) ([^\d/%]{2,40}?) (\d+) / (\d+) \d+% [А-Яа-яЁё]+ \d+")
+CBR = "https://www.cbr-xml-daily.ru/daily_json.js"
+GEO = "https://geocoding-api.open-meteo.com/v1/search?count=1&language=ru&format=json&name="
+FORECAST = ("https://api.open-meteo.com/v1/forecast?current=temperature_2m,apparent_temperature,weather_code,"
+            "wind_speed_10m&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=auto"
+            "&forecast_days=2&wind_speed_unit=ms")
+SKY = ((0, "ясно"), (1, "в основном ясно"), (2, "переменная облачность"), (3, "пасмурно"), (48, "туман"),
+       (57, "морось"), (67, "дождь"), (77, "снег"), (82, "ливень"), (86, "снегопад"), (99, "гроза"))
+FACEIT_ENV = "FACEIT_API_KEY"
+FACEIT_API = "https://open.faceit.com/data/v4/players?game=cs2&nickname="
+PERSONA = {0: "не в сети", 1: "в сети", 2: "занят", 3: "отошёл", 4: "спит", 5: "в сети", 6: "в сети"}
+COOLDOWN = 10          # seconds between commands of one chat
+MAX_REMINDERS = 5      # per chat
+MAX_AHEAD = 7 * 86400
+UNIT = {"м": 60, "ч": 3600, "д": 86400}
+HELP = ("Команды (можно с «бот» или без):\n"
+        "онлайн — Excellent, Space, Wednesday\n"
+        "онлайн <сервер> — онлайн сервера по названию\n"
+        "топ онлайн — 5 самых заполненных серверов\n"
+        "часы в кс — часы в CS2\n"
+        "кто в игре — кто сейчас в Steam\n"
+        "фейсит <ник> — уровень и Elo FACEIT\n"
+        "дембель — сколько осталось\n"
+        "курс — доллар и евро по ЦБ\n"
+        "погода <город>\n"
+        "монетка, рандом, рандом 50, рандом 10-20\n"
+        "напомни через 30 минут <текст> / напомни в 18:30 <текст>")
 COUNT = re.compile(r"(\d[\d ]*)\s*/\s*\d+")
 TAGS = re.compile(r"<(script|style)\b.*?</\1>|<[^>]+>", re.IGNORECASE | re.DOTALL)
 
 _cache = {}  # url -> (time, plain text of the page)
+_last_command = {}  # chat -> time of its last command
+_rng = random.SystemRandom()
 
 
 def addressed(text):
@@ -67,15 +116,46 @@ def enabled():
 
 
 def is_command(text):
-    return enabled() and any(c.match(text or "") for c in (COMMAND, HOURS_COMMAND, DEMOB_COMMAND))
+    return enabled() and any(c.match((text or "").strip()) for c in ALL_COMMANDS)
 
 
-def answer(text, fetcher=None, clock=time.time):
-    """The fixed answer to a command: «дембель», «часы в кс» or «онлайн»."""
-    if DEMOB_COMMAND.match(text or ""):
+def owner_switch(text):
+    """True for «бот вкл», False for «бот выкл», None for anything else (only on the owner's server)."""
+    m = OWNER_SWITCH.match((text or "").strip()) if enabled() else None
+    return None if m is None else m.group(1).lower() == "вкл"
+
+
+def allowed(chat, now):
+    """At most one command per COOLDOWN seconds in a chat; more often gets no answer at all."""
+    if now - _last_command.get(chat, float("-inf")) < COOLDOWN:
+        return False
+    _last_command[chat] = now
+    return True
+
+
+def answer(text, fetcher=None, clock=time.time, rng=None):
+    """The fixed answer to a command (reminders are handled by the engine, see reminder())."""
+    text, fetcher, rng = (text or "").strip(), fetcher or fetch, rng or _rng
+    if DEMOB_COMMAND.match(text):
         return demob(clock)
-    fetcher = fetcher or fetch
-    return cs_hours(fetcher, clock) if HOURS_COMMAND.match(text or "") else report(fetcher, clock)
+    if HELP_COMMAND.match(text):
+        return HELP
+    if TOP_COMMAND.match(text):
+        return top_online(fetcher, clock)
+    if INGAME_COMMAND.match(text):
+        return in_game(fetcher, clock)
+    if RATES_COMMAND.match(text):
+        return rates(fetcher, clock)
+    if COIN_COMMAND.match(text):
+        return "Выпало: " + rng.choice(("Орёл", "Решка"))
+    for pattern, handler in ((SERVER_COMMAND, lambda m: server_online(m.group(1), fetcher, clock)),
+                             (WEATHER_COMMAND, lambda m: weather(m.group(1), fetcher, clock)),
+                             (RANDOM_COMMAND, lambda m: random_number(m, rng)),
+                             (FACEIT_COMMAND, lambda m: faceit(m.group(1), fetcher, clock))):
+        m = pattern.match(text)
+        if m:
+            return handler(m)
+    return cs_hours(fetcher, clock) if HOURS_COMMAND.match(text) else report(fetcher, clock)
 
 
 def wanted(message):
@@ -116,27 +196,37 @@ def count(text, name):
     return best[1] if best else None
 
 
-def fetch(url):
+def fetch(url, headers=None):
     """Raw page; raises OSError on network errors and timeouts."""
     # Steam answers 429 to a request without Accept and Accept-Language
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 Zamolvi", "Accept": "text/html,*/*",
-                                                   "Accept-Language": "ru,en;q=0.8"})
+                                                   "Accept-Language": "ru,en;q=0.8", **(headers or {})})
     with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
         return response.read(MAX_BYTES).decode("utf-8", "replace")
 
 
-def page(url, fetcher=fetch, clock=time.time):
-    """Plain text of the page, cached for about a minute; None when the site cannot be read now."""
-    now = clock()
-    hit = _cache.get(url)
+def page(url, fetcher=fetch, clock=time.time, raw=False):
+    """Plain text (or the raw body) of the page, cached for about a minute; None when it cannot be read now."""
+    now, slot = clock(), url + ("#raw" if raw else "")
+    hit = _cache.get(slot)
     if hit and now - hit[0] < CACHE_SECONDS:
         return hit[1]
     try:
-        text = plain(fetcher(url))
+        body = fetcher(url)
+        text = body if raw else plain(body)
     except (OSError, ValueError):
         return None
-    _cache[url] = (now, text)
+    _cache[slot] = (now, text)
     return text
+
+
+def get_json(url, fetcher=fetch, clock=time.time):
+    """Parsed JSON of the URL; None when it cannot be read or is not JSON."""
+    body = page(url, fetcher, clock, raw=True)
+    try:
+        return json.loads(body) if body else None
+    except ValueError:
+        return None
 
 
 def report(fetcher=fetch, clock=time.time):
@@ -183,14 +273,12 @@ def hours(text):
 
 def api_hours(name, key, fetcher=fetch, clock=time.time):
     """Total CS2 hours from the Steam Web API; None when the account, its games or the key are unavailable."""
+    steamid = steam_id(name, key, fetcher, clock)
+    owned = get_json(f"{STEAM_API}/IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}"
+                     f"&include_played_free_games=1&appids_filter%5B0%5D={CS2_APP}", fetcher, clock) if steamid else None
     try:
-        found = json.loads(page(f"{STEAM_API}/ISteamUser/ResolveVanityURL/v1/?key={key}&vanityurl={name}",
-                                fetcher, clock))["response"]
-        steamid = found["steamid"]
-        owned = json.loads(page(f"{STEAM_API}/IPlayerService/GetOwnedGames/v1/?key={key}&steamid={steamid}"
-                                f"&include_played_free_games=1&appids_filter%5B0%5D={CS2_APP}", fetcher, clock))
         games = owned["response"].get("games", [])
-    except (TypeError, ValueError, KeyError):  # page() gave None, not JSON, or no such field
+    except (TypeError, KeyError, AttributeError):  # no answer or no such field
         return None
     minutes = next((g.get("playtime_forever") for g in games if g.get("appid") == CS2_APP), None)
     return None if minutes is None else f"{minutes // 60:,}".replace(",", " ")
@@ -198,7 +286,7 @@ def api_hours(name, key, fetcher=fetch, clock=time.time):
 
 def cs_hours(fetcher=fetch, clock=time.time, key=None):
     """The answer to «часы в кс»: one line per Steam profile."""
-    key = (os.environ.get(STEAM_KEY_ENV, "") if key is None else key).strip()
+    key = steam_key(key)
     lines = []
     for name, url in STEAM:
         value = api_hours(name, key, fetcher, clock) if key else None
@@ -211,11 +299,173 @@ def cs_hours(fetcher=fetch, clock=time.time, key=None):
 
 def demob(clock=time.time):
     """The answer to «дембель»: time left until DEMOB_AT."""
-    left = int(DEMOB_AT.timestamp() - clock())
+    now = clock()
+    left = int(DEMOB_AT.timestamp() - now)
     if left <= 0:
         return "Дембель уже наступил!"
+    done = min(1.0, max(0.0, (now - DEMOB_FROM.timestamp()) / (DEMOB_AT.timestamp() - DEMOB_FROM.timestamp())))
+    cells = round(done * 10)
     weeks, left = divmod(left, 7 * 86400)
     days, left = divmod(left, 86400)
     hours, left = divmod(left, 3600)
     minutes, seconds = divmod(left, 60)
-    return f"Недель: {weeks}. Дней: {days}. Часов: {hours}. Минут: {minutes}. Секунд: {seconds}"
+    return (f"Недель: {weeks}. Дней: {days}. Часов: {hours}. Минут: {minutes}. Секунд: {seconds}\n"
+            + f"Отслужено: {done * 100:.1f}% ".replace(".", ",") + "█" * cells + "░" * (10 - cells))
+
+
+ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
+                RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, REMIND_IN, REMIND_AT)
+
+
+def steam_key(key=None):
+    return (os.environ.get(STEAM_KEY_ENV, "") if key is None else key).strip()
+
+
+def steam_id(name, key, fetcher=fetch, clock=time.time):
+    found = get_json(f"{STEAM_API}/ISteamUser/ResolveVanityURL/v1/?key={key}&vanityurl={name}", fetcher, clock)
+    try:
+        return found["response"]["steamid"]
+    except (TypeError, KeyError):
+        return None
+
+
+def in_game(fetcher=fetch, clock=time.time, key=None):
+    """The answer to «кто в игре»: Steam status of every account."""
+    key = steam_key(key)
+    if not key:
+        return "Нужен ключ Steam на сервере (STEAM_API_KEY)."
+    ids = {name: steam_id(name, key, fetcher, clock) for name, _ in STEAM}
+    known = [i for i in ids.values() if i]
+    found = get_json(f"{STEAM_API}/ISteamUser/GetPlayerSummaries/v2/?key={key}&steamids={','.join(known)}",
+                     fetcher, clock) if known else None
+    try:
+        players = {p["steamid"]: p for p in found["response"]["players"]}
+    except (TypeError, KeyError):
+        players = {}
+    lines = []
+    for name, _ in STEAM:
+        p = players.get(ids[name])
+        if not p:
+            lines.append(f"{name} - нет данных")
+        elif p.get("gameextrainfo"):
+            lines.append(f"{name} - в игре: {p['gameextrainfo']}")
+        else:
+            lines.append(f"{name} - {PERSONA.get(p.get('personastate', 0), 'в сети')}")
+    return "\n".join(lines)
+
+
+def rows(fetcher=fetch, clock=time.time):
+    """(name, online, slots) of every server on arzdata.com; None when the site cannot be read."""
+    text = page(ARZ_ALL, fetcher, clock)
+    if text is None:
+        return None
+    return [(m.group(2).strip(), int(m.group(3)), int(m.group(4))) for m in ROW.finditer(text)]
+
+
+def top_online(fetcher=fetch, clock=time.time):
+    found = rows(fetcher, clock)
+    if not found:
+        return "Онлайн серверов сейчас недоступен."
+    best = sorted(found, key=lambda r: -r[1])[:5]
+    return "\n".join(f"{i}. {name} - {online} / {slots}" for i, (name, online, slots) in enumerate(best, 1))
+
+
+def server_online(name, fetcher=fetch, clock=time.time):
+    found = rows(fetcher, clock)
+    if found is None:
+        return "Онлайн серверов сейчас недоступен."
+    same = [r for r in found if r[0].casefold() == name.strip().casefold()]
+    if not same:
+        return f"Сервер «{name.strip()}» не найден на arzdata.com."
+    return "\n".join(f"{n} - {online} / {slots}" for n, online, slots in same)
+
+
+def rates(fetcher=fetch, clock=time.time):
+    """The answer to «курс»: dollar and euro of the Bank of Russia."""
+    data = get_json(CBR, fetcher, clock)
+    try:
+        usd, eur, day = data["Valute"]["USD"]["Value"], data["Valute"]["EUR"]["Value"], data["Date"]
+    except (TypeError, KeyError):
+        return "Курс сейчас недоступен."
+    rub = lambda v: f"{v:.2f}".replace(".", ",")
+    return f"Курс ЦБ на {day[8:10]}.{day[5:7]}: доллар {rub(usd)} ₽, евро {rub(eur)} ₽"
+
+
+def degrees(t):
+    t = round(t)
+    return f"{t:+d}°" if t else "0°"
+
+
+def sky(code):
+    return next((name for top, name in SKY if code <= top), "осадки")
+
+
+def weather(city, fetcher=fetch, clock=time.time):
+    """The answer to «погода <город>»: now and tomorrow (Open-Meteo, no key)."""
+    city = city.strip()
+    geo = get_json(GEO + urllib.parse.quote(city), fetcher, clock)
+    try:
+        place = geo["results"][0]
+    except (TypeError, KeyError, IndexError):
+        return f"Город «{city}» не найден."
+    data = get_json(f"{FORECAST}&latitude={place['latitude']}&longitude={place['longitude']}", fetcher, clock)
+    try:
+        now, day = data["current"], data["daily"]
+        return (f"{place['name']}: сейчас {degrees(now['temperature_2m'])}, ощущается "
+                f"{degrees(now['apparent_temperature'])}, {sky(now['weather_code'])}, "
+                f"ветер {round(now['wind_speed_10m'])} м/с\n"
+                f"Завтра: от {degrees(day['temperature_2m_min'][1])} до {degrees(day['temperature_2m_max'][1])}, "
+                f"{sky(day['weather_code'][1])}")
+    except (TypeError, KeyError, IndexError):
+        return "Погода сейчас недоступна."
+
+
+def random_number(match, rng=_rng):
+    low, high = 1, 100
+    if match.group(1):
+        low, high = (1, int(match.group(1))) if not match.group(2) else (int(match.group(1)), int(match.group(2)))
+    low, high = min(low, high), max(low, high)
+    return f"Выпало: {rng.randint(low, high)}"
+
+
+def faceit(nick, fetcher=fetch, clock=time.time, key=None):
+    """The answer to «фейсит <ник>»: level and Elo in CS2."""
+    key = (os.environ.get(FACEIT_ENV, "") if key is None else key).strip()
+    if not key:
+        return "FACEIT не настроен: нужен ключ FACEIT_API_KEY на сервере."
+    get = (lambda url: fetch(url, {"Authorization": "Bearer " + key})) if fetcher is fetch else fetcher
+    data = get_json(FACEIT_API + urllib.parse.quote(nick), get, clock)
+    try:
+        cs = data["games"]["cs2"]
+        return f"{data['nickname']}: уровень {cs['skill_level']}, Elo {cs['faceit_elo']}"
+    except (TypeError, KeyError):
+        return f"Игрок «{nick}» не найден на FACEIT или у него нет CS2."
+
+
+def reminder(text, now):
+    """(due time, text) for «напомни …»; (None, error) for a wrong one; None for other commands."""
+    text = (text or "").strip()
+    m = REMIND_IN.match(text)
+    if m:
+        seconds = int(m.group(1)) * UNIT[m.group(2)[0].lower()]
+        if seconds <= 0:
+            return None, "Укажите время больше нуля: напомни через 30 минут …"
+        due, note = now + seconds, m.group(3)
+    else:
+        m = REMIND_AT.match(text)
+        if not m:
+            return None
+        hour, minute = int(m.group(1)), int(m.group(2))
+        if hour > 23 or minute > 59:
+            return None, "Время пишется так: напомни в 18:30 …"
+        target = datetime.fromtimestamp(now, MSK).replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if target.timestamp() <= now:
+            target += timedelta(days=1)
+        due, note = target.timestamp(), m.group(3)
+    if due - now > MAX_AHEAD:
+        return None, "Напоминание можно поставить не дальше чем на 7 дней."
+    return due, note.strip()[:200]
+
+
+def when(due):
+    return datetime.fromtimestamp(due, MSK).strftime("%d.%m в %H:%M") + " (МСК)"
