@@ -514,6 +514,10 @@ class Engine:
             switch = online.owner_switch(text)
             if switch is not None:
                 await self.owner_switch(event, switch)
+            elif not text.startswith(PREFIX):
+                body = online.addressed(text)
+                if body is not None and online.is_command(body):
+                    await self.owner_command(event, chat, body)
             return
         sender = await event.get_sender()
         if not isinstance(sender, types.User) or sender.bot or sender.is_self or sender.id == 777000:
@@ -1038,7 +1042,7 @@ class Engine:
         except Exception as exc:
             self.diagnostics.emit('worker', 'housekeeping', exc)
 
-    def add_reminder(self, chat, due, note):
+    def add_reminder(self, chat, due, note, owner=False):
         """Stores a reminder of «напомни …» and returns the answer; due is None for a wrong request."""
         if due is None:
             return note
@@ -1046,7 +1050,7 @@ class Engine:
             mine = [r for r in s.setdefault('reminders', []) if r['chat'] == chat]
             if len(mine) >= online.MAX_REMINDERS:
                 return False
-            s['reminders'].append({'chat': chat, 'due': due, 'text': note})
+            s['reminders'].append({'chat': chat, 'due': due, 'text': note, 'owner': owner})
             return True
         if not self.store.update(edit):
             return f'Не больше {online.MAX_REMINDERS} напоминаний в одном чате.'
@@ -1060,7 +1064,7 @@ class Engine:
             return
         self.store.update(lambda x: x.update(reminders=[r for r in x.get('reminders', []) if r not in due]))
         for r in due:
-            if r['chat'] not in s['selected']:
+            if r['chat'] not in s['selected'] and not r.get('owner'):
                 continue
             try:
                 async with self.telegram_lock:
@@ -1070,6 +1074,19 @@ class Engine:
                         no_webpage=True))
             except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
                 self.log('Напоминание не отправлено: ' + type(exc).__name__)
+
+    async def owner_command(self, event, chat, text):
+        """A command written by the owner in any private chat: the answer goes to the same chat."""
+        plan = online.reminder(text, self.clock())
+        try:
+            answer = (self.add_reminder(chat, *plan, owner=True) if plan
+                      else await asyncio.to_thread(online.answer, text))
+            async with self.telegram_lock:
+                await self.client(functions.messages.SendMessageRequest(
+                    peer=await event.get_input_chat(), message=PREFIX + answer, random_id=secrets.randbits(63),
+                    no_webpage=True, reply_to=types.InputReplyToMessage(reply_to_msg_id=event.id)))
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+            self.log('Ответ на команду владельца не отправлен: ' + type(exc).__name__)
 
     async def owner_switch(self, event, on):
         """«бот вкл» / «бот выкл» written by the owner in «Избранное» (Saved Messages) only."""

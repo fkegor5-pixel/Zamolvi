@@ -11,7 +11,7 @@ import pytest
 from telethon import types
 
 from conftest import FakeAI, FakeTelegram
-from replyai import ai as ai_module, approval, media, memory, stats
+from replyai import ai as ai_module, approval, media, memory, privacy, stats
 from replyai.ai import AiClient, AiError, usage_of
 from replyai.errors import UserError
 
@@ -964,5 +964,48 @@ async def test_owner_turns_the_bot_off_from_saved_messages_only(env):
         await env.engine.on_message(own)
         assert env.store.read()["enabled"] is False
         assert env.engine.client.sent[-1].message.endswith("Автоответчик выключен.")
+    finally:
+        restore()
+
+
+
+def owner_message(env, message_id, chat, text):
+    event = incoming(env, message_id, chat)
+    event.raw_text = event.message.raw_text = text
+    event.out = True
+    event.get_input_chat = AsyncMock(return_value=types.InputPeerUser(chat, 0))
+    event.get_chat = AsyncMock(return_value=SimpleNamespace(is_self=False))
+    return event
+
+
+@pytest.mark.asyncio
+async def test_owner_gets_answers_to_own_commands_in_any_chat(env):
+    restore = owner_commands_on()
+    try:
+        setup_chats(env)
+        env.store.update(lambda s: s.update(enabled=False))  # works with the auto-reply off too
+        sent = env.engine.client.sent
+        await env.engine.on_message(owner_message(env, 40, 777, "команды"))
+        assert len(sent) == 1 and "Команды" in sent[-1].message and sent[-1].reply_to.reply_to_msg_id == 40
+        await env.engine.on_message(owner_message(env, 41, 777, "бот дембель"))
+        assert len(sent) == 2 and ("Недель" in sent[-1].message or "наступил" in sent[-1].message)
+        await env.engine.on_message(owner_message(env, 42, 777, "привет, как дела"))
+        assert len(sent) == 2  # an ordinary message of the owner gets nothing
+    finally:
+        restore()
+
+
+@pytest.mark.asyncio
+async def test_owner_reminder_in_an_unselected_chat_is_kept_and_sent(env):
+    restore = owner_commands_on()
+    try:
+        setup_chats(env)
+        sent = env.engine.client.sent
+        await env.engine.on_message(owner_message(env, 50, 777, "напомни через 2 минуты позвонить"))
+        assert "Напомню" in sent[-1].message
+        env.store.update(lambda s: privacy.restrict(s))  # a selection change must not drop it
+        env.clock[0] += 121
+        await env.engine.send_reminders()
+        assert sent[-1].message.endswith("Напоминание: позвонить")
     finally:
         restore()
