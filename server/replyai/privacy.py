@@ -8,7 +8,8 @@ def restrict(state):
     memory.restrict(state)
     approval.restrict(state)
     stats.restrict(state)
-    state["reminders"] = [r for r in state.get("reminders", []) if r["chat"] in state["selected"]]
+    state["reminders"] = [r for r in state.get("reminders", [])
+                          if r["chat"] in state["selected"] or r.get("owner")]  # the owner's own stay
 
 
 def forget_account(state):
