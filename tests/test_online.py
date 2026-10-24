@@ -324,3 +324,39 @@ def test_levels_from_the_official_steam_api_and_removed_commands():
     assert online.steam_levels(fetcher=fake(pages), clock=lambda: 1000.0, key="K").splitlines() == [
         "sethome43 - 25 ур.", "neurax716 - скрыт или нет данных", "necroa716 - скрыт или нет данных"]
     assert not online.is_command("баны") and not online.is_command("цена AK-47 | Redline (Field-Tested)")
+
+
+
+def block(when, one, two, score, link):
+    middle = (f"<span>{score[0]}</span><span>:</span><span>{score[1]}</span>" if score else "<span>vs</span>")
+    return (f"<div><span>{when}</span><div><span>{one}</span></div><div><span>{two}</span></div>{middle}"
+            f'<div class="x"><span>Перейти на матч</span></div><a href="{link}"></a><span>1.13</span><span>Групповой этап</span></div>')
+
+
+PGL_PAGE = ("<html><script>var x='Перейти на матч';</script><a href=\"/matches\">Матчи</a>"
+            + block("Сегодня в 10:00", "FUT Esports", "TYLOO", ("2", "0"), "/matches/cs2/1")
+            + block("LIVE", "MOUZ", "Liquid", ("1", "1"), "/matches/cs2/2")
+            + block("Сегодня в 16:00", "Vitality", "9z Team", None, "/matches/cs2/3")
+            + block("Завтра в 13:00", "G2", "NAVI", None, "/matches/cs2/4") + "</html>")
+MATCH_PAGE = ("<div>MOUZ</div><div>Team Liquid</div><div>BEST-OF-3</div><b>1</b><b>:</b><b>1</b><div>LIVE</div>"
+              "<h2>Статистика матча</h2>"
+              "<div>Ancient</div><div>MOUZ</div><div>Liquid</div><b>16</b><b>:</b><b>13</b>"
+              "<div>Inferno</div><div>MOUZ</div><div>Liquid</div><b>12</b><b>:</b><b>16</b>"
+              "<div>Mirage</div><div>MOUZ</div><div>Liquid</div><b>7</b><b>:</b><b>5</b>")
+
+
+def test_pgl_live_with_the_current_map_and_upcoming():
+    online._cache.clear()
+    pages = {online.PGL_URL: PGL_PAGE, online.CYBERSPORT + "/matches/cs2/2": MATCH_PAGE}
+    assert online.is_command("PGL") and online.is_command("пгл")
+    assert online.answer("pgl", fetcher=fake(pages), clock=lambda: 1100.0) == (
+        "Онлайн:\nMOUZ 1-1 Liquid\nКарта 3/3: Mirage 7:5\n\nОжидаются игры:\n16:00 Vitality - 9z Team\nзавтра 13:00 G2 - NAVI")
+
+
+def test_pgl_without_live_or_site():
+    online._cache.clear()
+    quiet = "<html>" + block("Сегодня в 16:00", "Vitality", "9z Team", None, "/matches/cs2/3") + "</html>"
+    assert online.answer("pgl", fetcher=fake({online.PGL_URL: quiet}), clock=lambda: 1200.0) == \
+        "Онлайн:\nсейчас матчей нет\n\nОжидаются игры:\n16:00 Vitality - 9z Team"
+    online._cache.clear()
+    assert online.answer("pgl", fetcher=fake({}), clock=lambda: 1300.0) == "PGL: данные сейчас недоступны."

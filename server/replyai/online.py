@@ -18,7 +18,7 @@ SITES = (("Space", "https://arzdata.com/online?q=Space"),
          ("Wednesday", "https://arzdata.com/online?q=Wednesday"))
 TIMEOUT = 10
 CACHE_SECONDS = 60
-MAX_BYTES = 2_000_000
+MAX_BYTES = 8_000_000  # the cybersport.ru tournament page is about 4 MB
 WINDOW = 350       # characters kept on each side of a server name
 MAX_WINDOWS = 3
 NEAR = 300         # how far from the name a «N / M» count may be
@@ -55,6 +55,10 @@ RANDOM_COMMAND = re.compile(r"^рандом(?:\s+(\d{1,9})(?:\s*-\s*(\d{1,9}))?)
 FACEIT_COMMAND = re.compile(r"^фейсит\s+([A-Za-z0-9_-]{2,32})[.!?\s]*$", re.IGNORECASE)
 FACEIT_OURS_COMMAND = re.compile(r"^фейсит[.!?\s]*$", re.IGNORECASE)
 INVENTORY_COMMAND = re.compile(r"^инвентар[ьи][.!?\s]*$", re.IGNORECASE)
+PGL_COMMAND = re.compile(r"^(?:pgl|пгл)[.!?\s]*$", re.IGNORECASE)
+# cybersport.ru renders the matches into the page in Moscow time; a live match page has BEST-OF-N and map scores
+PGL_URL = "https://www.cybersport.ru/tournaments/cs2/pgl-masters-bucharest-2026"
+CYBERSPORT = "https://www.cybersport.ru"
 LEVEL_COMMAND = re.compile(r"^уровень\s+(?:стим|steam)[.!?\s]*$", re.IGNORECASE)
 REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,4})\s*(минут\w*|мин|м|час\w*|ч|дн\w*|день|д)\s+(.{1,200}?)\s*$",
                        re.IGNORECASE | re.DOTALL)
@@ -93,6 +97,7 @@ HELP = ("Команды (можно с «бот» или без):\n"
         "фейсит — уровень и Elo FACEIT наших аккаунтов\n"
         "инвентарь — стоимость инвентарей CS2\n"
         "уровень стим — уровень Steam\n"
+        "pgl — PGL Masters Bucharest: идут и ожидаются матчи\n"
         "дембель — сколько осталось\n"
         "курс — доллар и евро по ЦБ\n"
         "погода <город>\n"
@@ -161,6 +166,8 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
         return faceit_accounts(fetcher, clock)
     if INVENTORY_COMMAND.match(text):
         return inventories(fetcher, clock)
+    if PGL_COMMAND.match(text):
+        return pgl(fetcher, clock)
     if LEVEL_COMMAND.match(text):
         return steam_levels(fetcher, clock)
     if COIN_COMMAND.match(text):
@@ -332,7 +339,7 @@ def demob(clock=time.time):
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
                 RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
-                INVENTORY_COMMAND, LEVEL_COMMAND, REMIND_IN, REMIND_AT)
+                INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, REMIND_IN, REMIND_AT)
 
 
 def steam_key(key=None):
@@ -560,4 +567,72 @@ def steam_levels(fetcher=fetch, clock=time.time, key=None):
             lines.append(f"{name} - {data['response']['player_level']} ур.")
         except (TypeError, KeyError):
             lines.append(f"{name} - скрыт или нет данных")
+    return "\n".join(lines)
+
+
+def pieces(raw):
+    """Visible texts of an HTML page, one per element, in page order."""
+    body = re.sub(r"<(script|style)\b.*?</\1>", " ", raw, flags=re.IGNORECASE | re.DOTALL)
+    return [t for t in (re.sub(r"\s+", " ", html.unescape(x)).strip() for x in re.split(r"<[^>]+>", body)) if t]
+
+
+def pgl_matches(raw):
+    """(when, team 1, team 2, score 1, score 2, match path) of the tournament page; when is «LIVE» or a time."""
+    parts = pieces(raw)
+    # the match link is the first one after each «Перейти на матч» (after the odds on some rows)
+    links = [m.group(1) for m in re.finditer(r'>\s*Перейти на матч\s*<.*?href="(/matches/cs2/\d+)"', raw, re.DOTALL)]
+    found = []
+    for i, part in enumerate(parts):
+        if part != "Перейти на матч":
+            continue
+        if parts[i - 1] == "vs":
+            when, one, two, a, b = parts[i - 4], parts[i - 3], parts[i - 2], None, None
+        elif parts[i - 2] == ":":
+            when, one, two, a, b = parts[i - 6], parts[i - 5], parts[i - 4], parts[i - 3], parts[i - 1]
+        else:
+            continue
+        found.append([when, one, two, a, b, None])
+    if len(links) == len(found):  # shortcut: paired by order; if a row was not recognised, no map line
+        for row, link in zip(found, links):
+            row[5] = link
+    return [tuple(row) for row in found]
+
+
+def pgl_maps(raw):
+    """(maps in the series, [(map, rounds 1, rounds 2), ...]) of a match page."""
+    parts = pieces(raw)
+    best = next((int(p.split("-")[-1]) for p in parts if re.fullmatch(r"BEST-OF-\d", p)), None)
+    start = parts.index("Статистика матча") if "Статистика матча" in parts else len(parts)
+    maps = []
+    for i in range(start, len(parts) - 2):
+        if parts[i + 1] == ":" and parts[i].isdigit() and parts[i + 2].isdigit() and i >= 3:
+            maps.append((parts[i - 3], parts[i], parts[i + 2]))
+    return best, maps
+
+
+def short_time(when):
+    return when.replace("Сегодня в ", "").replace("Завтра в ", "завтра ").replace(" в ", " ")
+
+
+def pgl(fetcher=fetch, clock=time.time):
+    """The answer to «pgl»: live matches with the current map, then the upcoming ones (cybersport.ru)."""
+    raw = page(PGL_URL, fetcher, clock, raw=True)
+    if raw is None:
+        return "PGL: данные сейчас недоступны."
+    matches = pgl_matches(raw)
+    live = [m for m in matches if m[0].upper() == "LIVE"]
+    lines = ["Онлайн:"]
+    for when, one, two, a, b, link in live:
+        lines.append(f"{one} {a}-{b} {two}")
+        detail = page(CYBERSPORT + link, fetcher, clock, raw=True) if link else None
+        best, maps = pgl_maps(detail) if detail else (None, [])
+        number = int(a) + int(b) + 1 if a.isdigit() and b.isdigit() else None
+        if best and number and number <= best:
+            current = f": {maps[number - 1][0]} {maps[number - 1][1]}:{maps[number - 1][2]}" if len(maps) >= number else ""
+            lines.append(f"Карта {number}/{best}{current}")
+    if not live:
+        lines.append("сейчас матчей нет")
+    lines += ["", "Ожидаются игры:"]
+    upcoming = [m for m in matches if m[3] is None]
+    lines += [f"{short_time(when)} {one} - {two}" for when, one, two, *_ in upcoming] or ["нет"]
     return "\n".join(lines)
