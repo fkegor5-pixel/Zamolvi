@@ -610,7 +610,7 @@ def pgl_maps(raw):
     for i in range(start, len(parts) - 2):
         if parts[i + 1] == ":" and parts[i].isdigit() and parts[i + 2].isdigit() and i >= 3:
             maps.append((parts[i - 3], parts[i], parts[i + 2]))
-    return best, maps
+    return best, maps[:best] if best else maps  # after the series come past meetings
 
 
 def short_time(when):
@@ -638,7 +638,11 @@ def pgl(fetcher=fetch, clock=time.time):
         best, maps = pgl_maps(detail) if detail else (None, [])
         number = int(a) + int(b) + 1 if a.isdigit() and b.isdigit() else None
         if best and number and number <= best:
-            current = f": {maps[number - 1][0]} {maps[number - 1][1]}:{maps[number - 1][2]}" if len(maps) >= number else ""
+            current = ""
+            if len(maps) >= number:
+                name, x, y = maps[number - 1]
+                # the page HTML keeps the map being played at 0:0; its live rounds come later by script
+                current = f": {name} " + ("идёт" if (x, y) == ("0", "0") else f"{x}:{y}")
             lines.append(f"Карта {number}/{best}{current}")
     if not live:
         lines.append("сейчас матчей нет")
