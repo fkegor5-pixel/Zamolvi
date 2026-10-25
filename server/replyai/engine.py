@@ -1,5 +1,6 @@
 from .errors import UserError
 import asyncio
+import io
 import copy
 import datetime as dt
 import math
@@ -918,6 +919,15 @@ class Engine:
                 if not online.allowed(job['chat'], self.clock()):  # commands too often: no answer at all
                     self.remove_job(job)
                     return
+                if online.is_image_command(job['text']):
+                    try:
+                        peer = await self.client.get_input_entity(int(job['chat']))
+                    except ValueError:
+                        peer = None
+                    if peer is not None:
+                        await self.send_picture(peer, job['message_id'], job['text'])
+                    self.remove_job(job)
+                    return
                 plan = online.reminder(job['text'], self.clock())
                 answer = (self.add_reminder(job['chat'], *plan) if plan
                           else await asyncio.to_thread(online.answer, job['text']))
@@ -1077,6 +1087,9 @@ class Engine:
 
     async def owner_command(self, event, chat, text):
         """A command written by the owner in any private chat: the answer goes to the same chat."""
+        if online.is_image_command(text):
+            await self.send_picture(await event.get_input_chat(), event.id, text)
+            return
         plan = online.reminder(text, self.clock())
         try:
             answer = (self.add_reminder(chat, *plan, owner=True) if plan
@@ -1087,6 +1100,23 @@ class Engine:
                     no_webpage=True, reply_to=types.InputReplyToMessage(reply_to_msg_id=event.id)))
         except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
             self.log('Ответ на команду владельца не отправлен: ' + type(exc).__name__)
+
+    async def send_picture(self, peer, reply_to, text):
+        """Answers a picture command with the picture (or with a text when it cannot be made)."""
+        result = await asyncio.to_thread(online.image, text)
+        try:
+            async with self.telegram_lock:
+                if isinstance(result, bytes):
+                    picture = io.BytesIO(result)
+                    picture.name = 'pgl.png'
+                    await self.client.send_file(peer, picture, caption=PREFIX + 'PGL Masters Bucharest — сетка',
+                                                reply_to=reply_to)
+                else:
+                    await self.client(functions.messages.SendMessageRequest(
+                        peer=peer, message=PREFIX + result, random_id=secrets.randbits(63), no_webpage=True,
+                        reply_to=types.InputReplyToMessage(reply_to_msg_id=reply_to)))
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+            self.log('Картинка не отправлена: ' + type(exc).__name__)
 
     async def owner_switch(self, event, on):
         """«бот вкл» / «бот выкл» written by the owner in «Избранное» (Saved Messages) only."""

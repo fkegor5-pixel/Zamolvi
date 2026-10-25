@@ -1009,3 +1009,23 @@ async def test_owner_reminder_in_an_unselected_chat_is_kept_and_sent(env):
         assert sent[-1].message.endswith("Напоминание: позвонить")
     finally:
         restore()
+
+
+
+@pytest.mark.asyncio
+async def test_grid_command_is_answered_with_a_picture(env):
+    from replyai import online
+    restore = owner_commands_on()
+    original = online.image
+    online.image = lambda text: b"\x89PNG fake"
+    try:
+        setup_chats(env)
+        env.engine.client.send_file = AsyncMock()
+        await env.engine.on_message(owner_message(env, 60, 777, "pgl сетка"))
+        args, kwargs = env.engine.client.send_file.call_args
+        assert args[1].getvalue() == b"\x89PNG fake" and kwargs["reply_to"] == 60
+        await reply(env, 61, text="pgl сетка")  # a contact asks: also a picture, not a text
+        assert env.engine.client.send_file.call_count == 2
+    finally:
+        online.image = original
+        restore()
