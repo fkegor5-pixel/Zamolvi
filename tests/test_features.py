@@ -988,7 +988,7 @@ async def test_owner_gets_answers_to_own_commands_in_any_chat(env):
         await env.engine.on_message(owner_message(env, 40, 777, "команды"))
         assert len(sent) == 1 and "Команды" in sent[-1].message and sent[-1].reply_to.reply_to_msg_id == 40
         await env.engine.on_message(owner_message(env, 41, 777, "бот дембель"))
-        assert len(sent) == 2 and ("Недель" in sent[-1].message or "наступил" in sent[-1].message)
+        assert len(sent) == 2 and ("Дней" in sent[-1].message or "наступил" in sent[-1].message)
         await env.engine.on_message(owner_message(env, 42, 777, "привет, как дела"))
         assert len(sent) == 2  # an ordinary message of the owner gets nothing
     finally:
