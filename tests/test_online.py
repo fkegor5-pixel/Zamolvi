@@ -354,6 +354,7 @@ def test_pgl_live_with_the_current_map_and_upcoming():
                               block("Сегодня в 13:00", "MOUZ", "Liquid", None, "/matches/cs2/2"))
     online.answer("pgl", fetcher=fake({online.PGL_URL: before}), clock=lambda: 1000.0)  # still upcoming: time seen
     assert online.answer("pgl", fetcher=fake(pages), clock=lambda: 1100.0) == (
+        "Источник: cybersport.ru\nОбновлено: 01.01.1970 03:18 (МСК)\n\n"
         "Сыграно сегодня:\n10:00 FUT Esports 2-0 TYLOO\n\n"
         "Онлайн:\n13:00 MOUZ 1-1 Liquid\nКарта 3/3: Mirage 7:5\n\n"
         "Ожидаются игры:\n16:00 Vitality - 9z Team\nзавтра 13:00 G2 - NAVI")
@@ -362,8 +363,11 @@ def test_pgl_live_with_the_current_map_and_upcoming():
 def test_pgl_without_live_or_site():
     online._cache.clear()
     quiet = "<html>" + block("Сегодня в 16:00", "Vitality", "9z Team", None, "/matches/cs2/3") + "</html>"
-    assert online.answer("pgl", fetcher=fake({online.PGL_URL: quiet}), clock=lambda: 1200.0) == \
-        "Сыграно сегодня:\nпока ничего\n\nОнлайн:\nсейчас матчей нет\n\nОжидаются игры:\n16:00 Vitality - 9z Team"
+    assert online.answer("pgl", fetcher=fake({online.PGL_URL: quiet}), clock=lambda: 1200.0) == (
+        "Источник: cybersport.ru\nОбновлено: 01.01.1970 03:20 (МСК)\n\n"
+        "Сыграно сегодня:\nпока ничего\n\nОнлайн:\nсейчас матчей нет\n\nОжидаются игры:\n16:00 Vitality - 9z Team")
+    assert online.answer("pgl", fetcher=fake({}), clock=lambda: 1250.0).splitlines()[1] == \
+        "Обновлено: 01.01.1970 03:20 (МСК)"  # from the cache: the time it was downloaded
     online._cache.clear()
     assert online.answer("pgl", fetcher=fake({}), clock=lambda: 1300.0) == "PGL: данные сейчас недоступны."
 

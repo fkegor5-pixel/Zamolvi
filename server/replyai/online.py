@@ -627,12 +627,14 @@ def pgl(fetcher=fetch, clock=time.time):
     if raw is None:
         return "PGL: данные сейчас недоступны."
     matches = pgl_matches(raw)
+    fetched = _cache.get(PGL_URL + "#raw", (clock(),))[0]  # when the page was actually downloaded, not the cache hit
     for when, *_, link in matches:
         if link and when.upper() != "LIVE":
             _pgl_times[link] = short_time(when)
     played = [m for m in matches if m[3] is not None and m[0].startswith("Сегодня")]
     live = [m for m in matches if m[0].upper() == "LIVE"]
-    lines = ["Сыграно сегодня:"]
+    lines = ["Источник: cybersport.ru", f"Обновлено: {datetime.fromtimestamp(fetched, MSK):%d.%m.%Y %H:%M} (МСК)", "",
+             "Сыграно сегодня:"]
     lines += [f"{short_time(when)} {one} {a}-{b} {two}" for when, one, two, a, b, _ in played] or ["пока ничего"]
     lines += ["", "Онлайн:"]
     for when, one, two, a, b, link in live:
