@@ -360,6 +360,17 @@ def test_pgl_live_with_the_current_map_and_upcoming():
         "Ожидаются игры:\n16:00 Vitality - 9z Team\nзавтра 13:00 G2 - NAVI")
 
 
+def test_pgl_match_started_early_is_live_not_upcoming():
+    online._cache.clear()
+    online._pgl_times.clear()
+    page = "<html>" + block("Сегодня в 16:00", "Vitality", "9z Team", None, "/matches/cs2/3") + "</html>"
+    bo3 = json.dumps({"results": [{"status": "current", "team1": {"name": "9z"}, "team2": {"name": "Team Vitality"},
+                                   "team1_score": 0, "team2_score": 1}]})
+    assert online.answer("pgl", fetcher=fake({online.PGL_URL: page, online.BO3_MATCHES: bo3}),
+                         clock=lambda: 1400.0).split("\n\n")[2:] == [
+        "Онлайн:\nVitality 1-0 9z Team", "Ожидаются игры:\nнет"]
+
+
 def test_pgl_without_live_or_site():
     online._cache.clear()
     quiet = "<html>" + block("Сегодня в 16:00", "Vitality", "9z Team", None, "/matches/cs2/3") + "</html>"

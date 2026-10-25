@@ -59,6 +59,8 @@ PGL_GRID_COMMAND = re.compile(r"^(?:pgl|пгл)\s+сетк[аиу][.!?\s]*$", re
 BO3_API = "https://api.bo3.gg/api/v1"
 # shortcut: the bo3.gg id of PGL Masters Bucharest 2026; change it for the next tournament
 PGL_TOURNAMENT_ID = 5338
+BO3_MATCHES = (f"{BO3_API}/matches?scope=widget-matches&page[offset]=0&page[limit]=100&sort=start_date"
+               f"&filter[matches.discipline_id][eq]=1&filter[matches.tournament_id][eq]={PGL_TOURNAMENT_ID}&with=teams")
 PGL_COMMAND = re.compile(r"^(?:pgl|пгл)[.!?\s]*$", re.IGNORECASE)
 # cybersport.ru renders the matches into the page in Moscow time; a live match page has BEST-OF-N and map scores
 PGL_URL = "https://www.cybersport.ru/tournaments/cs2/pgl-masters-bucharest-2026"
@@ -617,6 +619,27 @@ def pgl_maps(raw):
     return best, maps
 
 
+def _team(name):
+    return re.sub(r"(team|esports|gaming|club|\W)", "", name.casefold())
+
+
+def same_team(a, b):
+    """cybersport.ru and bo3.gg spell teams differently: «Team Liquid» / «Liquid», «NAVI» / «Natus Vincere»."""
+    a, b = _team(a), _team(b)
+    return bool(a and b) and (a in b or b in a)
+
+
+def bo3_live(fetcher=fetch, clock=time.time):
+    """(team 1, team 2, score 1, score 2) of the tournament matches bo3.gg shows as live."""
+    data = get_json(BO3_MATCHES, fetcher, clock)
+    found = []
+    for m in (data.get("results") or []) if isinstance(data, dict) else []:
+        one, two = (m.get("team1") or {}).get("name"), (m.get("team2") or {}).get("name")
+        if m.get("status") == "current" and one and two:
+            found.append((one, two, m.get("team1_score") or 0, m.get("team2_score") or 0))
+    return found
+
+
 def short_time(when):
     return when.replace("Сегодня в ", "").replace("Завтра в ", "завтра ").replace(" в ", " ")
 
@@ -633,6 +656,18 @@ def pgl(fetcher=fetch, clock=time.time):
             _pgl_times[link] = short_time(when)
     played = [m for m in matches if m[3] is not None and m[0].startswith("Сегодня")]
     live = [m for m in matches if m[0].upper() == "LIVE"]
+    # a match may start before its time while cybersport.ru still lists it as upcoming: bo3.gg knows it is live
+    early = bo3_live(fetcher, clock) if any(m[3] is None for m in matches) else []
+    for i, (when, one, two, a, b, link) in enumerate(matches):
+        if a is not None:
+            continue
+        for x, y, s1, s2 in early:
+            if same_team(one, x) and same_team(two, y) or same_team(one, y) and same_team(two, x):
+                s1, s2 = (s1, s2) if same_team(one, x) else (s2, s1)
+                matches[i] = ("LIVE", one, two, str(s1), str(s2), link)
+                _pgl_times.pop(link, None)  # the listed time is not when it really started
+                live.append(matches[i])
+                break
     lines = ["Источник: cybersport.ru", f"Обновлено: {datetime.fromtimestamp(fetched, MSK):%d.%m.%Y %H:%M} (МСК)", "",
              "Сыграно сегодня:"]
     lines += [f"{short_time(when)} {one} {a}-{b} {two}" for when, one, two, a, b, _ in played] or ["пока ничего"]
@@ -667,9 +702,7 @@ def image(text, fetcher=fetch, clock=time.time):
 def pgl_grid(fetcher=fetch, clock=time.time):
     """The Swiss-stage grid of the tournament as PNG bytes (bo3.gg data)."""
     from . import bracket
-    data = get_json(f"{BO3_API}/matches?scope=widget-matches&page[offset]=0&page[limit]=100&sort=start_date"
-                    f"&filter[matches.discipline_id][eq]=1&filter[matches.tournament_id][eq]={PGL_TOURNAMENT_ID}"
-                    f"&with=teams", fetcher, clock)
+    data = get_json(BO3_MATCHES, fetcher, clock)
     if not isinstance(data, dict):
         return "PGL: данные для сетки сейчас недоступны."
     matches = []
