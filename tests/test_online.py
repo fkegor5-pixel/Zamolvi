@@ -366,3 +366,27 @@ def test_pgl_without_live_or_site():
         "Сыграно сегодня:\nпока ничего\n\nОнлайн:\nсейчас матчей нет\n\nОжидаются игры:\n16:00 Vitality - 9z Team"
     online._cache.clear()
     assert online.answer("pgl", fetcher=fake({}), clock=lambda: 1300.0) == "PGL: данные сейчас недоступны."
+
+
+
+def test_swiss_grid_places_matches_by_record_and_draws_a_png():
+    from replyai import bracket
+    games = [("A", "B", 2, 0), ("C", "D", 2, 1), ("A", "C", 2, 1), ("B", "D", 0, 2), ("A", "D", 2, 0)]
+    matches = [dict(team1=a, team2=b, score1=x, score2=y, done=True) for a, b, x, y in games]
+    matches.append(dict(team1="C", team2="B", score1=None, score2=None, done=False))
+    pools, zones = bracket.swiss(matches)
+    assert [len(pools[p]) for p in ((0, 0), (1, 0), (0, 1), (2, 0), (1, 1))] == [2, 1, 1, 1, 1]
+    assert pools[(1, 1)][0]["team1"] == "C" and zones["3:0"] == ["A"]
+    online._cache.clear()
+    url = (f"{online.BO3_API}/matches?scope=widget-matches&page[offset]=0&page[limit]=100&sort=start_date"
+           f"&filter[matches.discipline_id][eq]=1&filter[matches.tournament_id][eq]={online.PGL_TOURNAMENT_ID}&with=teams")
+    body = json.dumps({"results": [
+        {"team1": {"name": "FUT"}, "team2": {"name": "TYLOO"}, "team1_score": 2, "team2_score": 0, "status": "finished"},
+        {"team1": None, "team2": {"name": "TBD"}, "status": "upcoming"}]})
+    assert online.is_image_command("pgl сетка") and online.is_command("ПГЛ сетка")
+    assert online.image("pgl сетка", fetcher=fake({url: body}), clock=lambda: NOW_GRID)[:8] == b"\x89PNG\r\n\x1a\n"
+    online._cache.clear()
+    assert "недоступны" in online.image("pgl сетка", fetcher=fake({}), clock=lambda: NOW_GRID)
+
+
+NOW_GRID = 1792833900.0

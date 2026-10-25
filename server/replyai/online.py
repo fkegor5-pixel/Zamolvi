@@ -55,6 +55,10 @@ RANDOM_COMMAND = re.compile(r"^рандом(?:\s+(\d{1,9})(?:\s*-\s*(\d{1,9}))?)
 FACEIT_COMMAND = re.compile(r"^фейсит\s+([A-Za-z0-9_-]{2,32})[.!?\s]*$", re.IGNORECASE)
 FACEIT_OURS_COMMAND = re.compile(r"^фейсит[.!?\s]*$", re.IGNORECASE)
 INVENTORY_COMMAND = re.compile(r"^инвентар[ьи][.!?\s]*$", re.IGNORECASE)
+PGL_GRID_COMMAND = re.compile(r"^(?:pgl|пгл)\s+сетк[аиу][.!?\s]*$", re.IGNORECASE)
+BO3_API = "https://api.bo3.gg/api/v1"
+# shortcut: the bo3.gg id of PGL Masters Bucharest 2026; change it for the next tournament
+PGL_TOURNAMENT_ID = 5338
 PGL_COMMAND = re.compile(r"^(?:pgl|пгл)[.!?\s]*$", re.IGNORECASE)
 # cybersport.ru renders the matches into the page in Moscow time; a live match page has BEST-OF-N and map scores
 PGL_URL = "https://www.cybersport.ru/tournaments/cs2/pgl-masters-bucharest-2026"
@@ -100,6 +104,7 @@ HELP = ("Команды (можно с «бот» или без):\n"
         "фейсит — уровень и Elo FACEIT наших аккаунтов\n"
         "инвентарь — стоимость инвентарей CS2\n"
         "уровень стим — уровень Steam\n"
+        "pgl сетка — картинка сетки группового этапа\n"
         "pgl — PGL Masters Bucharest: идут и ожидаются матчи\n"
         "дембель — сколько осталось\n"
         "курс — доллар и евро по ЦБ\n"
@@ -342,7 +347,7 @@ def demob(clock=time.time):
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
                 RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
-                INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, REMIND_IN, REMIND_AT)
+                INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, PGL_GRID_COMMAND, REMIND_IN, REMIND_AT)
 
 
 def steam_key(key=None):
@@ -646,3 +651,34 @@ def pgl(fetcher=fetch, clock=time.time):
     upcoming = [m for m in matches if m[3] is None]
     lines += [f"{short_time(when)} {one} - {two}" for when, one, two, *_ in upcoming] or ["нет"]
     return "\n".join(lines)
+
+
+def is_image_command(text):
+    """Commands answered with a picture instead of text."""
+    return enabled() and bool(PGL_GRID_COMMAND.match((text or "").strip()))
+
+
+def image(text, fetcher=fetch, clock=time.time):
+    """PNG bytes for a picture command, or a text when the picture cannot be made."""
+    return pgl_grid(fetcher, clock)
+
+
+def pgl_grid(fetcher=fetch, clock=time.time):
+    """The Swiss-stage grid of the tournament as PNG bytes (bo3.gg data)."""
+    from . import bracket
+    data = get_json(f"{BO3_API}/matches?scope=widget-matches&page[offset]=0&page[limit]=100&sort=start_date"
+                    f"&filter[matches.discipline_id][eq]=1&filter[matches.tournament_id][eq]={PGL_TOURNAMENT_ID}"
+                    f"&with=teams", fetcher, clock)
+    if not isinstance(data, dict):
+        return "PGL: данные для сетки сейчас недоступны."
+    matches = []
+    for m in data.get("results") or []:
+        one, two = (m.get("team1") or {}).get("name"), (m.get("team2") or {}).get("name")
+        if one and two:  # a match whose teams are not known yet is not drawn
+            matches.append({"team1": one, "team2": two, "score1": m.get("team1_score"), "score2": m.get("team2_score"),
+                            "done": m.get("status") in ("finished", "defwin")})
+    try:
+        return bracket.render(matches, "PGL Masters Bucharest 2026 — групповой этап",
+                              f"Обновлено {datetime.fromtimestamp(clock(), MSK):%d.%m %H:%M} (МСК) · данные bo3.gg")
+    except ImportError:
+        return "Для картинки на сервере нужна библиотека Pillow."
