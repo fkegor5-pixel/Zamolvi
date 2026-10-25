@@ -337,11 +337,10 @@ def demob(clock=time.time):
         return "Дембель уже наступил!"
     done = min(1.0, max(0.0, (now - DEMOB_FROM.timestamp()) / (DEMOB_AT.timestamp() - DEMOB_FROM.timestamp())))
     cells = round(done * 10)
-    weeks, left = divmod(left, 7 * 86400)
     days, left = divmod(left, 86400)
     hours, left = divmod(left, 3600)
-    minutes, seconds = divmod(left, 60)
-    return (f"Недель: {weeks}. Дней: {days}. Часов: {hours}. Минут: {minutes}. Секунд: {seconds}\n"
+    minutes = left // 60
+    return (f"Дней: {days}. Часов: {hours}. Минут: {minutes}\n"
             + f"Отслужено: {done * 100:.1f}% ".replace(".", ",") + "█" * cells + "░" * (10 - cells))
 
 

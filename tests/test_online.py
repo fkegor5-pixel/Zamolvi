@@ -156,7 +156,7 @@ def test_demob_counts_down_and_passes_the_gate():
     end = online.DEMOB_AT.timestamp()
     left = 2 * 7 * 86400 + 3 * 86400 + 4 * 3600 + 5 * 60 + 6
     assert online.answer("дембель", clock=lambda: end - left).splitlines()[0] == \
-        "Недель: 2. Дней: 3. Часов: 4. Минут: 5. Секунд: 6"
+        "Дней: 17. Часов: 4. Минут: 5"  # 2 weeks and 3 days are 17 days
     assert online.answer("дембель!", clock=lambda: end + 1) == "Дембель уже наступил!"
 
 
