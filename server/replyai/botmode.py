@@ -28,6 +28,7 @@ MENU = (  # (button, command); the emoji is the section
     ("🔫 Уровень Steam", "уровень стим"), ("🔫 Скидки Steam", "стим игры"),
     ("🏆 PGL матчи", "pgl"), ("🏆 PGL сетка", "pgl сетка"), ("🏆 PGL плей-офф", "pgl плей-офф"),
     ("🧰 Дембель", "дембель"), ("🧰 Курс", "курс"), ("🧰 Монетка", "монетка"), ("🧰 Рандом", "рандом"),
+    ("🧰 Новости", "новости"), ("🧰 Получить деньги", "получить деньги"),
 )
 MENU_TEXT = ("🤖 <b>Zamolvi Bot</b>\n"
              "Нажмите кнопку или напишите команду текстом:\n"
@@ -281,8 +282,8 @@ class OwnBot:
             else:
                 answer = await asyncio.to_thread(online.answer, body)
             text, entities = render(answer, "auto", "", limit=4000)
-            await self.client.send_message(chat, text, formatting_entities=entities, link_preview=False,
-                                           buttons=back())
+            await self.client.send_message(chat, text, formatting_entities=entities, buttons=back(),
+                                           link_preview=bool(online.MONEY_COMMAND.match(body)))  # the video card
         except FAILURES as exc:
             self.log("ответ не отправлен: " + type(exc).__name__)
 

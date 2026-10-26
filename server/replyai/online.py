@@ -51,6 +51,21 @@ INGAME_COMMAND = re.compile(r"^кто\s+в\s+игре[.!?\s]*$", re.IGNORECASE)
 RATES_COMMAND = re.compile(r"^курс[.!?\s]*$", re.IGNORECASE)
 WEATHER_COMMAND = re.compile(r"^погода\s+([^\n]{2,60}?)[.!?\s]*$", re.IGNORECASE)
 COIN_COMMAND = re.compile(r"^монетка[.!?\s]*$", re.IGNORECASE)
+NEWS_COMMAND = re.compile(r"^новости[.!?\s]*$", re.IGNORECASE)
+MONEY_COMMAND = re.compile(r"^получить\s+деньги[.!?\s]*$", re.IGNORECASE)
+MONEY_VIDEO = "https://youtu.be/PkT0PJwy8mI"
+# «новости»: obviously absurd joke headlines, marked as a joke (never plausible real-world news)
+NEWS_WHO = ("Голуби", "Учёные из Саратова", "Коты из школы №5", "Пенсионеры из Твери", "Пингвины Антарктиды",
+            "Шашисты сборной России", "Еноты-блогеры", "Домовые", "Роботы-пылесосы", "Бабушки у подъезда",
+            "Хомяки", "Чиновники министерства носков")
+NEWS_DID = ("захватили почту и рассылают только открытки с котиками", "объявили понедельник выходным навсегда",
+            "перенесли дембель на Луну", "научились телепортировать пельмени", "запретили будильники до обеда",
+            "потребовали вернуть шаурме статус национального блюда", "объявили войну носкам без пары",
+            "спрятали все пульты от телевизоров страны", "заменили интернет на голубиную почту",
+            "сделали гречку валютой", "открыли школу для котов-программистов", "отменили зиму по техническим причинам")
+NEWS_TAIL = ("Очевидцы в шоке.", "Ситуация под контролем бабушек.", "Подробности уточняются у соседского кота.",
+             "Эксперты советуют сохранять спокойствие и пить чай.", "Паника отменена до четверга.",
+             "Комментарии отказались давать даже голуби.")
 RANDOM_COMMAND = re.compile(r"^рандом(?:\s+(\d{1,9})(?:\s*-\s*(\d{1,9}))?)?[.!?\s]*$", re.IGNORECASE)
 FACEIT_COMMAND = re.compile(r"^фейсит\s+([A-Za-z0-9_-]{2,32})[.!?\s]*$", re.IGNORECASE)
 FACEIT_OURS_COMMAND = re.compile(r"^фейсит[.!?\s]*$", re.IGNORECASE)
@@ -128,7 +143,8 @@ SLASH = {"/help": "команды", "/commands": "команды", "/online": "�
          "/graph": "онлайн график", "/hours": "часы в кс", "/ingame": "кто в игре",
          "/faceit": "фейсит", "/inventory": "инвентарь", "/level": "уровень стим", "/steam_games": "стим игры",
          "/pgl": "pgl", "/pgl_grid": "pgl сетка", "/pgl_playoff": "pgl плей-офф",
-         "/demob": "дембель", "/rates": "курс", "/coin": "монетка", "/random": "рандом"}
+         "/demob": "дембель", "/rates": "курс", "/coin": "монетка", "/random": "рандом",
+         "/news": "новости", "/money": "получить деньги"}
 HELP = ("🤖 <b>Команды бота</b>\n"
         "Нажмите на синюю команду — она появится в поле ввода, останется отправить. "
         "Серые — нажмите, чтобы скопировать. Можно писать с «бот» или без.\n\n"
@@ -153,6 +169,8 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "дембель — сколько до дембеля\n"
         "курс — доллар и евро по ЦБ\n"
         "монетка — орёл или решка\n"
+        "новости — шуточные новости\n"
+        "получить деньги — видео-инструкция\n"
         "рандом — число от 1 до 100\n"
         "<code>погода Москва</code>\n"
         "<code>напомни через 30 минут позвонить</code>\n"
@@ -181,6 +199,13 @@ def addressed(text):
 def bot_link(username):
     """The answer to «команды» in a chat once the owner has his own bot: all commands are there."""
     return f"🤖 Все команды — в боте @{username}\nhttps://t.me/{username}"
+
+
+def news(rng=_rng):
+    """The answer to «новости»: three absurd headlines with an alarming tone, marked as a joke."""
+    who, did = rng.sample(NEWS_WHO, 3), rng.sample(NEWS_DID, 3)
+    lines = [f"🚨 {w} {d}. {rng.choice(NEWS_TAIL)}" for w, d in zip(who, did)]
+    return "📰 <b>СРОЧНЫЕ НОВОСТИ</b>\n\n" + "\n\n".join(lines) + "\n\n😄 Это шутка, все новости выдуманы."
 
 
 def without_bot(text):
@@ -233,6 +258,10 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
         return pgl(fetcher, clock)
     if LEVEL_COMMAND.match(text):
         return steam_levels(fetcher, clock)
+    if NEWS_COMMAND.match(text):
+        return news(rng)
+    if MONEY_COMMAND.match(text):
+        return f"💰 Как получить деньги — всё в этом видео:\n{MONEY_VIDEO}"
     if COIN_COMMAND.match(text):
         return "Выпало: " + rng.choice(("Орёл", "Решка"))
     for pattern, handler in ((SERVER_COMMAND, lambda m: server_online(m.group(1), fetcher, clock)),
@@ -412,7 +441,7 @@ def demob(clock=time.time):
 
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
-                RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
+                RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, NEWS_COMMAND, MONEY_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
                 INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, PGL_GRID_COMMAND, PGL_PLAYOFF_COMMAND, PGL_TEAM_COMMAND,
                 GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT)
 
