@@ -52,12 +52,6 @@ RATES_COMMAND = re.compile(r"^курс[.!?\s]*$", re.IGNORECASE)
 WEATHER_COMMAND = re.compile(r"^погода\s+([^\n]{2,60}?)[.!?\s]*$", re.IGNORECASE)
 COIN_COMMAND = re.compile(r"^монетка[.!?\s]*$", re.IGNORECASE)
 NEWS_COMMAND = re.compile(r"^новости[.!?\s]*$", re.IGNORECASE)
-SAVED_AS_COMMAND = re.compile(r"^как\s+меня\s+записали\??[.!\s]*$", re.IGNORECASE)
-# «как меня записали»: a joke list; the numbers show 4 digits of 10, so they never point to a real person
-SAVED_AS = ("Зануда ☀️", "Тиран 😎", "Кошмар 😂😍", "Братан 🤝", "Должен 500₽ 💸", "Не брать трубку 📵",
-            "Шаурмен 🌯", "Батя 👨", "Работа 💼", "Сосед сверху 🔨", "Мамин бизнесмен 💼", "Задрот КС 🎮",
-            "Дембель скоро 🪖", "Спам 🚫", "Вася Ремонт 🔧", "Любимка ❤️", "Опять он 🙄", "Гений 🧠", "Таксист 🚕",
-            "Не отвечать после 22:00 🌙", "Аризонщик 🚓", "Легенда 🏆")
 MONEY_COMMAND = re.compile(r"^получить\s+деньги[.!?\s]*$", re.IGNORECASE)
 MONEY_VIDEO = "https://youtu.be/PkT0PJwy8mI"
 # «новости»: obviously absurd joke headlines, marked as a joke (never plausible real-world news)
@@ -150,8 +144,7 @@ SLASH = {"/help": "команды", "/commands": "команды", "/online": "�
          "/faceit": "фейсит", "/inventory": "инвентарь", "/level": "уровень стим", "/steam_games": "стим игры",
          "/pgl": "pgl", "/pgl_grid": "pgl сетка", "/pgl_playoff": "pgl плей-офф",
          "/demob": "дембель", "/rates": "курс", "/coin": "монетка", "/random": "рандом",
-         "/news": "новости", "/money": "получить деньги",
-         "/saved_as": "как меня записали"}
+         "/news": "новости", "/money": "получить деньги"}
 HELP = ("🤖 <b>Команды бота</b>\n"
         "Нажмите на синюю команду — она появится в поле ввода, останется отправить. "
         "Серые — нажмите, чтобы скопировать. Можно писать с «бот» или без.\n\n"
@@ -178,7 +171,6 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "монетка — орёл или решка\n"
         "новости — шуточные новости\n"
         "получить деньги — видео-инструкция\n"
-        "как меня записали — как вас подписали в контактах\n"
         "рандом — число от 1 до 100\n"
         "<code>погода Москва</code>\n"
         "<code>напомни через 30 минут позвонить</code>\n"
@@ -207,14 +199,6 @@ def addressed(text):
 def bot_link(username):
     """The answer to «команды» in a chat once the owner has his own bot: all commands are there."""
     return f"🤖 Все команды — в боте @{username}\nhttps://t.me/{username}"
-
-
-def saved_as(rng=_rng):
-    """The answer to «как меня записали»: ten made-up names with masked numbers."""
-    def number():
-        return f"+79{rng.randint(0, 9)}*****{rng.randint(0, 99):02d}{rng.randint(0, 9)}"
-    lines = [f"{i}. {name} - у {number()}" for i, name in enumerate(rng.sample(SAVED_AS, 10), 1)]
-    return "Вас записали так:\n" + "\n".join(lines) + "\n\n🎭 Для смеха: имена и номера выдуманы."
 
 
 def news(rng=_rng):
@@ -274,8 +258,6 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
         return pgl(fetcher, clock)
     if LEVEL_COMMAND.match(text):
         return steam_levels(fetcher, clock)
-    if SAVED_AS_COMMAND.match(text):
-        return saved_as(rng)
     if NEWS_COMMAND.match(text):
         return news(rng)
     if MONEY_COMMAND.match(text):
@@ -459,7 +441,7 @@ def demob(clock=time.time):
 
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
-                RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, NEWS_COMMAND, SAVED_AS_COMMAND, MONEY_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
+                RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, NEWS_COMMAND, MONEY_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
                 INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, PGL_GRID_COMMAND, PGL_PLAYOFF_COMMAND, PGL_TEAM_COMMAND,
                 GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT)
 
