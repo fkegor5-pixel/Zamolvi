@@ -174,6 +174,7 @@ def test_commands_are_off_without_the_owner_setting():
 
 import json
 import random
+import re
 import urllib.parse
 
 ROWS_PAGE = ("<h2>Arizona RP</h2> Arizona (Staging) 0 / 2000 0% · очередь 0 "
@@ -528,3 +529,11 @@ def test_news_are_absurd_and_marked_as_a_joke_and_money_links_the_video():
     assert news.count("🚨") == 3
     assert online.answer("получить деньги").endswith(online.MONEY_VIDEO)
     assert online.addressed("/news") == "новости" and online.addressed("/money") == "получить деньги"
+
+
+def test_saved_as_is_a_joke_list_with_masked_numbers():
+    text = online.answer("Как меня записали?", rng=random.Random(5))
+    lines = text.splitlines()
+    assert lines[0] == "Вас записали так:" and lines[10].startswith("10. ") and "выдуманы" in lines[-1]
+    assert all(re.search(r" - у \+79\d\*{5}\d{3}$", l) for l in lines[1:11])
+    assert text == online.answer("как меня записали", rng=random.Random(5))  # the same seed, the same list
