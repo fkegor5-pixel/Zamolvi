@@ -1017,7 +1017,7 @@ async def test_grid_command_is_answered_with_a_picture(env):
     from replyai import online
     restore = owner_commands_on()
     original = online.image
-    online.image = lambda text: b"\x89PNG fake"
+    online.image = lambda text, **kw: b"\x89PNG fake"
     try:
         setup_chats(env)
         env.engine.client.send_file = AsyncMock()
@@ -1028,4 +1028,37 @@ async def test_grid_command_is_answered_with_a_picture(env):
         assert env.engine.client.send_file.call_count == 2
     finally:
         online.image = original
+        restore()
+
+
+@pytest.mark.asyncio
+async def test_digest_reads_channels_asks_the_model_once_and_caches(env):
+    from replyai import online
+    restore = owner_commands_on()
+    original = online.steam_specials
+    online.steam_specials = lambda: ["Battlefield V — -90% — 399 RUB"]
+    try:
+        ai = setup_chats(env)
+        asked = []
+        async def complete(config, system, text, max_tokens=1024):
+            asked.append((system, text))
+            return "Battlefield V — -90% — бесплатно почти"
+        ai.complete = complete
+        now = dt.datetime.fromtimestamp(env.clock[0], dt.timezone.utc)
+        read = []
+        async def get_messages(channel, limit):
+            read.append(channel)
+            return [SimpleNamespace(id=7, message="Раздача Battlefield V", date=now),
+                    SimpleNamespace(id=1, message="очень старый пост", date=now - dt.timedelta(days=30))]
+        env.engine.client.get_messages = get_messages
+        sent = env.engine.client.sent
+        await env.engine.on_message(owner_message(env, 70, 777, "стим игры"))
+        assert read == ["skesti"] and len(asked) == 1
+        assert "https://t.me/skesti/7" in asked[0][1] and "старый" not in asked[0][1]
+        assert sent[-1].message.startswith("[AI-автоответ] ")
+        assert "Источник: @skesti, магазин Steam" in sent[-1].message and "Battlefield V" in sent[-1].message
+        await env.engine.on_message(owner_message(env, 71, 777, "бот стим игры"))
+        assert len(asked) == 1 and len(sent) == 2  # from the cache
+    finally:
+        online.steam_specials = original
         restore()

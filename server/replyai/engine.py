@@ -71,6 +71,8 @@ class Engine:
             self.ai.on_usage = self.usage_metric
         self.memory_next = 0
         self.drafts_checked_at = 0
+        self.online_sampled_at = 0
+        self.digests = {}  # kind -> (time, answer) of «стим игры», «куда вложить …»
         self.draft_notice_at = {}
         self.notice_at = {}
         self.imports = {}         # chat -> progress of a history import (kept in RAM only)
@@ -929,8 +931,12 @@ class Engine:
                     self.remove_job(job)
                     return
                 plan = online.reminder(job['text'], self.clock())
-                answer = (self.add_reminder(job['chat'], *plan) if plan
-                          else await asyncio.to_thread(online.answer, job['text']))
+                kind = online.digest_kind(job['text'])
+                if kind:
+                    answer = await self.digest(job['chat'], kind)
+                else:
+                    answer = (self.add_reminder(job['chat'], *plan) if plan
+                              else await asyncio.to_thread(online.answer, job['text']))
             if not answer:
                 self.metric(ai_calls=1)
                 started = time.perf_counter()
@@ -1046,6 +1052,7 @@ class Engine:
                     if expired:
                         self.log(f'Черновиков без ответа удалено по сроку: {expired}.')
             await self.send_reminders()
+            await self.sample_online()
             await self.process_memory()
         except asyncio.CancelledError:
             raise
@@ -1065,6 +1072,52 @@ class Engine:
         if not self.store.update(edit):
             return f'Не больше {online.MAX_REMINDERS} напоминаний в одном чате.'
         return 'Напомню ' + online.when(due) + '.'
+
+    async def sample_online(self):
+        """Counts the online of the servers every few minutes for «онлайн график» (owner's server only)."""
+        if not online.enabled() or self.clock() < self.online_sampled_at:
+            return
+        self.online_sampled_at = self.clock() + online.SAMPLE_SECONDS
+        found = await asyncio.to_thread(online.counts)
+        now = self.clock()
+        self.store.update(lambda s: online.keep_sample(s.setdefault('online_samples', []), now, found))
+
+    async def digest(self, chat, kind):
+        """The answer to «стим игры» / «куда вложить …»: recent channel posts summed up by the model."""
+        now = self.clock()
+        hit = self.digests.get(kind)
+        if hit and now - hit[0] < online.DIGEST_TTL:
+            return hit[1]
+        channels, task = online.DIGESTS[kind]
+        posts = []
+        for channel in channels:
+            try:
+                async with self.telegram_lock:
+                    messages = await self.client.get_messages(channel, limit=online.DIGEST_POSTS)
+            except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+                self.log(f'Канал @{channel} не прочитан: ' + type(exc).__name__)
+                continue
+            for m in messages or []:
+                text, date = getattr(m, 'message', None), getattr(m, 'date', None)
+                if text and date and now - date.timestamp() <= online.DIGEST_AGE:
+                    posts.append({'channel': channel, 'id': m.id, 'date': date.timestamp(), 'text': text})
+        extra = await asyncio.to_thread(online.steam_specials) if kind == 'steam' else []
+        if not posts and not extra:
+            return 'Не удалось прочитать каналы. Попробуйте позже.'
+        s = self.store.read()
+        complete = getattr(self.ai, 'complete', None)
+        try:
+            validate(s['ai'])
+            if complete is None:
+                raise UserError('нет модели')
+            with ai_purpose('reply', chat):
+                summary = await complete(s['ai'], task, online.digest_request(posts, extra), 1200)
+        except (AiError, UserError) as exc:
+            self.log('Сводка по каналам не сделана: ' + str(exc))
+            return 'Нейросеть сейчас недоступна, попробуйте позже.'
+        answer = online.digest_answer(kind, summary, now)
+        self.digests[kind] = (now, answer)
+        return answer
 
     async def send_reminders(self):
         """Sends due reminders once (they are removed before sending, so never twice)."""
@@ -1091,9 +1144,13 @@ class Engine:
             await self.send_picture(await event.get_input_chat(), event.id, text)
             return
         plan = online.reminder(text, self.clock())
+        kind = online.digest_kind(text)
         try:
-            answer = (self.add_reminder(chat, *plan, owner=True) if plan
-                      else await asyncio.to_thread(online.answer, text))
+            if kind:
+                answer = await self.digest(chat, kind)
+            else:
+                answer = (self.add_reminder(chat, *plan, owner=True) if plan
+                          else await asyncio.to_thread(online.answer, text))
             async with self.telegram_lock:
                 await self.client(functions.messages.SendMessageRequest(
                     peer=await event.get_input_chat(), message=PREFIX + answer, random_id=secrets.randbits(63),
@@ -1103,13 +1160,14 @@ class Engine:
 
     async def send_picture(self, peer, reply_to, text):
         """Answers a picture command with the picture (or with a text when it cannot be made)."""
-        result = await asyncio.to_thread(online.image, text)
+        samples = self.store.read().get('online_samples', [])
+        result = await asyncio.to_thread(online.image, text, samples=samples)
         try:
             async with self.telegram_lock:
                 if isinstance(result, bytes):
                     picture = io.BytesIO(result)
                     picture.name = 'pgl.png'
-                    await self.client.send_file(peer, picture, caption=PREFIX + 'PGL Masters Bucharest — сетка',
+                    await self.client.send_file(peer, picture, caption=PREFIX + online.caption(text),
                                                 reply_to=reply_to)
                 else:
                     await self.client(functions.messages.SendMessageRequest(

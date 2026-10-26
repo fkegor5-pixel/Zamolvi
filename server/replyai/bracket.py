@@ -103,20 +103,82 @@ def render(matches, title, subtitle=""):
             y += LABEL_H
             found = pools.get(part, [])
             for i in range(POOLS[part]):
-                draw.rounded_rectangle((x, y, x + BOX_W, y + BOX_H), 8, fill=CARD)
-                draw.line((x + 8, y + BOX_H // 2, x + BOX_W - 8, y + BOX_H // 2), fill=LINE)
-                m = found[i] if i < len(found) else None
-                for row, (team, score) in enumerate(((m["team1"], m.get("score1")), (m["team2"], m.get("score2")))
-                                                    if m else (("?", None), ("?", None))):
-                    ty = y + 6 + row * (BOX_H // 2)
-                    won = bool(m and m.get("done") and score is not None
-                               and score == max(m.get("score1", 0), m.get("score2", 0)) and m["score1"] != m["score2"])
-                    color = WIN if won or not (m and m.get("done")) else MUTED
-                    draw.text((x + 10, ty), _fit(draw, team, _font(17, won), BOX_W - 50), font=_font(17, won), fill=color)
-                    if m and m.get("done"):
-                        draw.text((x + BOX_W - 12, ty), str(score), font=_font(17, won), fill=color, anchor="ra")
+                _match_box(draw, x, y, found[i] if i < len(found) else None)
                 y += BOX_H + GAP
             y += 24
+    return _png(image)
+
+
+def _png(image):
     out = io.BytesIO()
     image.save(out, "PNG", optimize=True)
     return out.getvalue()
+
+
+def _match_box(draw, x, y, m):
+    """One match: two rows «team score», the winner in bold; «?» for a match not known yet."""
+    draw.rounded_rectangle((x, y, x + BOX_W, y + BOX_H), 8, fill=CARD)
+    draw.line((x + 8, y + BOX_H // 2, x + BOX_W - 8, y + BOX_H // 2), fill=LINE)
+    for row, (team, score) in enumerate(((m["team1"], m.get("score1")), (m["team2"], m.get("score2")))
+                                        if m else (("?", None), ("?", None))):
+        ty = y + 6 + row * (BOX_H // 2)
+        won = bool(m and m.get("done") and score is not None
+                   and score == max(m.get("score1") or 0, m.get("score2") or 0) and m["score1"] != m["score2"])
+        color = WIN if won or not (m and m.get("done")) else MUTED
+        draw.text((x + 10, ty), _fit(draw, team, _font(17, won), BOX_W - 50), font=_font(17, won), fill=color)
+        if m and m.get("done"):
+            draw.text((x + BOX_W - 12, ty), str(score), font=_font(17, won), fill=color, anchor="ra")
+
+
+def playoff(matches):
+    """(play-off matches in time order, teams that advanced) from the matches of the whole tournament.
+
+    A play-off match is one between two teams that already have three Swiss wins.
+    """
+    record = defaultdict(lambda: (0, 0))
+    games, advanced = [], []
+    for m in matches:
+        a, b = m["team1"], m["team2"]
+        if record[a][0] == 3 and record[b][0] == 3:
+            games.append(m)
+            continue
+        if m.get("done") and m.get("score1") != m.get("score2"):
+            winner, loser = (a, b) if m["score1"] > m["score2"] else (b, a)
+            record[winner] = (record[winner][0] + 1, record[winner][1])
+            record[loser] = (record[loser][0], record[loser][1] + 1)
+            if record[winner][0] == 3:
+                advanced.append(winner)
+    return games, advanced
+
+
+ROUNDS = (("Четвертьфиналы", 4), ("Полуфиналы", 2), ("Финал", 1))
+
+
+def render_playoff(games, title, subtitle=""):
+    """PNG bytes of an 8-team single-elimination bracket; games fill the rounds in time order."""
+    from PIL import Image, ImageDraw
+    step = BOX_H + 40
+    width, height = 40 + COL_W * len(ROUNDS) + 40, TOP + LABEL_H + 4 * step + 20
+    image = Image.new("RGB", (width, height), BG)
+    draw = ImageDraw.Draw(image)
+    draw.text((20, 18), title, font=_font(30, True), fill=TEXT)
+    draw.text((20, 56), subtitle, font=_font(15), fill=MUTED)
+    first, centers = 0, []
+    for c, (name, count) in enumerate(ROUNDS):
+        x = 20 + c * (COL_W + 20)
+        draw.text((x, TOP), name, font=_font(20, True), fill=MUTED)
+        span = 4 * step / count
+        now = []
+        for i in range(count):
+            y = TOP + LABEL_H + 10 + span * i + (span - BOX_H) / 2
+            k = first + i
+            _match_box(draw, x, int(y), games[k] if k < len(games) else None)
+            now.append((x, int(y) + BOX_H // 2))
+            if centers:  # lines from the two matches of the previous round
+                for px, py in centers[2 * i:2 * i + 2]:
+                    mid = px + BOX_W + 10
+                    draw.line((px + BOX_W, py, mid, py), fill=LINE, width=2)
+                    draw.line((mid, py, mid, int(y) + BOX_H // 2), fill=LINE, width=2)
+                    draw.line((mid, int(y) + BOX_H // 2, x, int(y) + BOX_H // 2), fill=LINE, width=2)
+        centers, first = now, first + count
+    return _png(image)

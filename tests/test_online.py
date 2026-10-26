@@ -405,3 +405,98 @@ def test_swiss_grid_places_matches_by_record_and_draws_a_png():
 
 
 NOW_GRID = 1792833900.0
+
+
+def bo3_row(one, two, a, b, status="finished", start="2026-10-24T10:40:00.000+00:00", slug=None):
+    return {"team1": {"name": one}, "team2": {"name": two}, "team1_score": a, "team2_score": b, "status": status,
+            "start_date": start, "slug": slug, "bo_type": 3}
+
+
+def swiss_to_playoff():
+    """Eight teams reach three wins (two 3:0, three 3:1, three 3:2 are faked by direct wins)."""
+    rows = []
+    for team in "ABCDEFGH":
+        rows += [bo3_row(team, f"x{team}{i}", 1, 0) for i in range(3)]
+    return rows
+
+
+def test_new_commands_are_recognised():
+    for text in ("pgl плей-офф", "ПГЛ playoff", "pgl vitality", "онлайн график", "стим игры", "куда вложить кс",
+                 "куда вложить гта"):
+        assert online.is_command(text), text
+    assert online.is_image_command("pgl плейофф") and online.is_image_command("онлайн график")
+    assert not online.is_image_command("pgl vitality")
+    assert [online.digest_kind(t) for t in ("стим игры", "куда вложить cs2", "куда вложить GTA", "pgl")] == \
+        ["steam", "cs", "gta", None]
+    assert online.caption("онлайн график") == "Онлайн за сутки" and online.caption("pgl плей-офф").endswith("плей-офф")
+
+
+def test_playoff_waits_then_draws():
+    from replyai import bracket
+    online._cache.clear()
+    rows = swiss_to_playoff()
+    text = online.image("pgl плей-офф", fetcher=fake({online.BO3_MATCHES: json.dumps({"results": rows})}),
+                        clock=lambda: 1000.0)
+    assert text.startswith("Плей-офф PGL ещё не начался.\nВышли в плей-офф: A, B, C, D, E, F, G, H")
+    rows += [bo3_row("A", "B", 2, 1), bo3_row("C", "D", 0, 2), bo3_row("A", "D", 0, 0, "upcoming")]
+    games, advanced = bracket.playoff(online.bo3_rows(fake({online.BO3_MATCHES: json.dumps({"results": rows})}),
+                                                      lambda: 2000.0))
+    assert [(g["team1"], g["team2"]) for g in games] == [("A", "B"), ("C", "D"), ("A", "D")] and len(advanced) == 8
+    online._cache.clear()
+    png = online.image("pgl плей-офф", fetcher=fake({online.BO3_MATCHES: json.dumps({"results": rows})}),
+                       clock=lambda: 3000.0)
+    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_pgl_team_shows_last_live_and_next_match():
+    online._cache.clear()
+    rows = [bo3_row("Team Vitality", "MOUZ", 2, 1, slug="v-m"), bo3_row("G2", "Vitality", 2, 0),
+            bo3_row("Vitality", "Spirit", 0, 0, "upcoming", "2026-10-26T13:00:00.000+00:00")]
+    games = json.dumps({"games": [
+        {"number": 2, "status": "finished", "map_name": "de_mirage", "winner_clan_score": 13, "loser_clan_score": 7,
+         "winner_clan_name": "Vitality"},
+        {"number": 1, "status": "finished", "map_name": "de_nuke", "winner_clan_score": 13, "loser_clan_score": 9,
+         "winner_clan_name": "Vitality"}]})
+    pages = {online.BO3_MATCHES: json.dumps({"results": rows}),
+             f"{online.BO3_API}/matches/v-m?scope=show-match&with=games,teams": games}
+    answer = online.answer("pgl vitality", fetcher=fake(pages), clock=lambda: 1000.0)
+    assert answer.split("\n\n")[1:] == [
+        "Team Vitality: побед 1, поражений 1",
+        "Последний матч:\n24.10 13:40 G2 2-0 Vitality",
+        "Следующий матч:\n26.10 16:00 Vitality - Spirit"]
+    assert "Карта" not in answer  # the last match has no slug: no maps
+    rows.pop(1)
+    online._cache.clear()
+    assert "Карта 1: Nuke 13:9 (Vitality)\nКарта 2: Mirage 13:7 (Vitality)" in online.answer(
+        "pgl vitality", fetcher=fake(dict(pages, **{online.BO3_MATCHES: json.dumps({"results": rows})})),
+        clock=lambda: 1100.0)
+    assert "не найдена" in online.answer("pgl navi", fetcher=fake(pages), clock=lambda: 1100.0)
+
+
+def test_online_samples_and_graph():
+    samples = []
+    online.keep_sample(samples, 0.0, [("Excellent", 90), ("Space", 800), ("Wednesday", None)])
+    assert online.image("онлайн график", samples=samples, clock=lambda: 10.0).startswith("График появится")
+    for i in range(1, 100):
+        online.keep_sample(samples, i * 300.0, [("Excellent", 90 + i), ("Space", 800 + i), ("Wednesday", 10)])
+    online.keep_sample(samples, 30 * 3600.0, [("Excellent", 1), ("Space", 2), ("Wednesday", 3)])
+    assert samples[0][0] == 14400.0 and samples[-1] == [30 * 3600.0, 1, 2, 3]  # older than 26 hours are dropped
+    samples = [[i * 300.0, 90, 800 + i, None] for i in range(50)]
+    assert online.image("онлайн график", samples=samples, clock=lambda: 50 * 300.0)[:4] == b"\x89PNG"
+
+
+def test_steam_specials_and_digest_texts():
+    online._cache.clear()
+    store = json.dumps({"specials": {"items": [
+        {"name": "Battlefield V", "discount_percent": 90, "final_price": 39900, "currency": "RUB"},
+        {"name": "No sale", "discount_percent": 0, "final_price": 100}]}})
+    assert online.steam_specials(fetcher=fake({online.STEAM_SPECIALS: store}), clock=lambda: 1.0) == \
+        ["Battlefield V — -90% — 399 RUB"]
+    posts = [{"channel": "skesti", "id": 5, "date": 0.0, "text": "старый"},
+             {"channel": "skesti", "id": 9, "date": 86400.0, "text": "GTA V -75%"}]
+    request = online.digest_request(posts, ["Battlefield V — -90% — 399 RUB"])
+    assert request.index("https://t.me/skesti/9") < request.index("https://t.me/skesti/5")
+    assert request.endswith("СКИДКИ В МАГАЗИНЕ STEAM СЕЙЧАС:\n\nBattlefield V — -90% — 399 RUB")
+    assert online.digest_answer("steam", " игры ", 0.0) == \
+        "Источник: @skesti, магазин Steam\nОбновлено: 01.01.1970 03:00 (МСК)\n\nигры"
+    assert "не гарантия" in online.digest_answer("cs", "кейсы", 0.0)
