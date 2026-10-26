@@ -519,3 +519,12 @@ def test_steam_specials_and_digest_texts():
 def test_digest_prompt_asks_for_russian_short_lines():
     task = online.DIGESTS["steam"][1]
     assert "ТОЛЬКО на русском" in task and "Не пересказывай" in task and list(online.DIGESTS) == ["steam"]
+
+
+def test_news_are_absurd_and_marked_as_a_joke_and_money_links_the_video():
+    assert online.is_command("Новости") and online.is_command("получить деньги")
+    news = online.answer("новости", rng=random.Random(1))
+    assert news.startswith("📰 <b>СРОЧНЫЕ НОВОСТИ</b>") and news.endswith("😄 Это шутка, все новости выдуманы.")
+    assert news.count("🚨") == 3
+    assert online.answer("получить деньги").endswith(online.MONEY_VIDEO)
+    assert online.addressed("/news") == "новости" and online.addressed("/money") == "получить деньги"
