@@ -16,6 +16,7 @@ from .diagnostics import Diagnostics
 from .qr import QrLogin
 from .formatting import render, MODES, with_links
 from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style, online
+from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
@@ -73,6 +74,7 @@ class Engine:
         self.drafts_checked_at = 0
         self.online_sampled_at = 0
         self.me_username = None  # cached owner's @username, '' when there is none
+        self.bot = OwnBot(self)  # the owner's own Telegram bot (owner's server only)
         self.digests = {}  # kind -> (time, answer) of «стим игры», «куда вложить …»
         self.draft_notice_at = {}
         self.notice_at = {}
@@ -121,6 +123,7 @@ class Engine:
             self.worker.cancel()
             with suppress(asyncio.CancelledError):
                 await self.worker
+        await self.bot.stop()
         if self.client:
             self.client.session.save()
             await self.client.disconnect()
@@ -516,7 +519,10 @@ class Engine:
             if not text.startswith(PREFIX):
                 self.cancel_chat(chat)
             switch = online.owner_switch(text)
-            if switch is not None:
+            if online.CREATE_BOT_COMMAND.match(text) and online.enabled():
+                if getattr(await event.get_chat(), 'is_self', False):
+                    await self.bot.recreate()
+            elif switch is not None:
                 await self.owner_switch(event, switch)
             elif not text.startswith(PREFIX):
                 body = online.addressed(text)
@@ -1059,12 +1065,13 @@ class Engine:
             await self.send_reminders()
             await self.sample_online()
             await self.process_memory()
+            await self.bot.tick()  # last: a failure here must not hold back the work above
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             self.diagnostics.emit('worker', 'housekeeping', exc)
 
-    def add_reminder(self, chat, due, note, owner=False):
+    def add_reminder(self, chat, due, note, owner=False, bot=False):
         """Stores a reminder of «напомни …» and returns the answer; due is None for a wrong request."""
         if due is None:
             return note
@@ -1072,7 +1079,7 @@ class Engine:
             mine = [r for r in s.setdefault('reminders', []) if r['chat'] == chat]
             if len(mine) >= online.MAX_REMINDERS:
                 return False
-            s['reminders'].append({'chat': chat, 'due': due, 'text': note, 'owner': owner})
+            s['reminders'].append({'chat': chat, 'due': due, 'text': note, 'owner': owner, 'bot': bot})
             return True
         if not self.store.update(edit):
             return f'Не больше {online.MAX_REMINDERS} напоминаний в одном чате.'
@@ -1129,10 +1136,15 @@ class Engine:
         """Sends due reminders once (they are removed before sending, so never twice)."""
         s = self.store.read()
         due = [r for r in s.get('reminders', []) if r['due'] <= self.clock()]
-        if not due or not s['enabled'] or not self.authorized or not self.client:
+        if not s['enabled']:
+            due = [r for r in due if r.get('bot')]  # the own bot works with the auto-reply off too
+        if not due or not self.authorized or not self.client:
             return
         self.store.update(lambda x: x.update(reminders=[r for r in x.get('reminders', []) if r not in due]))
         for r in due:
+            if r.get('bot'):
+                await self.bot.safe_send(int(r['chat']), '⏰ Напоминание: ' + r['text'])
+                continue
             if r['chat'] not in s['selected'] and not r.get('owner'):
                 continue
             try:

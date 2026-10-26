@@ -58,6 +58,7 @@ INVENTORY_COMMAND = re.compile(r"^инвентар[ьи][.!?\s]*$", re.IGNORECAS
 PGL_GRID_COMMAND = re.compile(r"^(?:pgl|пгл)\s+сетк[аиу][.!?\s]*$", re.IGNORECASE)
 PGL_PLAYOFF_COMMAND = re.compile(r"^(?:pgl|пгл)\s+(?:плей-?офф|play-?off)[.!?\s]*$", re.IGNORECASE)
 PGL_TEAM_COMMAND = re.compile(r"^(?:pgl|пгл)\s+(?!сетк|плей|play)([^\n]{2,30}?)[.!?\s]*$", re.IGNORECASE)
+CREATE_BOT_COMMAND = re.compile(r"^(?:бот\s+)?создать\s+бота[.!?\s]*$", re.IGNORECASE)  # in «Избранное» only
 GRAPH_COMMAND = re.compile(r"^онлайн\s+график[.!?\s]*$", re.IGNORECASE)
 STEAM_GAMES_COMMAND = re.compile(r"^(?:стим|steam)\s+игры[.!?\s]*$", re.IGNORECASE)
 INVEST_COMMAND = re.compile(r"^куда\s+вложить\s+(кс2?|cs2?|гта|gta)[.!?\s]*$", re.IGNORECASE)
