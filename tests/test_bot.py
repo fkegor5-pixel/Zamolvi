@@ -137,7 +137,7 @@ async def test_stranger_asks_owner_lets_in_then_commands_work(env, commands_on):
     await bot.on_button(press)
     assert bot.allowed(2) and press.edits == ["✅ Доступ открыт: Аня @anya"]
     original = online.answer
-    online.answer = lambda text: "Excellent - 99"
+    online.answer = lambda text, **kw: "Excellent - 99"
     try:
         await bot.on_message(message(2, "бот онлайн"))
         assert bot.client.sent[-1][:2] == (2, "Excellent - 99")
