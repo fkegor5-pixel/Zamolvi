@@ -4,7 +4,7 @@ import re
 
 from telethon.extensions import html, markdown
 from telethon.tl.types import (MessageEntityBold, MessageEntityItalic, MessageEntityUnderline,
-                              MessageEntityStrike, MessageEntityCode, MessageEntityPre)
+                              MessageEntityStrike, MessageEntityCode, MessageEntityPre, MessageEntityBotCommand)
 
 MODES = {"auto", "plain", "bold", "underline", "mono"}
 AUTO_INSTRUCTION = (
@@ -43,8 +43,8 @@ def _parse(raw):
     return markdown.parse(raw, delimiters=_DELIMITERS, url_re=_NO_LINKS)
 
 
-def render(answer, mode="auto", prefix=""):
-    raw = answer.encode("utf-8", errors="replace").decode()[:1600]
+def render(answer, mode="auto", prefix="", limit=1600):
+    raw = answer.encode("utf-8", errors="replace").decode()[:limit]
     if mode == "plain" or mode not in MODES:
         return prefix + raw, []
     try:
@@ -68,6 +68,13 @@ def render(answer, mode="auto", prefix=""):
     for entity in entities:
         entity.offset += shift
     return prefix + text, sorted(entities, key=lambda e: (e.offset, -e.length))
+
+
+def with_commands(text, entities):
+    """Marks «/online» words as bot commands: a tap in Telegram sends the command to the chat."""
+    found = [MessageEntityBotCommand(utf16_length(text[:m.start()]), utf16_length(m.group()))
+             for m in re.finditer(r"(?<!\S)/[A-Za-z_]{2,32}\b", text)]
+    return text, sorted(entities + found, key=lambda e: (e.offset, -e.length))
 
 
 def preview(answer, mode):
