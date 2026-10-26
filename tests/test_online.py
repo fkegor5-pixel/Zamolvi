@@ -437,13 +437,12 @@ def swiss_to_playoff():
 
 
 def test_new_commands_are_recognised():
-    for text in ("pgl плей-офф", "ПГЛ playoff", "pgl vitality", "онлайн график", "стим игры", "куда вложить кс",
-                 "куда вложить гта"):
+    for text in ("pgl плей-офф", "ПГЛ playoff", "pgl vitality", "онлайн график", "стим игры"):
         assert online.is_command(text), text
     assert online.is_image_command("pgl плейофф") and online.is_image_command("онлайн график")
     assert not online.is_image_command("pgl vitality")
-    assert [online.digest_kind(t) for t in ("стим игры", "куда вложить cs2", "куда вложить GTA", "pgl")] == \
-        ["steam", "cs", "gta", None]
+    assert [online.digest_kind(t) for t in ("стим игры", "pgl")] == ["steam", None]
+    assert not online.is_command("куда вложить кс") and not online.is_command("куда вложить гта")
     assert online.caption("онлайн график") == "Онлайн за сутки" and online.caption("pgl плей-офф").endswith("плей-офф")
 
 
@@ -515,13 +514,8 @@ def test_steam_specials_and_digest_texts():
     assert request.endswith("СКИДКИ В МАГАЗИНЕ STEAM СЕЙЧАС:\n\nBattlefield V — -90% — 399 RUB")
     assert online.digest_answer("steam", " игры ", 0.0) == \
         "Источник: @skesti, магазин Steam\nОбновлено: 01.01.1970 03:00 (МСК)\n\nигры"
-    assert "не гарантия" in online.digest_answer("cs", "кейсы", 0.0)
 
 
-def test_digest_prompts_ask_for_russian_and_short_price_lines_and_skip_giveaways():
-    for channels, task in online.DIGESTS.values():
-        assert "ТОЛЬКО на русском" in task and "Не пересказывай" in task
-    assert "ожидается рост до" in online.DIGESTS["cs"][1] and "неделю читов" in online.DIGESTS["gta"][1]
-    skip = online.DIGEST_SKIP["gta"]
-    assert skip.search("Неделя читов! Бесплатные временные скины всем")
-    assert not skip.search("Дорогие читатели, в обновлении уберут из продажи аксессуар «Крылья»")
+def test_digest_prompt_asks_for_russian_short_lines():
+    task = online.DIGESTS["steam"][1]
+    assert "ТОЛЬКО на русском" in task and "Не пересказывай" in task and list(online.DIGESTS) == ["steam"]

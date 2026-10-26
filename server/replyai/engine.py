@@ -75,7 +75,7 @@ class Engine:
         self.online_sampled_at = 0
         self.me_username = None  # cached owner's @username, '' when there is none
         self.bot = OwnBot(self)  # the owner's own Telegram bot (owner's server only)
-        self.digests = {}  # kind -> (time, answer) of «стим игры», «куда вложить …»
+        self.digests = {}  # kind -> (time, answer) of «стим игры»
         self.draft_notice_at = {}
         self.notice_at = {}
         self.imports = {}         # chat -> progress of a history import (kept in RAM only)
@@ -943,7 +943,7 @@ class Engine:
                     answer = await self.digest(job['chat'], kind)
                 else:
                     answer = (self.add_reminder(job['chat'], *plan) if plan
-                              else await asyncio.to_thread(online.answer, job['text']))
+                              else await self.command_answer(job['text']))
             if not answer:
                 self.metric(ai_calls=1)
                 started = time.perf_counter()
@@ -1095,7 +1095,7 @@ class Engine:
         self.store.update(lambda s: online.keep_sample(s.setdefault('online_samples', []), now, found))
 
     async def digest(self, chat, kind):
-        """The answer to «стим игры» / «куда вложить …»: recent channel posts summed up by the model."""
+        """The answer to «стим игры»: recent channel posts summed up by the model."""
         now = self.clock()
         hit = self.digests.get(kind)
         if hit and now - hit[0] < online.DIGEST_TTL:
@@ -1111,8 +1111,7 @@ class Engine:
                 continue
             for m in messages or []:
                 text, date = getattr(m, 'message', None), getattr(m, 'date', None)
-                skip = online.DIGEST_SKIP.get(kind)
-                if text and date and now - date.timestamp() <= online.DIGEST_AGE and not (skip and skip.search(text)):
+                if text and date and now - date.timestamp() <= online.DIGEST_AGE:
                     posts.append({'channel': channel, 'id': m.id, 'date': date.timestamp(), 'text': text})
         extra = await asyncio.to_thread(online.steam_specials) if kind == 'steam' else []
         if not posts and not extra:
@@ -1156,6 +1155,13 @@ class Engine:
             except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
                 self.log('Напоминание не отправлено: ' + type(exc).__name__)
 
+    async def command_answer(self, text):
+        """The text answer to a command in a chat; «команды» only points to the own bot once it exists."""
+        username = self.bot.state().get('username')
+        if username and online.HELP_COMMAND.match(text.strip()):
+            return online.bot_link(username)
+        return await asyncio.to_thread(online.answer, text)
+
     async def owner_username(self):
         """The owner's @username for command links of a contact; None when there is none."""
         if self.me_username is None:
@@ -1177,7 +1183,7 @@ class Engine:
                 answer = await self.digest(chat, kind)
             else:
                 answer = (self.add_reminder(chat, *plan, owner=True) if plan
-                          else await asyncio.to_thread(online.answer, text))
+                          else await self.command_answer(text))
             message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS,
                                            getattr(await event.get_chat(), 'username', None))
             async with self.telegram_lock:
