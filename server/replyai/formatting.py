@@ -1,10 +1,11 @@
 """Render AI text as Telegram entities; the visible AI label is always plain text."""
 from html import escape
+from urllib.parse import quote
 import re
 
 from telethon.extensions import html, markdown
 from telethon.tl.types import (MessageEntityBold, MessageEntityItalic, MessageEntityUnderline,
-                              MessageEntityStrike, MessageEntityCode, MessageEntityPre, MessageEntityBotCommand)
+                              MessageEntityStrike, MessageEntityCode, MessageEntityPre, MessageEntityTextUrl)
 
 MODES = {"auto", "plain", "bold", "underline", "mono"}
 AUTO_INSTRUCTION = (
@@ -70,10 +71,20 @@ def render(answer, mode="auto", prefix="", limit=1600):
     return prefix + text, sorted(entities, key=lambda e: (e.offset, -e.length))
 
 
-def with_commands(text, entities):
-    """Marks «/online» words as bot commands: a tap in Telegram sends the command to the chat."""
-    found = [MessageEntityBotCommand(utf16_length(text[:m.start()]), utf16_length(m.group()))
-             for m in re.finditer(r"(?<!\S)/[A-Za-z_]{2,32}\b", text)]
+def with_links(text, entities, words, username=None):
+    """Command words at line starts («онлайн — …») become links that put the command into the input field.
+
+    Telegram shows bot-command entities of a person as plain text, so a t.me/<username>?text=… link is used: a tap
+    opens the chat with that person and fills the message. Without a username the word is monospace (a tap copies).
+    """
+    found, pos = [], 0
+    for line in text.split("\n"):
+        word = next((w for w in sorted(words, key=len, reverse=True) if line.startswith(w + " — ")), None)
+        if word:
+            offset, length = utf16_length(text[:pos]), utf16_length(word)
+            found.append(MessageEntityTextUrl(offset, length, f"https://t.me/{username}?text={quote(word)}")
+                         if username else MessageEntityCode(offset, length))
+        pos += len(line) + 1
     return text, sorted(entities + found, key=lambda e: (e.offset, -e.length))
 
 

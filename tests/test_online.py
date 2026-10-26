@@ -184,16 +184,23 @@ ROWS_PAGE = ("<h2>Arizona RP</h2> Arizona (Staging) 0 / 2000 0% · очеред�
 
 
 def test_help_lists_the_commands():
-    assert "/online — " in online.answer("команды") and online.answer("Помощь") == online.HELP
+    assert "\nонлайн — " in online.answer("команды") and online.answer("Помощь") == online.HELP
     assert online.addressed("/pgl_grid") == "pgl сетка" and online.addressed("/Online@x") == "онлайн"
-    for slash, text in online.SLASH.items():
-        assert online.is_command(text), slash
-    from replyai.formatting import render, with_commands
-    message, entities = with_commands(*render(online.HELP, "auto", "[AI] "))
-    links = [message.encode("utf-16-le")[2 * e.offset:2 * (e.offset + e.length)].decode("utf-16-le")
-             for e in entities if type(e).__name__ == "MessageEntityBotCommand"]
-    assert links == [c for c in online.SLASH if c in online.HELP] and "<b>" not in message
-    assert len(online.HELP) < 1600  # render() cuts longer answers
+    for word in online.COMMAND_WORDS:
+        assert online.is_command(word), word
+    from replyai.formatting import render, with_links
+
+    def marked(username):
+        message, entities = with_links(*render(online.HELP, "auto", "[AI] "), online.COMMAND_WORDS, username)
+        assert "<b>" not in message
+        return [(message.encode("utf-16-le")[2 * e.offset:2 * (e.offset + e.length)].decode("utf-16-le"),
+                 getattr(e, "url", None)) for e in entities if type(e).__name__ in ("MessageEntityTextUrl",
+                                                                                     "MessageEntityCode")]
+    links = [x for x in marked("owner") if x[1]]
+    assert len(links) == len(online.COMMAND_WORDS) - 1  # every command but «команды» itself
+    assert ("онлайн график", "https://t.me/owner?text=%D0%BE%D0%BD%D0%BB%D0%B0%D0%B9%D0%BD%20%D0%B3%D1%80%D0%B0%D1%84%D0%B8%D0%BA") in links
+    assert ("дембель", None) in marked(None)  # no username: monospace, a tap copies
+    assert len(online.HELP) < 1600
 
 
 def test_server_by_name_and_top_from_the_full_list():

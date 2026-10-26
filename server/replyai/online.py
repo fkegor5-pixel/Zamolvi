@@ -140,42 +140,43 @@ COOLDOWN = 10          # seconds between commands of one chat
 MAX_REMINDERS = 5      # per chat
 MAX_AHEAD = 7 * 86400
 UNIT = {"м": 60, "ч": 3600, "д": 86400}
-# A tap on «/online» in Telegram sends it to the chat; the engine marks them as bot commands
+# «/online» typed by hand works too; the help links the Russian words instead (see formatting.with_links)
 SLASH = {"/help": "команды", "/commands": "команды", "/online": "онлайн", "/top": "топ онлайн",
          "/graph": "онлайн график", "/invest_gta": "куда вложить гта", "/hours": "часы в кс", "/ingame": "кто в игре",
          "/faceit": "фейсит", "/inventory": "инвентарь", "/level": "уровень стим", "/steam_games": "стим игры",
          "/invest_cs": "куда вложить кс", "/pgl": "pgl", "/pgl_grid": "pgl сетка", "/pgl_playoff": "pgl плей-офф",
          "/demob": "дембель", "/rates": "курс", "/coin": "монетка", "/random": "рандом"}
 HELP = ("🤖 <b>Команды бота</b>\n"
-        "Нажмите на команду — она отправится сама. Серые — нажмите, чтобы скопировать. "
-        "Можно писать и словами, с «бот» или без.\n\n"
+        "Нажмите на синюю команду — она появится в поле ввода, останется отправить. "
+        "Серые — нажмите, чтобы скопировать. Можно писать с «бот» или без.\n\n"
         "🎮 <b>Arizona RP</b>\n"
-        "/online — Excellent, Space, Wednesday\n"
-        "/top — 5 самых заполненных серверов\n"
-        "/graph — график онлайна за сутки\n"
+        "онлайн — Excellent, Space, Wednesday\n"
+        "топ онлайн — 5 самых заполненных серверов\n"
+        "онлайн график — график онлайна за сутки\n"
         "<code>онлайн Phoenix</code> — онлайн сервера\n"
-        "/invest_gta — что советуют купить\n\n"
+        "куда вложить гта — что советуют купить\n\n"
         "🔫 <b>CS2 и Steam</b>\n"
-        "/hours — часы в CS2\n"
-        "/ingame — кто сейчас в игре\n"
-        "/faceit — уровень и Elo FACEIT\n"
-        "/inventory — стоимость инвентарей\n"
-        "/level — уровень Steam\n"
-        "/steam_games — скидки и раздачи\n"
-        "/invest_cs — что советуют купить\n\n"
+        "часы в кс — часы в CS2\n"
+        "кто в игре — кто сейчас в игре\n"
+        "фейсит — уровень и Elo FACEIT\n"
+        "инвентарь — стоимость инвентарей\n"
+        "уровень стим — уровень Steam\n"
+        "стим игры — скидки и раздачи\n"
+        "куда вложить кс — что советуют купить\n\n"
         "🏆 <b>PGL Masters Bucharest</b>\n"
-        "/pgl — матчи сегодня\n"
-        "/pgl_grid — сетка группового этапа\n"
-        "/pgl_playoff — сетка плей-офф\n"
+        "pgl — матчи сегодня\n"
+        "pgl сетка — сетка группового этапа\n"
+        "pgl плей-офф — сетка плей-офф\n"
         "<code>pgl vitality</code> — матчи команды\n\n"
         "🧰 <b>Разное</b>\n"
-        "/demob — сколько до дембеля\n"
-        "/rates — доллар и евро по ЦБ\n"
-        "/coin — монетка\n"
-        "/random — число от 1 до 100\n"
+        "дембель — сколько до дембеля\n"
+        "курс — доллар и евро по ЦБ\n"
+        "монетка — орёл или решка\n"
+        "рандом — число от 1 до 100\n"
         "<code>погода Москва</code>\n"
         "<code>напомни через 30 минут позвонить</code>\n"
         "<code>напомни в 18:30 позвонить</code>")
+COMMAND_WORDS = sorted(set(SLASH.values()))  # linked in the answers, see formatting.with_links
 COUNT = re.compile(r"(\d[\d ]*)\s*/\s*\d+")
 TAGS = re.compile(r"<(script|style)\b.*?</\1>|<[^>]+>", re.IGNORECASE | re.DOTALL)
 
