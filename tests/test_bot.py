@@ -142,7 +142,7 @@ async def test_stranger_asks_owner_lets_in_then_commands_work(env, commands_on):
     finally:
         online.answer = original
     await bot.on_message(message(2, "/menu"))
-    assert bot.client.sent[-1][1] == botmode.MENU_TEXT and len(bot.client.sent[-1][2]["buttons"]) == 9
+    assert bot.client.sent[-1][1] == botmode.MENU_TEXT and len(bot.client.sent[-1][2]["buttons"]) == (len(botmode.MENU) + 1) // 2
     await bot.on_button(button(1, b"drop:2"))
     assert not bot.allowed(2)
 
@@ -157,3 +157,11 @@ async def test_bot_reminder_is_sent_by_the_bot(env, commands_on):
     env.clock[0] += 121
     await env.engine.send_reminders()  # the auto-reply is off: the bot still reminds
     assert bot.client.sent[-1][:2] == (1, "⏰ Напоминание: позвонить")
+
+
+@pytest.mark.asyncio
+async def test_help_in_a_chat_is_only_the_link_to_the_bot(env, commands_on):
+    assert "онлайн —" in await env.engine.command_answer("команды")  # no bot yet: the full list
+    env.store.update(lambda s: s.update(bot={"token": TOKEN, "username": "zamolvi_helper_bot"}))
+    assert await env.engine.command_answer("Команды") == \
+        "🤖 Все команды — в боте @zamolvi_helper_bot\nhttps://t.me/zamolvi_helper_bot"
