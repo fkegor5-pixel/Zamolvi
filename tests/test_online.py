@@ -184,7 +184,16 @@ ROWS_PAGE = ("<h2>Arizona RP</h2> Arizona (Staging) 0 / 2000 0% · очеред�
 
 
 def test_help_lists_the_commands():
-    assert "погода <город>" in online.answer("команды") and online.answer("Помощь") == online.HELP
+    assert "/online — " in online.answer("команды") and online.answer("Помощь") == online.HELP
+    assert online.addressed("/pgl_grid") == "pgl сетка" and online.addressed("/Online@x") == "онлайн"
+    for slash, text in online.SLASH.items():
+        assert online.is_command(text), slash
+    from replyai.formatting import render, with_commands
+    message, entities = with_commands(*render(online.HELP, "auto", "[AI] "))
+    links = [message.encode("utf-16-le")[2 * e.offset:2 * (e.offset + e.length)].decode("utf-16-le")
+             for e in entities if type(e).__name__ == "MessageEntityBotCommand"]
+    assert links == [c for c in online.SLASH if c in online.HELP] and "<b>" not in message
+    assert len(online.HELP) < 1600  # render() cuts longer answers
 
 
 def test_server_by_name_and_top_from_the_full_list():
@@ -500,3 +509,12 @@ def test_steam_specials_and_digest_texts():
     assert online.digest_answer("steam", " игры ", 0.0) == \
         "Источник: @skesti, магазин Steam\nОбновлено: 01.01.1970 03:00 (МСК)\n\nигры"
     assert "не гарантия" in online.digest_answer("cs", "кейсы", 0.0)
+
+
+def test_digest_prompts_ask_for_russian_and_short_price_lines_and_skip_giveaways():
+    for channels, task in online.DIGESTS.values():
+        assert "ТОЛЬКО на русском" in task and "Не пересказывай" in task
+    assert "ожидается рост до" in online.DIGESTS["cs"][1] and "неделю читов" in online.DIGESTS["gta"][1]
+    skip = online.DIGEST_SKIP["gta"]
+    assert skip.search("Неделя читов! Бесплатные временные скины всем")
+    assert not skip.search("Дорогие читатели, в обновлении уберут из продажи аксессуар «Крылья»")

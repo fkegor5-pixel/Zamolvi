@@ -14,7 +14,7 @@ from telethon.sessions import StringSession
 from .ai import AiClient, AiError, PREFIX, validate, purpose as ai_purpose
 from .diagnostics import Diagnostics
 from .qr import QrLogin
-from .formatting import render, MODES
+from .formatting import render, MODES, with_commands
 from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style, online
 from .media import MediaError
 import importlib.util
@@ -997,7 +997,10 @@ class Engine:
                 return
             self.change_job(job, state="delivering")
             try:
-                message, entities = render(answer, s["ai"].get("formatting", "auto"), PREFIX)
+                if online.is_command(job['text']):  # command answers carry their own markup and /links
+                    message, entities = with_commands(*render(answer, "auto", PREFIX, limit=4000))
+                else:
+                    message, entities = render(answer, s["ai"].get("formatting", "auto"), PREFIX)
                 await self.client(functions.messages.SendMessageRequest(
                     peer=peer, message=message, entities=entities, random_id=job["random_id"], no_webpage=True,
                     reply_to=types.InputReplyToMessage(reply_to_msg_id=job["message_id"])))
@@ -1099,7 +1102,8 @@ class Engine:
                 continue
             for m in messages or []:
                 text, date = getattr(m, 'message', None), getattr(m, 'date', None)
-                if text and date and now - date.timestamp() <= online.DIGEST_AGE:
+                skip = online.DIGEST_SKIP.get(kind)
+                if text and date and now - date.timestamp() <= online.DIGEST_AGE and not (skip and skip.search(text)):
                     posts.append({'channel': channel, 'id': m.id, 'date': date.timestamp(), 'text': text})
         extra = await asyncio.to_thread(online.steam_specials) if kind == 'steam' else []
         if not posts and not extra:
@@ -1151,9 +1155,10 @@ class Engine:
             else:
                 answer = (self.add_reminder(chat, *plan, owner=True) if plan
                           else await asyncio.to_thread(online.answer, text))
+            message, entities = with_commands(*render(answer, "auto", PREFIX, limit=4000))
             async with self.telegram_lock:
                 await self.client(functions.messages.SendMessageRequest(
-                    peer=await event.get_input_chat(), message=PREFIX + answer, random_id=secrets.randbits(63),
+                    peer=await event.get_input_chat(), message=message, entities=entities, random_id=secrets.randbits(63),
                     no_webpage=True, reply_to=types.InputReplyToMessage(reply_to_msg_id=event.id)))
         except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
             self.log('Ответ на команду владельца не отправлен: ' + type(exc).__name__)
