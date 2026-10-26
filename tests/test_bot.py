@@ -36,13 +36,18 @@ class BotFather:
 class BotClient:
     """The bot side: remembers what it sent."""
     def __init__(self):
-        self.sent, self.files = [], []
+        self.sent, self.files, self.deleted = [], [], []
 
     async def send_message(self, chat, text, **kw):
         self.sent.append((chat, text, kw))
+        return SimpleNamespace(id=len(self.sent) + len(self.files))
 
     async def send_file(self, chat, file, **kw):
         self.files.append((chat, file.getvalue(), kw))
+        return SimpleNamespace(id=len(self.sent) + len(self.files))
+
+    async def delete_messages(self, chat, ids):
+        self.deleted.append((chat, list(ids)))
 
     async def get_entity(self, user_id):
         return SimpleNamespace(first_name="Аня", last_name=None, username="anya")
@@ -165,3 +170,16 @@ async def test_help_in_a_chat_is_only_the_link_to_the_bot(env, commands_on):
     env.store.update(lambda s: s.update(bot={"token": TOKEN, "username": "zamolvi_helper_bot"}))
     assert await env.engine.command_answer("Команды") == \
         "🤖 Все команды — в боте @zamolvi_helper_bot\nhttps://t.me/zamolvi_helper_bot"
+
+
+@pytest.mark.asyncio
+async def test_next_command_removes_the_previous_answer(env, commands_on):
+    bot = env.engine.bot
+    bot.client, bot.owner_id = BotClient(), 1
+    env.store.update(lambda s: s.update(bot={"token": TOKEN, "allowed": {}}))
+    await bot.run(1, "монетка")
+    first = len(bot.client.sent)
+    assert bot.client.deleted == []
+    online._last_command.clear()
+    await bot.run(1, "дембель")
+    assert bot.client.deleted == [(1, [first])] and bot.shown[1] == [len(bot.client.sent)]

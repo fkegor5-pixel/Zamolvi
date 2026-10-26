@@ -58,6 +58,7 @@ class OwnBot:
         self.owner_id = None
         self.next_try = 0
         self.asked = set()  # strangers whose request was already sent to the owner
+        self.shown = {}  # chat -> ids of the last command answer, removed when the next one comes
 
     def state(self):
         return self.engine.store.read().get("bot") or {}
@@ -255,8 +256,12 @@ class OwnBot:
             await event.answer("Нет доступа")
             return
         await event.answer()
-        if data == b"menu":
-            await self.client.send_message(event.chat_id, MENU_TEXT, parse_mode="html", buttons=keyboard())
+        if data == b"menu":  # «📋 Меню» under an answer: the answer gives way to the menu
+            try:
+                await self.client.delete_messages(event.chat_id, self.shown.pop(event.chat_id, []))
+                await self.client.send_message(event.chat_id, MENU_TEXT, parse_mode="html", buttons=keyboard())
+            except FAILURES as exc:
+                self.log("меню не отправлено: " + type(exc).__name__)
         elif action.startswith("c") and action[1:].isdigit() and int(action[1:]) < len(MENU):
             await self.run(event.chat_id, MENU[int(action[1:])][1])
 
@@ -265,27 +270,35 @@ class OwnBot:
         e = self.engine
         if not online.allowed(f"bot:{chat}", e.clock()):
             return  # commands too often
+        old, new = self.shown.pop(chat, []), []
+        if old:  # one answer at a time keeps the chat clean
+            try:
+                await self.client.delete_messages(chat, old)
+            except FAILURES:
+                pass  # older than 48 hours or already deleted by the person
         try:
             if online.is_image_command(body):
                 result = await asyncio.to_thread(online.image, body, samples=e.store.read().get("online_samples", []))
                 if isinstance(result, bytes):
                     picture = io.BytesIO(result)
                     picture.name = "picture.png"
-                    await self.client.send_file(chat, picture, caption=online.caption(body), buttons=back())
+                    new.append(await self.client.send_file(chat, picture, caption=online.caption(body), buttons=back()))
                     return
                 answer = result
             elif online.digest_kind(body):
-                await self.client.send_message(chat, "⏳ Читаю каналы, это займёт до минуты…")
+                new.append(await self.client.send_message(chat, "⏳ Читаю каналы, это займёт до минуты…"))
                 answer = await e.digest(str(chat), online.digest_kind(body))
             elif online.reminder(body, e.clock()):
                 answer = e.add_reminder(str(chat), *online.reminder(body, e.clock()), owner=True, bot=True)
             else:
                 answer = await asyncio.to_thread(online.answer, body)
             text, entities = render(answer, "auto", "", limit=4000)
-            await self.client.send_message(chat, text, formatting_entities=entities, buttons=back(),
-                                           link_preview=bool(online.MONEY_COMMAND.match(body)))  # the video card
+            new.append(await self.client.send_message(chat, text, formatting_entities=entities, buttons=back(),
+                                                      link_preview=bool(online.MONEY_COMMAND.match(body))))
         except FAILURES as exc:
             self.log("ответ не отправлен: " + type(exc).__name__)
+        finally:
+            self.shown[chat] = [m.id for m in new if m is not None]
 
     async def safe_send(self, chat, text, buttons=None):
         """A message from the bot; False when it cannot be sent (bot not running, the person never started it)."""
