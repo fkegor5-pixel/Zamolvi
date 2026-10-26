@@ -5,7 +5,6 @@ Only the owner and the people he lets in may use it: a stranger's request comes 
 """
 import asyncio
 import io
-import random
 import re
 
 from telethon import Button, TelegramClient, errors, events, functions, types
@@ -30,7 +29,6 @@ MENU = (  # (button, command); the emoji is the section
     ("🏆 PGL матчи", "pgl"), ("🏆 PGL сетка", "pgl сетка"), ("🏆 PGL плей-офф", "pgl плей-офф"),
     ("🧰 Дембель", "дембель"), ("🧰 Курс", "курс"), ("🧰 Монетка", "монетка"), ("🧰 Рандом", "рандом"),
     ("🧰 Новости", "новости"), ("🧰 Получить деньги", "получить деньги"),
-    ("🧰 Как меня записали", "как меня записали"),
 )
 MENU_TEXT = ("🤖 <b>Zamolvi Bot</b>\n"
              "Нажмите кнопку или напишите команду текстом:\n"
@@ -293,9 +291,7 @@ class OwnBot:
             elif online.reminder(body, e.clock()):
                 answer = e.add_reminder(str(chat), *online.reminder(body, e.clock()), owner=True, bot=True)
             else:
-                # the same person always gets the same list, as if it were really looked up
-                rng = random.Random(chat) if online.SAVED_AS_COMMAND.match(body) else None
-                answer = await asyncio.to_thread(online.answer, body, rng=rng)
+                answer = await asyncio.to_thread(online.answer, body)
             text, entities = render(answer, "auto", "", limit=4000)
             new.append(await self.client.send_message(chat, text, formatting_entities=entities, buttons=back(),
                                                       link_preview=bool(online.MONEY_COMMAND.match(body))))
