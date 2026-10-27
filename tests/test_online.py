@@ -396,7 +396,8 @@ def test_pgl_without_live_or_site():
     assert online.answer("pgl", fetcher=fake({}), clock=lambda: 1250.0).splitlines()[1] == \
         "Обновлено: 01.01.1970 03:20 (МСК)"  # from the cache: the time it was downloaded
     online._cache.clear()
-    assert online.answer("pgl", fetcher=fake({}), clock=lambda: 1300.0) == "PGL: данные сейчас недоступны."
+    assert online.answer("pgl", fetcher=fake({}), clock=lambda: 1300.0) == \
+        "PGL: данные сейчас недоступны (cybersport.ru и bo3.gg не отвечают)."
 
 
 
@@ -545,3 +546,21 @@ def test_reminder_a_year_ahead_and_too_far():
         assert online.reminder(f"напомни через {minutes} минут x", now) == \
             (None, "Напоминание можно поставить не дальше чем на год."), minutes
     assert online.when(now + 400 * 86400).count(".") == 2  # another year: the year is shown
+
+
+def test_pgl_falls_back_to_bo3_when_cybersport_fails():
+    online._cache.clear()
+    now = online.datetime(2026, 10, 27, 20, 30, tzinfo=online.MSK).timestamp()
+    rows = [bo3_row("Mongolz", "MOUZ", 0, 2, start="2026-10-27T08:00:00.000+00:00"),
+            bo3_row("Vitality", "FUT", 1, 1, "current", "2026-10-27T14:00:00.000+00:00", slug="v-f"),
+            bo3_row("G2", "DENDELE", 0, 0, "upcoming", "2026-10-27T17:00:00.000+00:00"),
+            bo3_row("A", "B", 2, 0, start="2026-10-26T08:00:00.000+00:00"),  # yesterday: not shown
+            bo3_row("C", "D", 0, 0, "upcoming", "2026-10-30T08:00:00.000+00:00")]  # in 3 days: not shown
+    games = json.dumps({"games": [{"number": 3, "status": "current", "map_name": "de_inferno"}]})
+    pages = {online.PGL_URL: "<html>captcha</html>", online.BO3_MATCHES: json.dumps({"results": rows}),
+             f"{online.BO3_API}/matches/v-f?scope=show-match&with=games,teams": games}
+    assert online.answer("pgl", fetcher=fake(pages), clock=lambda: now).split("\n\n") == [
+        "Источник: bo3.gg\nОбновлено: 27.10.2026 20:30 (МСК)",
+        "Сыграно сегодня:\n11:00 Mongolz 0-2 MOUZ",
+        "Онлайн:\n17:00 Vitality 1-1 FUT\nКарта 3: Inferno, идёт",
+        "Ожидаются игры:\n20:00 G2 - DENDELE"]
