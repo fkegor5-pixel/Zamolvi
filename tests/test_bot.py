@@ -141,9 +141,18 @@ async def test_stranger_asks_owner_lets_in_then_commands_work(env, commands_on):
     try:
         await bot.on_message(message(2, "бот онлайн"))
         assert bot.client.sent[-1][:2] == (2, "Excellent - 99")
-        online._last_command.clear()
-        await bot.on_button(button(2, b"c" + str([c for _, c in botmode.MENU].index("курс")).encode()))
-        assert bot.client.sent[-1][1] == "Excellent - 99"
+        rates = b"c" + str([c for _, c in botmode.MENU].index("курс")).encode()
+        too_fast = button(2, rates)
+        await bot.on_button(too_fast)  # right after the previous command: a toast, no answer
+        assert too_fast.notes == ["Подождите пару секунд"] and len(bot.client.sent) == 3
+        env.clock[0] += botmode.PAUSE
+        press = button(2, rates)
+        await bot.on_button(press)
+        assert press.notes == ["⏳ Курс"] and len(bot.client.sent) == 4
+        assert bot.client.sent[-1][1] == "Excellent - 99" and bot.client.deleted == [(2, [3])]
+        stale = button(2, b"c999")
+        await bot.on_button(stale)
+        assert stale.notes == ["Кнопка устарела, откройте /menu"]
     finally:
         online.answer = original
     await bot.on_message(message(2, "/menu"))

@@ -20,6 +20,7 @@ RETRY = 300          # seconds between attempts to start the bot
 WAIT = 20            # checks of @BotFather for an answer, POLL seconds apart
 POLL = 1
 FAILURES = (errors.RPCError, OSError, ValueError, asyncio.TimeoutError)
+PAUSE = 2            # seconds between commands of one person; the chats keep online.COOLDOWN
 MENU = (  # (button, command); the emoji is the section
     ("🎮 Онлайн", "онлайн"), ("🎮 Топ онлайн", "топ онлайн"),
     ("🎮 График онлайна", "онлайн график"),
@@ -59,6 +60,7 @@ class OwnBot:
         self.next_try = 0
         self.asked = set()  # strangers whose request was already sent to the owner
         self.shown = {}  # chat -> ids of the last command answer, removed when the next one comes
+        self.last_run = {}  # chat -> time of the last command
 
     def state(self):
         return self.engine.store.read().get("bot") or {}
@@ -222,6 +224,26 @@ class OwnBot:
     # ---------------------------------------------------------------- commands
 
     async def on_message(self, event):
+        try:
+            await self.handle_message(event)
+        except Exception as exc:  # Telethon drops handler errors silently: show them in the log of the app
+            self.log(f"ошибка: {type(exc).__name__}: {exc}"[:300])
+
+    async def on_button(self, event):
+        try:
+            await self.handle_button(event)
+        except Exception as exc:
+            self.log(f"ошибка кнопки: {type(exc).__name__}: {exc}"[:300])
+
+    def ready(self, chat):
+        """False when the person sends commands faster than PAUSE seconds apart."""
+        now = self.engine.clock()
+        if now - self.last_run.get(chat, float("-inf")) < PAUSE:
+            return False
+        self.last_run[chat] = now
+        return True
+
+    async def handle_message(self, event):
         if not event.is_private:
             return
         text = (event.raw_text or "").strip()
@@ -240,9 +262,10 @@ class OwnBot:
         if not online.is_command(body):
             await event.respond("Не знаю такой команды. Нажмите /menu", buttons=back())
             return
-        await self.run(event.chat_id, body)
+        if self.ready(event.chat_id):
+            await self.run(event.chat_id, body)
 
-    async def on_button(self, event):
+    async def handle_button(self, event):
         data = event.data or b""
         action, _, user = data.decode(errors="ignore").partition(":")
         if action in ("allow", "deny", "drop") and user.isdigit():
@@ -255,27 +278,26 @@ class OwnBot:
         if not self.allowed(event.sender_id):
             await event.answer("Нет доступа")
             return
-        await event.answer()
-        if data == b"menu":  # «📋 Меню» under an answer: the answer gives way to the menu
+        if data == b"menu":
+            await event.answer()  # «📋 Меню» under an answer: the answer gives way to the menu
             try:
                 await self.client.delete_messages(event.chat_id, self.shown.pop(event.chat_id, []))
                 await self.client.send_message(event.chat_id, MENU_TEXT, parse_mode="html", buttons=keyboard())
             except FAILURES as exc:
                 self.log("меню не отправлено: " + type(exc).__name__)
         elif action.startswith("c") and action[1:].isdigit() and int(action[1:]) < len(MENU):
+            if not self.ready(event.chat_id):
+                await event.answer("Подождите пару секунд")
+                return
+            await event.answer("⏳ " + MENU[int(action[1:])][0][2:])  # a toast at once: the answer may take seconds
             await self.run(event.chat_id, MENU[int(action[1:])][1])
+        else:
+            await event.answer("Кнопка устарела, откройте /menu")
 
     async def run(self, chat, body):
         """Answers one command in the bot chat: a picture, a channel summary, a reminder or a text."""
         e = self.engine
-        if not online.allowed(f"bot:{chat}", e.clock()):
-            return  # commands too often
         old, new = self.shown.pop(chat, []), []
-        if old:  # one answer at a time keeps the chat clean
-            try:
-                await self.client.delete_messages(chat, old)
-            except FAILURES:
-                pass  # older than 48 hours or already deleted by the person
         try:
             if online.is_image_command(body):
                 result = await asyncio.to_thread(online.image, body, samples=e.store.read().get("online_samples", []))
@@ -299,6 +321,11 @@ class OwnBot:
             self.log("ответ не отправлен: " + type(exc).__name__)
         finally:
             self.shown[chat] = [m.id for m in new if m is not None]
+            if old:  # one answer at a time keeps the chat clean; removed after the new one is there
+                try:
+                    await self.client.delete_messages(chat, old)
+                except FAILURES:
+                    pass  # older than 48 hours or already deleted by the person
 
     async def safe_send(self, chat, text, buttons=None):
         """A message from the bot; False when it cannot be sent (bot not running, the person never started it)."""
