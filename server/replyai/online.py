@@ -746,9 +746,9 @@ def short_time(when):
 def pgl(fetcher=fetch, clock=time.time):
     """The answer to «pgl»: today's results, live matches with the current map, the upcoming ones (cybersport.ru)."""
     raw = page(PGL_URL, fetcher, clock, raw=True)
-    if raw is None:
-        return "PGL: данные сейчас недоступны."
-    matches = pgl_matches(raw)
+    matches = pgl_matches(raw) if raw else []
+    if not matches:  # the site is down, blocks the server or shows a captcha: bo3.gg has the same matches
+        return pgl_bo3(fetcher, clock)
     fetched = _cache.get(PGL_URL + "#raw", (clock(),))[0]  # when the page was actually downloaded, not the cache hit
     for when, *_, link in matches:
         if link and when.upper() != "LIVE":
@@ -963,3 +963,34 @@ def digest_request(posts, extra=()):
 def digest_answer(kind, summary, now):
     sources = ", ".join("@" + c for c in DIGESTS[kind][0]) + (", магазин Steam" if kind == "steam" else "")
     return updated(lambda: now, sources) + "\n\n" + summary.strip()[:3000]
+
+
+def pgl_bo3(fetcher=fetch, clock=time.time):
+    """«pgl» from bo3.gg: today's results, live matches with maps, the next day's matches."""
+    rows = bo3_rows(fetcher, clock)
+    if rows is None:
+        return "PGL: данные сейчас недоступны (cybersport.ru и bo3.gg не отвечают)."
+    now = datetime.fromtimestamp(clock(), MSK)
+
+    def head(m):
+        when = moment(m["start"])
+        return "" if when is None else (f"{when:%H:%M} " if when.date() == now.date() else f"{when:%d.%m %H:%M} ")
+
+    def score(m):
+        return f"{m['team1']} {m['score1'] or 0}-{m['score2'] or 0} {m['team2']}"
+
+    played = [m for m in rows if m["done"] and (moment(m["start"]) or now).date() == now.date()]
+    live = [m for m in rows if m["status"] == "current"]
+    upcoming = [m for m in rows if m["status"] == "upcoming"
+                and (moment(m["start"]) or now) <= now + timedelta(days=1)]
+    lines = [updated(clock, "bo3.gg"), "", "Сыграно сегодня:"]
+    lines += [head(m) + score(m) for m in played] or ["пока ничего"]
+    lines += ["", "Онлайн:"]
+    for m in live:
+        lines.append(head(m) + score(m))
+        lines += match_maps(m, fetcher, clock)
+    if not live:
+        lines.append("сейчас матчей нет")
+    lines += ["", "Ожидаются игры:"]
+    lines += [head(m) + f"{m['team1']} - {m['team2']}" for m in upcoming] or ["нет"]
+    return "\n".join(lines)
