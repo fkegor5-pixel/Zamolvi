@@ -111,7 +111,7 @@ CYBERSPORT = "https://www.cybersport.ru"
 # match is still listed with it. shortcut: lost on restart; matches already live then show no time
 _pgl_times = {}  # match path -> «13:00»
 LEVEL_COMMAND = re.compile(r"^уровень\s+(?:стим|steam)[.!?\s]*$", re.IGNORECASE)
-REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,4})\s*(минут\w*|мин|м|час\w*|ч|дн\w*|день|д)\s+(.{1,200}?)\s*$",
+REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,15})\s*(минут\w*|мин|м|час\w*|ч|дн\w*|день|д)\s+(.{1,200}?)\s*$",
                        re.IGNORECASE | re.DOTALL)
 REMIND_AT = re.compile(r"^напомни\s+в\s+(\d{1,2})[:.](\d{2})\s+(.{1,200}?)\s*$", re.IGNORECASE | re.DOTALL)
 OWNER_SWITCH = re.compile(r"^бот\s+(вкл|выкл)\w*[.!\s]*$", re.IGNORECASE)
@@ -137,7 +137,7 @@ WOK_CACHE_SECONDS = 600
 PERSONA = {0: "не в сети", 1: "в сети", 2: "занят", 3: "отошёл", 4: "спит", 5: "в сети", 6: "в сети"}
 COOLDOWN = 10          # seconds between commands of one chat
 MAX_REMINDERS = 5      # per chat
-MAX_AHEAD = 7 * 86400
+MAX_AHEAD = 366 * 86400  # a birthday a year ahead fits
 UNIT = {"м": 60, "ч": 3600, "д": 86400}
 # «/online» typed by hand works too; the help links the Russian words instead (see formatting.with_links)
 SLASH = {"/help": "команды", "/commands": "команды", "/online": "онлайн", "/top": "топ онлайн",
@@ -595,12 +595,13 @@ def reminder(text, now):
             target += timedelta(days=1)
         due, note = target.timestamp(), m.group(3)
     if due - now > MAX_AHEAD:
-        return None, "Напоминание можно поставить не дальше чем на 7 дней."
+        return None, "Напоминание можно поставить не дальше чем на год."
     return due, note.strip()[:200]
 
 
 def when(due):
-    return datetime.fromtimestamp(due, MSK).strftime("%d.%m в %H:%M") + " (МСК)"
+    moment = datetime.fromtimestamp(due, MSK)
+    return moment.strftime("%d.%m.%Y в %H:%M" if moment.year != datetime.now(MSK).year else "%d.%m в %H:%M") + " (МСК)"
 
 
 def faceit_line(data):

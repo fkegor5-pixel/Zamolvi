@@ -273,7 +273,7 @@ def test_reminders_are_parsed_with_limits():
     due, note = online.reminder("напомни в 18:30 тренировка", now)
     local = online.datetime.fromtimestamp(due, online.MSK)
     assert (local.hour, local.minute, note) == (18, 30, "тренировка") and now < due <= now + 86400
-    assert online.reminder("напомни через 8 дней что-то", now)[0] is None
+    assert online.reminder("напомни через 367 дней что-то", now)[0] is None
     assert online.reminder("напомни в 25:00 что-то", now)[0] is None
     assert online.reminder("онлайн", now) is None
     assert online.is_command("напомни через 5 минут чай")
@@ -534,3 +534,14 @@ def test_flag_command():
     assert online.is_command("🇷🇺") and online.addressed("🇷🇺") == "🇷🇺"
     assert online.answer("🇷🇺") == "Россия, Путин, Победа"
     assert not online.is_command("🇷🇺 привет")
+
+
+def test_reminder_a_year_ahead_and_too_far():
+    now = 1_800_000_000.0
+    assert online.reminder("напомни через 100000 минут x", now)[0] == now + 100000 * 60  # more than 99999 works
+    due, note = online.reminder("Напомни через 522720 минут поздравить с др", now)
+    assert due == now + 522720 * 60 and note == "поздравить с др"
+    for minutes in ("600000", "999999999", "999999999999999"):  # more than a year: a clear answer, never a crash
+        assert online.reminder(f"напомни через {minutes} минут x", now) == \
+            (None, "Напоминание можно поставить не дальше чем на год."), minutes
+    assert online.when(now + 400 * 86400).count(".") == 2  # another year: the year is shown

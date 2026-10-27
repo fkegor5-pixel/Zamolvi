@@ -51,6 +51,7 @@ final class AutoReplyState {
         int awaiting;         // drafts waiting for manual approval
         boolean serverOld;    // the VPS runs a server older than this app needs
         String time;          // HH:mm of the last successful update
+        String bot = "";      // state of the owner's own Telegram bot from the VPS; empty when there is none
 
         /** The VPS answered and Telegram is logged in: start/stop make sense. */
         boolean ready() { return configured && known && authorized; }
@@ -87,7 +88,8 @@ final class AutoReplyState {
         String footer() {
             if (serverOld) return "Сервер на VPS устарел — откройте " + Brand.NAME + " → «15. Проверка функций»";
             if (!configured || time == null) return "";
-            return offline ? "Нет связи с VPS · данные на " + time : "Обновлено в " + time;
+            String updated = offline ? "Нет связи с VPS · данные на " + time : "Обновлено в " + time;
+            return bot.isEmpty() ? updated : bot + "\n" + updated;
         }
     }
 
@@ -107,6 +109,7 @@ final class AutoReplyState {
         s.awaiting = p.getInt("awaiting", 0);
         s.serverOld = !CheckupActivity.newer(p.getString("server_version", CheckupActivity.MIN_SERVER), CheckupActivity.MIN_SERVER);
         s.time = p.getString("time", null);
+        s.bot = p.getString("bot", "");
         return s;
     }
 
@@ -187,6 +190,7 @@ final class AutoReplyState {
                     .putInt("queued", status.optInt("queued"))
                     .putInt("awaiting", status.optInt("awaiting"))
                     .putString("server_version", status.optString("version", "0"))
+                    .putString("bot", status.optString("bot_text", ""))
                     .putString("time", new SimpleDateFormat("HH:mm", Locale.getDefault()).format(new Date()))
                     .putLong("at", System.currentTimeMillis())
                     .apply();

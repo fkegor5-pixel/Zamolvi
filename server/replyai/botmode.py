@@ -4,6 +4,7 @@ The owner's account creates it once through @BotFather; the token stays in the e
 Only the owner and the people he lets in may use it: a stranger's request comes to the owner with buttons.
 """
 import asyncio
+import contextlib
 import io
 import re
 
@@ -20,6 +21,7 @@ RETRY = 300          # seconds between attempts to start the bot
 WAIT = 20            # checks of @BotFather for an answer, POLL seconds apart
 POLL = 1
 FAILURES = (errors.RPCError, OSError, ValueError, asyncio.TimeoutError)
+CHECK = 60           # seconds between checks that the running bot still answers Telegram
 PAUSE = 2            # seconds between commands of one person; the chats keep online.COOLDOWN
 MENU = (  # (button, command); the emoji is the section
     ("🎮 Онлайн", "онлайн"), ("🎮 Топ онлайн", "топ онлайн"),
@@ -61,6 +63,8 @@ class OwnBot:
         self.asked = set()  # strangers whose request was already sent to the owner
         self.shown = {}  # chat -> ids of the last command answer, removed when the next one comes
         self.last_run = {}  # chat -> time of the last command
+        self.next_check = 0
+        self.problem = ""  # why the bot does not run now, for the status of the app
 
     def state(self):
         return self.engine.store.read().get("bot") or {}
@@ -71,9 +75,35 @@ class OwnBot:
 
     # ---------------------------------------------------------------- creation and start
 
+    def status(self):
+        """One line for the notification of the app; '' when there is no own bot on this server."""
+        saved = self.state()
+        name = "@" + saved["username"] if saved.get("username") else ""
+        if self.client:
+            return f"🤖 Бот {name} работает"
+        if saved.get("token"):
+            return f"⚠️ Бот {name} не работает" + (f": {self.problem}" if self.problem else ", перезапускаю")
+        return "⚠️ Бот не создан: напишите «создать бота» в «Избранное»" if saved.get("tried") else ""
+
+    async def check(self):
+        """A running bot that stopped answering Telegram (a hang) is restarted at the next tick."""
+        now = self.engine.clock()
+        if not self.client or now < self.next_check:
+            return
+        self.next_check = now + CHECK
+        try:
+            if not self.client.is_connected():
+                raise ConnectionError("нет связи с Telegram")
+            await asyncio.wait_for(self.client.get_me(), 20)
+        except Exception as exc:
+            self.log(f"не отвечает ({type(exc).__name__}), перезапускаю")
+            await self.stop()
+            self.next_try = 0
+
     async def tick(self):
-        """From the engine housekeeping: creates the bot once, then keeps it running."""
+        """From the engine housekeeping: creates the bot once, then keeps it running and checks it."""
         e = self.engine
+        await self.check()
         if self.client or not online.enabled() or not e.authorized or not e.client or e.clock() < self.next_try:
             return
         self.next_try = e.clock() + RETRY
@@ -149,13 +179,16 @@ class OwnBot:
                     if slash not in ("/help", "/commands")]))
         except errors.AccessTokenInvalidError:
             await client.disconnect()
+            self.problem = "токен отозван"
             e.store.update(lambda s: s["bot"].update(token="", session=""))
             self.log("токен отозван в @BotFather. Напишите «создать бота» в «Избранное».")
             return
         except FAILURES as exc:
             await client.disconnect()
+            self.problem = "не запустился, повтор через 5 минут"
             self.log("не запущен: " + type(exc).__name__)
             return
+        self.problem = ""
         session = client.session.save()
         e.store.update(lambda s: s["bot"].update(session=session))
         client.add_event_handler(self.on_message, events.NewMessage(incoming=True))
@@ -173,8 +206,9 @@ class OwnBot:
 
     async def stop(self):
         if self.client:
-            await self.client.disconnect()
-            self.client = None
+            client, self.client = self.client, None
+            with contextlib.suppress(Exception):
+                await client.disconnect()
 
     # ---------------------------------------------------------------- access
 

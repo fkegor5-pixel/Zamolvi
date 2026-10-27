@@ -192,3 +192,30 @@ async def test_next_command_removes_the_previous_answer(env, commands_on):
     online._last_command.clear()
     await bot.run(1, "дембель")
     assert bot.client.deleted == [(1, [first])] and bot.shown[1] == [len(bot.client.sent)]
+
+
+@pytest.mark.asyncio
+async def test_status_and_a_hung_bot_is_restarted(env, commands_on):
+    bot = env.engine.bot
+    assert bot.status() == "" and env.engine.status()["bot_text"] == ""
+    env.store.update(lambda s: s.update(bot={"token": TOKEN, "username": "zamolvi_helper_bot", "allowed": {}}))
+    assert bot.status() == "⚠️ Бот @zamolvi_helper_bot не работает, перезапускаю"
+
+    class Hung(BotClient):
+        def is_connected(self):
+            return True
+
+        async def get_me(self):
+            raise OSError("timeout")
+
+        async def disconnect(self):
+            pass
+    bot.client = Hung()
+    assert bot.status() == "🤖 Бот @zamolvi_helper_bot работает"
+    started = []
+
+    async def start():
+        started.append(True)
+    bot.start = start
+    await bot.tick()
+    assert bot.client is None and started == [True]  # stopped and started again in the same tick
