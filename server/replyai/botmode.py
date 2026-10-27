@@ -67,6 +67,7 @@ class OwnBot:
 
     def log(self, text):
         self.engine.log("Свой бот: " + text)
+        print("Свой бот: " + text, flush=True)  # also to the service journal, for tools/update.sh
 
     # ---------------------------------------------------------------- creation and start
 
