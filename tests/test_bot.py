@@ -165,11 +165,11 @@ async def test_bot_reminder_is_sent_by_the_bot(env, commands_on):
 
 
 @pytest.mark.asyncio
-async def test_help_in_a_chat_is_only_the_link_to_the_bot(env, commands_on):
-    assert "онлайн —" in await env.engine.command_answer("команды")  # no bot yet: the full list
+async def test_help_in_a_chat_lists_the_commands_and_links_the_bot(env, commands_on):
+    assert await env.engine.command_answer("команды") == online.HELP  # no bot yet
     env.store.update(lambda s: s.update(bot={"token": TOKEN, "username": "zamolvi_helper_bot"}))
-    assert await env.engine.command_answer("Команды") == \
-        "🤖 Все команды — в боте @zamolvi_helper_bot\nhttps://t.me/zamolvi_helper_bot"
+    assert await env.engine.command_answer("Команды") == online.HELP + \
+        "\n\n🤖 С кнопками — в боте @zamolvi_helper_bot\nhttps://t.me/zamolvi_helper_bot"
 
 
 @pytest.mark.asyncio

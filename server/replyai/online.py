@@ -197,8 +197,8 @@ def addressed(text):
 
 
 def bot_link(username):
-    """The answer to «команды» in a chat once the owner has his own bot: all commands are there."""
-    return f"🤖 Все команды — в боте @{username}\nhttps://t.me/{username}"
+    """The end of «команды» in a chat once the owner has his own bot."""
+    return f"🤖 С кнопками — в боте @{username}\nhttps://t.me/{username}"
 
 
 def news(rng=_rng):
