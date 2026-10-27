@@ -156,7 +156,7 @@ async def test_stranger_asks_owner_lets_in_then_commands_work(env, commands_on):
     finally:
         online.answer = original
     await bot.on_message(message(2, "/menu"))
-    assert bot.client.sent[-1][1] == botmode.MENU_TEXT and len(bot.client.sent[-1][2]["buttons"]) == (len(botmode.MENU) + 1) // 2
+    assert bot.client.sent[-1][1] == botmode.MENU_TEXT and len(bot.client.sent[-1][2]["buttons"]) == 1 + (len(botmode.MENU) + 1) // 2
     await bot.on_button(button(1, b"drop:2"))
     assert not bot.allowed(2)
 
@@ -219,3 +219,21 @@ async def test_status_and_a_hung_bot_is_restarted(env, commands_on):
     bot.start = start
     await bot.tick()
     assert bot.client is None and started == [True]  # stopped and started again in the same tick
+
+
+@pytest.mark.asyncio
+async def test_remind_with_buttons(env, commands_on):
+    bot = env.engine.bot
+    bot.client, bot.owner_id = BotClient(), 1
+    env.store.update(lambda s: s.update(bot={"token": TOKEN, "allowed": {}}))
+    await bot.on_button(button(1, b"remind"))
+    assert bot.client.sent[-1][1] == "⏰ Через сколько напомнить?"
+    await bot.on_button(button(1, "ru:ч".encode()))
+    assert bot.client.sent[-1][1].endswith("Например: 2 забрать посылку")
+    wrong = message(1, "забрать посылку")
+    await bot.on_message(wrong)
+    assert wrong.answers == ["Напишите число и текст, например: 2 забрать посылку"]
+    await bot.on_message(message(1, "2 забрать посылку"))
+    assert bot.client.sent[-1][1].startswith("Напомню") and bot.waiting == {}
+    reminder = env.store.read()["reminders"][-1]
+    assert reminder["text"] == "забрать посылку" and reminder["due"] == env.clock[0] + 7200 and reminder["bot"]

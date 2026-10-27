@@ -40,9 +40,19 @@ MENU_TEXT = ("🤖 <b>Zamolvi Bot</b>\n"
 OPEN = {"/start", "/menu", "/help", "меню", "команды", "помощь"}
 
 
+UNITS = {"м": ("минут", "30 позвонить маме"), "ч": ("часов", "2 забрать посылку"),
+         "д": ("дней", "363 поздравить с др")}  # «⏰ Напомнить»: unit -> (word for «напомни через», example)
+REMIND_ANSWER = re.compile(r"^(\d{1,15})\s+(.+)$", re.DOTALL)
+
+
 def keyboard():
     buttons = [Button.inline(label, data=f"c{i}".encode()) for i, (label, _) in enumerate(MENU)]
-    return [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+    return [[Button.inline("⏰ Напомнить", data=b"remind")]] + [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+
+
+def units():
+    return [[Button.inline("Минут", data="ru:м".encode()), Button.inline("Часов", data="ru:ч".encode()),
+             Button.inline("Дней", data="ru:д".encode())], [Button.inline("📋 Меню", data=b"menu")]]
 
 
 def back():
@@ -64,6 +74,7 @@ class OwnBot:
         self.shown = {}  # chat -> ids of the last command answer, removed when the next one comes
         self.last_run = {}  # chat -> time of the last command
         self.next_check = 0
+        self.waiting = {}  # chat -> unit of «⏰ Напомнить» while the bot waits for «число текст»
         self.problem = ""  # why the bot does not run now, for the status of the app
 
     def state(self):
@@ -286,6 +297,16 @@ class OwnBot:
             await self.request_access(event)
             return
         word = text.split("@")[0].lower()
+        unit = self.waiting.get(event.chat_id)
+        if unit and not text.startswith("/"):
+            found = REMIND_ANSWER.match(text)
+            if not found:
+                await event.respond(f"Напишите число и текст, например: {UNITS[unit][1]}", buttons=back())
+                return
+            del self.waiting[event.chat_id]
+            await self.run(event.chat_id, f"напомни через {found.group(1)} {UNITS[unit][0]} {found.group(2)}")
+            return
+        self.waiting.pop(event.chat_id, None)  # any other command cancels «⏰ Напомнить»
         if word in OPEN:
             await self.client.send_message(event.chat_id, MENU_TEXT, parse_mode="html", buttons=keyboard())
             return
@@ -313,7 +334,19 @@ class OwnBot:
         if not self.allowed(event.sender_id):
             await event.answer("Нет доступа")
             return
+        if data == b"remind":
+            await event.answer()
+            await self.client.send_message(event.chat_id, "⏰ Через сколько напомнить?", buttons=units())
+            return
+        if action == "ru" and user in UNITS:
+            await event.answer()
+            self.waiting[event.chat_id] = user
+            await self.client.send_message(
+                event.chat_id, f"Напишите, через сколько {UNITS[user][0]} и о чём.\nНапример: {UNITS[user][1]}",
+                buttons=back())
+            return
         if data == b"menu":
+            self.waiting.pop(event.chat_id, None)
             await event.answer()  # «📋 Меню» under an answer: the answer gives way to the menu
             try:
                 await self.client.delete_messages(event.chat_id, self.shown.pop(event.chat_id, []))
