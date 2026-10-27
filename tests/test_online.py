@@ -528,3 +528,9 @@ def test_news_are_absurd_and_marked_as_a_joke_and_money_links_the_video():
     assert news.count("🚨") == 3
     assert online.answer("получить деньги").endswith(online.MONEY_VIDEO)
     assert online.addressed("/news") == "новости" and online.addressed("/money") == "получить деньги"
+
+
+def test_flag_command():
+    assert online.is_command("🇷🇺") and online.addressed("🇷🇺") == "🇷🇺"
+    assert online.answer("🇷🇺") == "Россия, Путин, Победа"
+    assert not online.is_command("🇷🇺 привет")
