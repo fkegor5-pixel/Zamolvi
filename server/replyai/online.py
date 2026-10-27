@@ -51,6 +51,7 @@ INGAME_COMMAND = re.compile(r"^кто\s+в\s+игре[.!?\s]*$", re.IGNORECASE)
 RATES_COMMAND = re.compile(r"^курс[.!?\s]*$", re.IGNORECASE)
 WEATHER_COMMAND = re.compile(r"^погода\s+([^\n]{2,60}?)[.!?\s]*$", re.IGNORECASE)
 COIN_COMMAND = re.compile(r"^монетка[.!?\s]*$", re.IGNORECASE)
+FLAG_COMMAND = re.compile(r"^🇷🇺[!\s]*$")
 NEWS_COMMAND = re.compile(r"^новости[.!?\s]*$", re.IGNORECASE)
 MONEY_COMMAND = re.compile(r"^получить\s+деньги[.!?\s]*$", re.IGNORECASE)
 MONEY_VIDEO = "https://youtu.be/PkT0PJwy8mI"
@@ -258,6 +259,8 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
         return pgl(fetcher, clock)
     if LEVEL_COMMAND.match(text):
         return steam_levels(fetcher, clock)
+    if FLAG_COMMAND.match(text):
+        return "Россия, Путин, Победа"
     if NEWS_COMMAND.match(text):
         return news(rng)
     if MONEY_COMMAND.match(text):
@@ -441,7 +444,7 @@ def demob(clock=time.time):
 
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
-                RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, NEWS_COMMAND, MONEY_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
+                RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, FLAG_COMMAND, NEWS_COMMAND, MONEY_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
                 INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, PGL_GRID_COMMAND, PGL_PLAYOFF_COMMAND, PGL_TEAM_COMMAND,
                 GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT)
 
