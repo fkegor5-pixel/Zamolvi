@@ -506,7 +506,7 @@ class Engine:
                 "memory_enabled": s["memory"]["enabled"], "approval_mode": s["approval"]["mode"],
                 "media": {"photos": s["media"]["photos"], "documents": s["media"]["documents"]},
                 "quiet_active": quiet.active(s["behavior"], self.clock()), "behavior": s["behavior"],
-                "pause_until": s["pause_until"], "logs": s["logs"]}
+                "pause_until": s["pause_until"], "logs": s["logs"], "bot_text": self.bot.status()}
 
     async def on_message(self, event):
         if not event.is_private:

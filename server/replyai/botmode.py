@@ -4,6 +4,7 @@ The owner's account creates it once through @BotFather; the token stays in the e
 Only the owner and the people he lets in may use it: a stranger's request comes to the owner with buttons.
 """
 import asyncio
+import contextlib
 import io
 import re
 
@@ -20,6 +21,7 @@ RETRY = 300          # seconds between attempts to start the bot
 WAIT = 20            # checks of @BotFather for an answer, POLL seconds apart
 POLL = 1
 FAILURES = (errors.RPCError, OSError, ValueError, asyncio.TimeoutError)
+CHECK = 60           # seconds between checks that the running bot still answers Telegram
 PAUSE = 2            # seconds between commands of one person; the chats keep online.COOLDOWN
 MENU = (  # (button, command); the emoji is the section
     ("🎮 Онлайн", "онлайн"), ("🎮 Топ онлайн", "топ онлайн"),
@@ -38,9 +40,19 @@ MENU_TEXT = ("🤖 <b>Zamolvi Bot</b>\n"
 OPEN = {"/start", "/menu", "/help", "меню", "команды", "помощь"}
 
 
+UNITS = {"м": ("минут", "30 позвонить маме"), "ч": ("часов", "2 забрать посылку"),
+         "д": ("дней", "363 поздравить с др")}  # «⏰ Напомнить»: unit -> (word for «напомни через», example)
+REMIND_ANSWER = re.compile(r"^(\d{1,15})\s+(.+)$", re.DOTALL)
+
+
 def keyboard():
     buttons = [Button.inline(label, data=f"c{i}".encode()) for i, (label, _) in enumerate(MENU)]
-    return [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+    return [[Button.inline("⏰ Напомнить", data=b"remind")]] + [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+
+
+def units():
+    return [[Button.inline("Минут", data="ru:м".encode()), Button.inline("Часов", data="ru:ч".encode()),
+             Button.inline("Дней", data="ru:д".encode())], [Button.inline("📋 Меню", data=b"menu")]]
 
 
 def back():
@@ -61,6 +73,9 @@ class OwnBot:
         self.asked = set()  # strangers whose request was already sent to the owner
         self.shown = {}  # chat -> ids of the last command answer, removed when the next one comes
         self.last_run = {}  # chat -> time of the last command
+        self.next_check = 0
+        self.waiting = {}  # chat -> unit of «⏰ Напомнить» while the bot waits for «число текст»
+        self.problem = ""  # why the bot does not run now, for the status of the app
 
     def state(self):
         return self.engine.store.read().get("bot") or {}
@@ -71,9 +86,35 @@ class OwnBot:
 
     # ---------------------------------------------------------------- creation and start
 
+    def status(self):
+        """One line for the notification of the app; '' when there is no own bot on this server."""
+        saved = self.state()
+        name = "@" + saved["username"] if saved.get("username") else ""
+        if self.client:
+            return f"🤖 Бот {name} работает"
+        if saved.get("token"):
+            return f"⚠️ Бот {name} не работает" + (f": {self.problem}" if self.problem else ", перезапускаю")
+        return "⚠️ Бот не создан: напишите «создать бота» в «Избранное»" if saved.get("tried") else ""
+
+    async def check(self):
+        """A running bot that stopped answering Telegram (a hang) is restarted at the next tick."""
+        now = self.engine.clock()
+        if not self.client or now < self.next_check:
+            return
+        self.next_check = now + CHECK
+        try:
+            if not self.client.is_connected():
+                raise ConnectionError("нет связи с Telegram")
+            await asyncio.wait_for(self.client.get_me(), 20)
+        except Exception as exc:
+            self.log(f"не отвечает ({type(exc).__name__}), перезапускаю")
+            await self.stop()
+            self.next_try = 0
+
     async def tick(self):
-        """From the engine housekeeping: creates the bot once, then keeps it running."""
+        """From the engine housekeeping: creates the bot once, then keeps it running and checks it."""
         e = self.engine
+        await self.check()
         if self.client or not online.enabled() or not e.authorized or not e.client or e.clock() < self.next_try:
             return
         self.next_try = e.clock() + RETRY
@@ -149,13 +190,16 @@ class OwnBot:
                     if slash not in ("/help", "/commands")]))
         except errors.AccessTokenInvalidError:
             await client.disconnect()
+            self.problem = "токен отозван"
             e.store.update(lambda s: s["bot"].update(token="", session=""))
             self.log("токен отозван в @BotFather. Напишите «создать бота» в «Избранное».")
             return
         except FAILURES as exc:
             await client.disconnect()
+            self.problem = "не запустился, повтор через 5 минут"
             self.log("не запущен: " + type(exc).__name__)
             return
+        self.problem = ""
         session = client.session.save()
         e.store.update(lambda s: s["bot"].update(session=session))
         client.add_event_handler(self.on_message, events.NewMessage(incoming=True))
@@ -173,8 +217,9 @@ class OwnBot:
 
     async def stop(self):
         if self.client:
-            await self.client.disconnect()
-            self.client = None
+            client, self.client = self.client, None
+            with contextlib.suppress(Exception):
+                await client.disconnect()
 
     # ---------------------------------------------------------------- access
 
@@ -252,6 +297,16 @@ class OwnBot:
             await self.request_access(event)
             return
         word = text.split("@")[0].lower()
+        unit = self.waiting.get(event.chat_id)
+        if unit and not text.startswith("/"):
+            found = REMIND_ANSWER.match(text)
+            if not found:
+                await event.respond(f"Напишите число и текст, например: {UNITS[unit][1]}", buttons=back())
+                return
+            del self.waiting[event.chat_id]
+            await self.run(event.chat_id, f"напомни через {found.group(1)} {UNITS[unit][0]} {found.group(2)}")
+            return
+        self.waiting.pop(event.chat_id, None)  # any other command cancels «⏰ Напомнить»
         if word in OPEN:
             await self.client.send_message(event.chat_id, MENU_TEXT, parse_mode="html", buttons=keyboard())
             return
@@ -279,7 +334,19 @@ class OwnBot:
         if not self.allowed(event.sender_id):
             await event.answer("Нет доступа")
             return
+        if data == b"remind":
+            await event.answer()
+            await self.client.send_message(event.chat_id, "⏰ Через сколько напомнить?", buttons=units())
+            return
+        if action == "ru" and user in UNITS:
+            await event.answer()
+            self.waiting[event.chat_id] = user
+            await self.client.send_message(
+                event.chat_id, f"Напишите, через сколько {UNITS[user][0]} и о чём.\nНапример: {UNITS[user][1]}",
+                buttons=back())
+            return
         if data == b"menu":
+            self.waiting.pop(event.chat_id, None)
             await event.answer()  # «📋 Меню» under an answer: the answer gives way to the menu
             try:
                 await self.client.delete_messages(event.chat_id, self.shown.pop(event.chat_id, []))
