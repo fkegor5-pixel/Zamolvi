@@ -1156,11 +1156,12 @@ class Engine:
                 self.log('Напоминание не отправлено: ' + type(exc).__name__)
 
     async def command_answer(self, text):
-        """The text answer to a command in a chat; «команды» only points to the own bot once it exists."""
+        """The text answer to a command in a chat; «команды» also points to the own bot once it exists."""
+        answer = await asyncio.to_thread(online.answer, text)
         username = self.bot.state().get('username')
         if username and online.HELP_COMMAND.match(text.strip()):
-            return online.bot_link(username)
-        return await asyncio.to_thread(online.answer, text)
+            answer += '\n\n' + online.bot_link(username)
+        return answer
 
     async def owner_username(self):
         """The owner's @username for command links of a contact; None when there is none."""
