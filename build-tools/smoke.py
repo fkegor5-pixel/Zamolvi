@@ -103,8 +103,10 @@ def main(apk, out):
     heads = [t.split(" · ")[0] for t, *_ in nodes() if " · " in t and t.rstrip().endswith(("▸", "▾"))]
     count = 0
     for g, head in enumerate(heads):
-        entries = [t.split("\n")[0] for t, x, y, c, p in open_group(head)
-                   if c and p == PKG and t and " · " not in t and "\n" in t]
+        seen = open_group(head)
+        adb("shell", "input", "swipe", "500", "1500", "500", "600"); time.sleep(1)
+        entries = list(dict.fromkeys(t.split("\n")[0] for t, x, y, c, p in seen + nodes()
+                                     if c and p == PKG and t and " · " not in t and "\n" in t))
         for e, entry in enumerate(entries):
             open_group(head)
             if not tap_prefix(entry):
