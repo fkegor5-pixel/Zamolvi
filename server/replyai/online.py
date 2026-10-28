@@ -744,7 +744,15 @@ def short_time(when):
 
 
 def pgl(fetcher=fetch, clock=time.time):
-    """The answer to «pgl»: today's results, live matches with the current map, the upcoming ones (cybersport.ru)."""
+    """The answer to «pgl»: bo3.gg first — its API has live statuses and scores, while the cybersport.ru page
+    can keep finished matches as upcoming for hours; cybersport.ru when bo3.gg cannot be read."""
+    if bo3_rows(fetcher, clock) is not None:
+        return pgl_bo3(fetcher, clock)
+    return pgl_cybersport(fetcher, clock)
+
+
+def pgl_cybersport(fetcher=fetch, clock=time.time):
+    """Today's results, live matches with the current map, the upcoming ones (cybersport.ru)."""
     raw = page(PGL_URL, fetcher, clock, raw=True)
     matches = pgl_matches(raw) if raw else []
     if not matches:  # the site is down, blocks the server or shows a captcha: bo3.gg has the same matches

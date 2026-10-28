@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# Обновляет код Zamolvi на VPS из GitHub (ветка main) и проверяет, что сервер и свой бот работают.
+# Обновляет код Zamolvi на VPS из GitHub (ветка main или ZAMOLVI_REF) и проверяет, что сервер и свой бот работают.
 # Если новый код не запускается, возвращает прежний. Запуск: bash /root/update-zamolvi.sh
+# Тестовая ветка: ZAMOLVI_REF=gradle-app bash /root/update-zamolvi.sh
 set -uo pipefail
 REPO=fkegor5-pixel/Zamolvi
 CODE=/opt/replyai/replyai
 PY=/opt/replyai/venv/bin/python
 SERVICE=replyai
+REF=${ZAMOLVI_REF:-main}
+[[ "$REF" =~ ^[A-Za-z0-9._/-]+$ ]] || { echo '❌ Неверное имя ветки'; exit 1; }
 
 [ "$(id -u)" = 0 ] || { echo '❌ Запустите от root'; exit 1; }
 [ -f "$CODE/engine.py" ] || { echo "❌ Нет кода в $CODE"; exit 1; }
@@ -13,7 +16,7 @@ SERVICE=replyai
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 echo '⬇️  Скачиваю свежий код с GitHub…'
-if ! curl -fsSL "https://codeload.github.com/$REPO/tar.gz/refs/heads/main" | tar -xz -C "$work"; then
+if ! curl -fsSL "https://codeload.github.com/$REPO/tar.gz/refs/heads/$REF" | tar -xz -C "$work"; then
   echo '❌ Не удалось скачать код. Ничего не изменено.'; exit 1
 fi
 new=$(echo "$work"/*/server/replyai)

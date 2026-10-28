@@ -382,9 +382,18 @@ def test_pgl_match_started_early_is_live_not_upcoming():
     page = "<html>" + block("Сегодня в 16:00", "Vitality", "9z Team", None, "/matches/cs2/3") + "</html>"
     bo3 = json.dumps({"results": [{"status": "current", "team1": {"name": "9z"}, "team2": {"name": "Team Vitality"},
                                    "team1_score": 0, "team2_score": 1}]})
-    assert online.answer("pgl", fetcher=fake({online.PGL_URL: page, online.BO3_MATCHES: bo3}),
-                         clock=lambda: 1400.0).split("\n\n")[2:] == [
+    assert online.pgl_cybersport(fetcher=fake({online.PGL_URL: page, online.BO3_MATCHES: bo3}),
+                                 clock=lambda: 1400.0).split("\n\n")[2:] == [
         "Онлайн:\nVitality 1-0 9z Team", "Ожидаются игры:\nнет"]
+
+
+def test_pgl_prefers_bo3_over_a_stale_cybersport_page():
+    online._cache.clear()
+    stale = "<html>" + block("Сегодня в 14:00", "The MongolZ", "Nemiga", None, "/matches/cs2/5") + "</html>"
+    bo3 = json.dumps({"results": [{"status": "finished", "team1": {"name": "The MongolZ"}, "team2": {"name": "Nemiga"},
+                                   "team1_score": 2, "team2_score": 0, "start_date": "1970-01-01T11:00:00Z"}]})
+    answer = online.answer("pgl", fetcher=fake({online.PGL_URL: stale, online.BO3_MATCHES: bo3}), clock=lambda: 50000.0)
+    assert answer.startswith("Источник: bo3.gg") and "The MongolZ 2-0 Nemiga" in answer and "Ожидаются игры:\nнет" in answer
 
 
 def test_pgl_without_live_or_site():
