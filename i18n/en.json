@@ -1107,5 +1107,8 @@
  "Есть новая версия — откройте страницу выпуска.": "There is a new version — open the release page.",
  "Что нового": "What's new",
  "Не удалось открыть браузер. Адрес": "Could not open a browser. Address",
- "GitHub ответил": "GitHub answered"
+ "GitHub ответил": "GitHub answered",
+ "Подключения": "Connections",
+ "Без сервера, с телефона: WhatsApp, VK, Viber, SMS": "No server, from the phone: WhatsApp, VK, Viber, SMS",
+ "Тон ответов: деловой, добрый, дерзкий…": "Reply tone: business, kind, bold…"
 }

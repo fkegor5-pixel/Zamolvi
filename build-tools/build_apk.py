@@ -223,6 +223,13 @@ def main():
             raise RuntimeError(f"Widget resource would overwrite an original file: {target}")
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, target)
+    # The app's own icon replaces the base icon (launcher, main menu): same file names, new drawings.
+    icon_res = ROOT / "build-tools/icon-res"
+    for path in visible_files(icon_res, "*.xml"):
+        target = decoded / "res" / path.relative_to(icon_res)
+        if not target.exists():
+            raise RuntimeError(f"Icon resource has no original to replace: {target}")
+        shutil.copy2(path, target)
     (decoded / "assets/replyai-server.bundle").write_bytes(server_bundle())
     # Interface translations (see I18n.java): i18n/<lang>.json, Russian text -> translation.
     (decoded / "assets/i18n").mkdir(parents=True, exist_ok=True)

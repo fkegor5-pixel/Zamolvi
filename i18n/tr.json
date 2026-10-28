@@ -1107,5 +1107,8 @@
  "Есть новая версия — откройте страницу выпуска.": "Yeni bir sürüm var — yayın sayfasını açın.",
  "Что нового": "Yenilikler",
  "Не удалось открыть браузер. Адрес": "Tarayıcı açılamadı. Adres",
- "GitHub ответил": "GitHub yanıt verdi"
+ "GitHub ответил": "GitHub yanıt verdi",
+ "Подключения": "Bağlantılar",
+ "Без сервера, с телефона: WhatsApp, VK, Viber, SMS": "Sunucusuz, telefondan: WhatsApp, VK, Viber, SMS",
+ "Тон ответов: деловой, добрый, дерзкий…": "Yanıt tonu: resmi, nazik, cüretkâr…"
 }
