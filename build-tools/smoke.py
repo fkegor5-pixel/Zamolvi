@@ -17,12 +17,21 @@ def adb(*args, check=False):
     return subprocess.run(["adb", *args], capture_output=True, text=True, check=check).stdout
 
 
+LAST_DUMP = []
+
+
 def nodes():
-    adb("shell", "uiautomator", "dump", "/sdcard/ui.xml")
-    xml = adb("shell", "cat", "/sdcard/ui.xml")
-    try:
-        root = ET.fromstring(xml[xml.index("<"):])
-    except (ValueError, ET.ParseError):
+    root = None
+    for _ in range(4):  # the dump fails while the screen is still moving
+        result = subprocess.run(["adb", "shell", "uiautomator", "dump", "/sdcard/ui.xml"], capture_output=True, text=True)
+        xml = adb("shell", "cat", "/sdcard/ui.xml")
+        LAST_DUMP[:] = [result.stdout + result.stderr, xml]
+        try:
+            root = ET.fromstring(xml[xml.index("<"):])
+            break
+        except (ValueError, ET.ParseError):
+            time.sleep(1.5)
+    if root is None:
         return []
     found = []
     for n in root.iter("node"):
@@ -66,6 +75,7 @@ def main(apk, out):
     adb("logcat", "-c")
     home()
     shot(out, "00-home")
+    (out / "ui-home.txt").write_text("\n".join(LAST_DUMP) if nodes() is not None else "")
     heads = [t for t, *_ in nodes() if " · " in t]
     count = 0
     for g, head in enumerate(heads):
