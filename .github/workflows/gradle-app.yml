@@ -58,7 +58,7 @@ jobs:
         run: |
           notes="docs/release-notes/$TAG.md"; [ -f "$notes" ] || notes=CHANGELOG.md
           flag=""; [ "${{ inputs.prerelease }}" = "true" ] && flag="--prerelease"
-          gh release view "$TAG" > /dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --title "Zamolvi ${TAG#v}" --notes-file "$notes" $flag
+          if gh release view "$TAG" > /dev/null 2>&1; then gh release edit "$TAG" --notes-file "$notes"; else gh release create "$TAG" --target "$GITHUB_SHA" --title "Zamolvi ${TAG#v}" --notes-file "$notes" $flag; fi
           gh release upload "$TAG" Zamolvi-*.apk --clobber
 
   smoke:
