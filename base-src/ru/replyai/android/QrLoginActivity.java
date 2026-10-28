@@ -88,7 +88,7 @@ public final class QrLoginActivity extends Activity {
         this.copy.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda5
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1739lambda$onCreate$1$rureplyaiandroidQrLoginActivity(view);
+                QrLoginActivity.this.m1739lambda$onCreate$1$rureplyaiandroidQrLoginActivity(view);
             }
         });
         EditText editText = new EditText(this);
@@ -107,7 +107,7 @@ public final class QrLoginActivity extends Activity {
         this.submit.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda6
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1740lambda$onCreate$2$rureplyaiandroidQrLoginActivity(view);
+                QrLoginActivity.this.m1740lambda$onCreate$2$rureplyaiandroidQrLoginActivity(view);
             }
         });
         Button button3 = button(linearLayout, "Проверить вход");
@@ -115,7 +115,7 @@ public final class QrLoginActivity extends Activity {
         button3.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda7
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1741lambda$onCreate$3$rureplyaiandroidQrLoginActivity(view);
+                QrLoginActivity.this.m1741lambda$onCreate$3$rureplyaiandroidQrLoginActivity(view);
             }
         });
         Button button4 = button(linearLayout, "Создать новую ссылку QR");
@@ -123,7 +123,7 @@ public final class QrLoginActivity extends Activity {
         button4.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda8
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1742lambda$onCreate$4$rureplyaiandroidQrLoginActivity(view);
+                QrLoginActivity.this.m1742lambda$onCreate$4$rureplyaiandroidQrLoginActivity(view);
             }
         });
         Button button5 = button(linearLayout, "Отменить QR-вход");
@@ -131,19 +131,19 @@ public final class QrLoginActivity extends Activity {
         button5.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda9
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1743lambda$onCreate$5$rureplyaiandroidQrLoginActivity(view);
+                QrLoginActivity.this.m1743lambda$onCreate$5$rureplyaiandroidQrLoginActivity(view);
             }
         });
         button(linearLayout, "Сохранить диагностику").setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda10
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1744lambda$onCreate$6$rureplyaiandroidQrLoginActivity(view);
+                QrLoginActivity.this.m1744lambda$onCreate$6$rureplyaiandroidQrLoginActivity(view);
             }
         });
         button(linearLayout, "Вернуться к управлению").setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda11
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1745lambda$onCreate$7$rureplyaiandroidQrLoginActivity(view);
+                QrLoginActivity.this.m1745lambda$onCreate$7$rureplyaiandroidQrLoginActivity(view);
             }
         });
         text(linearLayout, "При закрытии экрана вход остаётся доступен до истечения срока. Кнопка «Отменить QR-вход» немедленно закрывает ссылку. Пароль двухэтапной проверки вводится только здесь, если Telegram его запросит.", 13);
@@ -225,7 +225,7 @@ public final class QrLoginActivity extends Activity {
         this.worker.execute(new Runnable() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda1
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1747lambda$restart$9$rureplyaiandroidQrLoginActivity(strUrl, str);
+                QrLoginActivity.this.m1747lambda$restart$9$rureplyaiandroidQrLoginActivity(strUrl, str);
             }
         });
     }
@@ -237,7 +237,7 @@ public final class QrLoginActivity extends Activity {
             this.ui.post(new Runnable() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda3
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m1746lambda$restart$8$rureplyaiandroidQrLoginActivity(jSONObjectCall, str);
+                    QrLoginActivity.this.m1746lambda$restart$8$rureplyaiandroidQrLoginActivity(jSONObjectCall, str);
                 }
             });
         } catch (Exception e) {
@@ -262,7 +262,7 @@ public final class QrLoginActivity extends Activity {
         this.worker.execute(new Runnable() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda0
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1737lambda$call$11$rureplyaiandroidQrLoginActivity(strUrl, str3, str, str2, jSONObject, z);
+                QrLoginActivity.this.m1737lambda$call$11$rureplyaiandroidQrLoginActivity(strUrl, str3, str, str2, jSONObject, z);
             }
         });
     }
@@ -276,7 +276,7 @@ public final class QrLoginActivity extends Activity {
             this.ui.post(new Runnable() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda12
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m1736lambda$call$10$rureplyaiandroidQrLoginActivity(jSONObjectCall, str);
+                    QrLoginActivity.this.m1736lambda$call$10$rureplyaiandroidQrLoginActivity(jSONObjectCall, str);
                 }
             });
         } catch (Exception e) {
@@ -298,7 +298,7 @@ public final class QrLoginActivity extends Activity {
         this.ui.post(new Runnable() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda2
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1738lambda$fail$12$rureplyaiandroidQrLoginActivity(exc);
+                QrLoginActivity.this.m1738lambda$fail$12$rureplyaiandroidQrLoginActivity(exc);
             }
         });
     }

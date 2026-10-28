@@ -69,7 +69,7 @@ public final class ServerSetupActivity extends Activity {
         button.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda9
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1748lambda$onCreate$1$rureplyaiandroidServerSetupActivity(view);
+                ServerSetupActivity.this.m1748lambda$onCreate$1$rureplyaiandroidServerSetupActivity(view);
             }
         });
         add(linearLayout, button);
@@ -98,7 +98,7 @@ public final class ServerSetupActivity extends Activity {
         this.start.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda10
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1749lambda$onCreate$2$rureplyaiandroidServerSetupActivity(view);
+                ServerSetupActivity.this.m1749lambda$onCreate$2$rureplyaiandroidServerSetupActivity(view);
             }
         });
         ProgressBar progressBar = new ProgressBar(this);
@@ -116,7 +116,7 @@ public final class ServerSetupActivity extends Activity {
         this.done.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda11
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1750lambda$onCreate$3$rureplyaiandroidServerSetupActivity(view);
+                ServerSetupActivity.this.m1750lambda$onCreate$3$rureplyaiandroidServerSetupActivity(view);
             }
         });
         add(linearLayout, this.done);
@@ -126,7 +126,7 @@ public final class ServerSetupActivity extends Activity {
         button4.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda12
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1751lambda$onCreate$4$rureplyaiandroidServerSetupActivity(view);
+                ServerSetupActivity.this.m1751lambda$onCreate$4$rureplyaiandroidServerSetupActivity(view);
             }
         });
         add(linearLayout, button4);
@@ -186,7 +186,7 @@ public final class ServerSetupActivity extends Activity {
         this.worker.execute(new Runnable() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda0
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1754lambda$submit$12$rureplyaiandroidServerSetupActivity(spec, bArr, string, bArr2);
+                ServerSetupActivity.this.m1754lambda$submit$12$rureplyaiandroidServerSetupActivity(spec, bArr, string, bArr2);
             }
         });
     }
@@ -303,7 +303,7 @@ public final class ServerSetupActivity extends Activity {
             this.ui.post(new Runnable() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda6
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m1752lambda$submit$10$rureplyaiandroidServerSetupActivity(bArr2, spec, e);
+                    ServerSetupActivity.this.m1752lambda$submit$10$rureplyaiandroidServerSetupActivity(bArr2, spec, e);
                 }
             });
         } catch (Exception e2) {
@@ -315,7 +315,7 @@ public final class ServerSetupActivity extends Activity {
             this.ui.post(new Runnable() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda7
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m1753lambda$submit$11$rureplyaiandroidServerSetupActivity(message);
+                    ServerSetupActivity.this.m1753lambda$submit$11$rureplyaiandroidServerSetupActivity(message);
                 }
             });
         }
@@ -344,22 +344,22 @@ public final class ServerSetupActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("Первое подключение к VPS").setMessage("Сервер " + spec.identity() + " предъявил SSH-ключ:\n\n" + trustRequired.fingerprint + "\n\nЕсли хостинг показывает отпечаток ключа, сверьте его. Подтвердите доверие именно своему серверу. При изменении ключа приложение заблокирует вход.").setNegativeButton("Отмена", new DialogInterface.OnClickListener() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda1
                 @Override // android.content.DialogInterface.OnClickListener
                 public final void onClick(DialogInterface dialogInterface, int i) {
-                    this.f$0.m1756lambda$submit$6$rureplyaiandroidServerSetupActivity(dialogInterface, i);
+                    ServerSetupActivity.this.m1756lambda$submit$6$rureplyaiandroidServerSetupActivity(dialogInterface, i);
                 }
             }).setPositiveButton("Доверять серверу", new DialogInterface.OnClickListener() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda2
                 @Override // android.content.DialogInterface.OnClickListener
                 public final void onClick(DialogInterface dialogInterface, int i) {
-                    this.f$0.m1757lambda$submit$7$rureplyaiandroidServerSetupActivity(spec, trustRequired, dialogInterface, i);
+                    ServerSetupActivity.this.m1757lambda$submit$7$rureplyaiandroidServerSetupActivity(spec, trustRequired, dialogInterface, i);
                 }
             }).setOnCancelListener(new DialogInterface.OnCancelListener() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda3
                 @Override // android.content.DialogInterface.OnCancelListener
                 public final void onCancel(DialogInterface dialogInterface) {
-                    this.f$0.m1758lambda$submit$8$rureplyaiandroidServerSetupActivity(dialogInterface);
+                    ServerSetupActivity.this.m1758lambda$submit$8$rureplyaiandroidServerSetupActivity(dialogInterface);
                 }
             }).setOnDismissListener(new DialogInterface.OnDismissListener() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda4
                 @Override // android.content.DialogInterface.OnDismissListener
                 public final void onDismiss(DialogInterface dialogInterface) {
-                    this.f$0.m1759lambda$submit$9$rureplyaiandroidServerSetupActivity(dialogInterface);
+                    ServerSetupActivity.this.m1759lambda$submit$9$rureplyaiandroidServerSetupActivity(dialogInterface);
                 }
             }).show();
         } else if (bArr != null) {
@@ -436,7 +436,7 @@ public final class ServerSetupActivity extends Activity {
         this.ui.post(new Runnable() { // from class: ru.replyai.android.ServerSetupActivity$$ExternalSyntheticLambda13
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1760lambda$update$13$rureplyaiandroidServerSetupActivity(str);
+                ServerSetupActivity.this.m1760lambda$update$13$rureplyaiandroidServerSetupActivity(str);
             }
         });
     }

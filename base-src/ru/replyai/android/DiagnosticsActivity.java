@@ -67,7 +67,7 @@ public final class DiagnosticsActivity extends Activity {
         this.save.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.DiagnosticsActivity$$ExternalSyntheticLambda5
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1637lambda$onCreate$1$rureplyaiandroidDiagnosticsActivity(view);
+                DiagnosticsActivity.this.m1637lambda$onCreate$1$rureplyaiandroidDiagnosticsActivity(view);
             }
         });
         Button button2 = new Button(this);
@@ -77,7 +77,7 @@ public final class DiagnosticsActivity extends Activity {
         button2.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.DiagnosticsActivity$$ExternalSyntheticLambda6
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1638lambda$onCreate$2$rureplyaiandroidDiagnosticsActivity(view);
+                DiagnosticsActivity.this.m1638lambda$onCreate$2$rureplyaiandroidDiagnosticsActivity(view);
             }
         });
         if (bundle != null) {
@@ -116,7 +116,7 @@ public final class DiagnosticsActivity extends Activity {
         this.worker.execute(new Runnable() { // from class: ru.replyai.android.DiagnosticsActivity$$ExternalSyntheticLambda1
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1641lambda$prepare$5$rureplyaiandroidDiagnosticsActivity(strUrl, str);
+                DiagnosticsActivity.this.m1641lambda$prepare$5$rureplyaiandroidDiagnosticsActivity(strUrl, str);
             }
         });
     }
@@ -141,7 +141,7 @@ public final class DiagnosticsActivity extends Activity {
             this.ui.post(new Runnable() { // from class: ru.replyai.android.DiagnosticsActivity$$ExternalSyntheticLambda2
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m1639lambda$prepare$3$rureplyaiandroidDiagnosticsActivity(bytes, string);
+                    DiagnosticsActivity.this.m1639lambda$prepare$3$rureplyaiandroidDiagnosticsActivity(bytes, string);
                 }
             });
         } catch (Exception e2) {
@@ -149,7 +149,7 @@ public final class DiagnosticsActivity extends Activity {
             this.ui.post(new Runnable() { // from class: ru.replyai.android.DiagnosticsActivity$$ExternalSyntheticLambda3
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m1640lambda$prepare$4$rureplyaiandroidDiagnosticsActivity();
+                    DiagnosticsActivity.this.m1640lambda$prepare$4$rureplyaiandroidDiagnosticsActivity();
                 }
             });
         }
@@ -213,7 +213,7 @@ public final class DiagnosticsActivity extends Activity {
         this.worker.execute(new Runnable() { // from class: ru.replyai.android.DiagnosticsActivity$$ExternalSyntheticLambda7
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1636lambda$onActivityResult$7$rureplyaiandroidDiagnosticsActivity(data, bArr);
+                DiagnosticsActivity.this.m1636lambda$onActivityResult$7$rureplyaiandroidDiagnosticsActivity(data, bArr);
             }
         });
     }
@@ -234,7 +234,7 @@ public final class DiagnosticsActivity extends Activity {
                 this.ui.post(new Runnable() { // from class: ru.replyai.android.DiagnosticsActivity$$ExternalSyntheticLambda0
                     @Override // java.lang.Runnable
                     public final void run() {
-                        this.f$0.m1635lambda$onActivityResult$6$rureplyaiandroidDiagnosticsActivity(z);
+                        DiagnosticsActivity.this.m1635lambda$onActivityResult$6$rureplyaiandroidDiagnosticsActivity(z);
                     }
                 });
             } catch (Throwable th) {

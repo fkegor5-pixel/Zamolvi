@@ -142,7 +142,7 @@ public final class MainActivity extends Activity {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0, new OnBackInvokedCallback() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda16
                 @Override // android.window.OnBackInvokedCallback
                 public final void onBackInvoked() {
-                    this.f$0.backToMenu();
+                    MainActivity.this.backToMenu();
                 }
             });
         }
@@ -183,7 +183,7 @@ public final class MainActivity extends Activity {
             button.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda63
                 @Override // android.view.View.OnClickListener
                 public final void onClick(View view) {
-                    this.f$0.m1718lambda$showScreen$1$rureplyaiandroidMainActivity(view);
+                    MainActivity.this.m1718lambda$showScreen$1$rureplyaiandroidMainActivity(view);
                 }
             });
             add(this.content, button, 0);
@@ -191,38 +191,38 @@ public final class MainActivity extends Activity {
             textViewLabel.setTypeface(null, 1);
             add(this.content, textViewLabel, 20);
         }
-        switch (AnonymousClass5.$SwitchMap$ru$replyai$android$MainActivity$Screen[this.screen.ordinal()]) {
-            case 1:
+        switch (this.screen) {
+            case HOME:
                 buildHome();
                 break;
-            case 2:
+            case CONNECTION:
                 buildConnection();
                 break;
-            case 3:
+            case TELEGRAM:
                 buildTelegram();
                 break;
-            case 4:
+            case AI:
                 buildAi();
                 break;
-            case 5:
+            case CHATS:
                 buildChats();
                 break;
-            case 6:
+            case CONTROL:
                 buildControls();
                 break;
-            case 7:
+            case JOURNAL:
                 buildJournal();
                 break;
-            case 8:
+            case ABOUT:
                 buildAbout();
                 break;
-            case 9:
+            case STATS:
                 buildStats();
                 break;
-            case 10:
+            case APPEARANCE:
                 buildAppearance();
                 break;
-            case 11:
+            case VOICE:
                 buildVoice();
                 break;
         }
@@ -233,7 +233,7 @@ public final class MainActivity extends Activity {
         this.rootScroll.post(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda64
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1719lambda$showScreen$2$rureplyaiandroidMainActivity();
+                MainActivity.this.m1719lambda$showScreen$2$rureplyaiandroidMainActivity();
             }
         });
     }
@@ -320,7 +320,7 @@ public final class MainActivity extends Activity {
         button.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda91
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1714lambda$navigation$3$rureplyaiandroidMainActivity(screen, view);
+                MainActivity.this.m1714lambda$navigation$3$rureplyaiandroidMainActivity(screen, view);
             }
         });
         add(this.content, button, 11);
@@ -345,25 +345,25 @@ public final class MainActivity extends Activity {
         action(linearLayoutCard, "Настроить AI API", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda7
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1660lambda$buildAi$4$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1660lambda$buildAi$4$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Оформление ответов", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda8
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1661lambda$buildAi$5$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1661lambda$buildAi$5$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Голосовые сообщения", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda9
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1662lambda$buildAi$6$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1662lambda$buildAi$6$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Проверить AI без отправки в Telegram", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda10
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1663lambda$buildAi$7$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1663lambda$buildAi$7$rureplyaiandroidMainActivity(view);
             }
         });
     }
@@ -371,7 +371,7 @@ public final class MainActivity extends Activity {
         api("GET", "/api/settings", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda69
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) {
-                this.f$0.aiDialog(jSONObject);
+                MainActivity.this.aiDialog(jSONObject);
             }
         });
     }
@@ -379,7 +379,7 @@ public final class MainActivity extends Activity {
         api("GET", "/api/settings", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda30
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) {
-                this.f$0.formatDialog(jSONObject);
+                MainActivity.this.formatDialog(jSONObject);
             }
         });
     }
@@ -396,7 +396,7 @@ public final class MainActivity extends Activity {
         action(linearLayoutCard, "Выбрать личные чаты", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda31
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1665lambda$buildChats$8$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1665lambda$buildChats$8$rureplyaiandroidMainActivity(view);
             }
         });
         add(linearLayoutCard, label("Собеседник может отключить автоответы в своём чате командой /ai_off.", 13, this.MUTED), 12);
@@ -414,19 +414,19 @@ public final class MainActivity extends Activity {
         action(linearLayoutCard, "Обновить журнал", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda45
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1679lambda$buildJournal$9$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1679lambda$buildJournal$9$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Сохранить диагностику", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda46
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1676lambda$buildJournal$10$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1676lambda$buildJournal$10$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Очистить журнал и отметки отправок", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda47
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1678lambda$buildJournal$12$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1678lambda$buildJournal$12$rureplyaiandroidMainActivity(view);
             }
         });
         LinearLayout linearLayoutCard2 = card("Последние события");
@@ -448,7 +448,7 @@ public final class MainActivity extends Activity {
         api("POST", "/api/clear", new JSONObject(), new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda14
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) throws Exception {
-                this.f$0.m1677lambda$buildJournal$11$rureplyaiandroidMainActivity(jSONObject);
+                MainActivity.this.m1677lambda$buildJournal$11$rureplyaiandroidMainActivity(jSONObject);
             }
         });
     }
@@ -469,7 +469,7 @@ public final class MainActivity extends Activity {
             api("GET", "/api/status", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda27
                 @Override // ru.replyai.android.MainActivity.Result
                 public final void accept(JSONObject jSONObject2) throws Exception {
-                    this.f$0.m1731lambda$withServer27$14$rureplyaiandroidMainActivity(runnable, jSONObject2);
+                    MainActivity.this.m1731lambda$withServer27$14$rureplyaiandroidMainActivity(runnable, jSONObject2);
                 }
             });
         } else {
@@ -484,7 +484,7 @@ public final class MainActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("Обновите сервер до 2.7").setMessage("Новые функции требуют обновления серверной части. Откройте раздел VPS и запустите «Установить сервер из приложения» для своего действующего сервера. Telegram и ключи сохраняются.").setPositiveButton("Открыть раздел VPS", new DialogInterface.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda20
                 @Override // android.content.DialogInterface.OnClickListener
                 public final void onClick(DialogInterface dialogInterface, int i) {
-                    this.f$0.m1730lambda$withServer27$13$rureplyaiandroidMainActivity(dialogInterface, i);
+                    MainActivity.this.m1730lambda$withServer27$13$rureplyaiandroidMainActivity(dialogInterface, i);
                 }
             }).setNegativeButton("Позже", (DialogInterface.OnClickListener) null).show();
         }
@@ -520,7 +520,7 @@ public final class MainActivity extends Activity {
         radioGroup.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda29
             @Override // android.widget.RadioGroup.OnCheckedChangeListener
             public final void onCheckedChanged(RadioGroup radioGroup2, int i3) {
-                this.f$0.m1664lambda$buildAppearance$15$rureplyaiandroidMainActivity(iArr, strArr, radioGroup2, i3);
+                MainActivity.this.m1664lambda$buildAppearance$15$rureplyaiandroidMainActivity(iArr, strArr, radioGroup2, i3);
             }
         });
     }
@@ -542,7 +542,7 @@ public final class MainActivity extends Activity {
         action(linearLayoutCard, "Обновить статистику", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda52
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1680lambda$buildStats$16$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1680lambda$buildStats$16$rureplyaiandroidMainActivity(view);
             }
         });
         LinearLayout linearLayoutCard2 = card("Ответы за 7 дней");
@@ -567,7 +567,7 @@ public final class MainActivity extends Activity {
         withServer27(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda53
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1708lambda$loadStatistics$17$rureplyaiandroidMainActivity();
+                MainActivity.this.m1708lambda$loadStatistics$17$rureplyaiandroidMainActivity();
             }
         });
     }
@@ -575,7 +575,7 @@ public final class MainActivity extends Activity {
         api("GET", "/api/stats", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda77
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) {
-                this.f$0.showStatistics(jSONObject);
+                MainActivity.this.showStatistics(jSONObject);
             }
         });
     }
@@ -606,7 +606,7 @@ public final class MainActivity extends Activity {
         alertDialogDialog.setOnShowListener(new DialogInterface.OnShowListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda83
             @Override // android.content.DialogInterface.OnShowListener
             public final void onShow(DialogInterface dialogInterface) {
-                this.f$0.m1658lambda$batchDialog$20$rureplyaiandroidMainActivity(alertDialogDialog, editTextField, dialogInterface);
+                MainActivity.this.m1658lambda$batchDialog$20$rureplyaiandroidMainActivity(alertDialogDialog, editTextField, dialogInterface);
             }
         });
         alertDialogDialog.show();
@@ -625,7 +625,7 @@ public final class MainActivity extends Activity {
             api("PUT", "/api/behavior", jSONObjectPut, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda23
                 @Override // ru.replyai.android.MainActivity.Result
                 public final void accept(JSONObject jSONObject) throws Exception {
-                    this.f$0.m1656lambda$batchDialog$18$rureplyaiandroidMainActivity(jSONObject);
+                    MainActivity.this.m1656lambda$batchDialog$18$rureplyaiandroidMainActivity(jSONObject);
                 }
             });
         } catch (Exception unused) {
@@ -636,7 +636,7 @@ public final class MainActivity extends Activity {
         alertDialog.getButton(-1).setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda35
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1657lambda$batchDialog$19$rureplyaiandroidMainActivity(editText, alertDialog, view);
+                MainActivity.this.m1657lambda$batchDialog$19$rureplyaiandroidMainActivity(editText, alertDialog, view);
             }
         });
     }
@@ -668,7 +668,7 @@ public final class MainActivity extends Activity {
         alertDialogDialog.setOnShowListener(new DialogInterface.OnShowListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda38
             @Override // android.content.DialogInterface.OnShowListener
             public final void onShow(DialogInterface dialogInterface) {
-                this.f$0.m1717lambda$quietDialog$23$rureplyaiandroidMainActivity(alertDialogDialog, editTextField, editTextField2, checkBox, arrayList, spinner, dialogInterface);
+                MainActivity.this.m1717lambda$quietDialog$23$rureplyaiandroidMainActivity(alertDialogDialog, editTextField, editTextField2, checkBox, arrayList, spinner, dialogInterface);
             }
         });
         alertDialogDialog.show();
@@ -689,7 +689,7 @@ public final class MainActivity extends Activity {
             api("PUT", "/api/behavior", jSONObjectPut, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda36
                 @Override // ru.replyai.android.MainActivity.Result
                 public final void accept(JSONObject jSONObject) throws Exception {
-                    this.f$0.m1715lambda$quietDialog$21$rureplyaiandroidMainActivity(jSONObject);
+                    MainActivity.this.m1715lambda$quietDialog$21$rureplyaiandroidMainActivity(jSONObject);
                 }
             });
         } catch (Exception unused) {
@@ -700,7 +700,7 @@ public final class MainActivity extends Activity {
         alertDialog.getButton(-1).setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda61
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1716lambda$quietDialog$22$rureplyaiandroidMainActivity(editText, editText2, checkBox, arrayList, spinner, alertDialog, view);
+                MainActivity.this.m1716lambda$quietDialog$22$rureplyaiandroidMainActivity(editText, editText2, checkBox, arrayList, spinner, alertDialog, view);
             }
         });
     }
@@ -714,19 +714,19 @@ public final class MainActivity extends Activity {
         action(linearLayoutCard, "Настроить голосовые", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda17
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1692lambda$buildVoice$25$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1692lambda$buildVoice$25$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Обновить расшифровки", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda18
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1693lambda$buildVoice$26$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1693lambda$buildVoice$26$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Очистить расшифровки", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda19
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1696lambda$buildVoice$29$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1696lambda$buildVoice$29$rureplyaiandroidMainActivity(view);
             }
         });
         LinearLayout linearLayoutCard2 = card("Последние расшифровки");
@@ -744,7 +744,7 @@ public final class MainActivity extends Activity {
         api("GET", "/api/voice", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda49
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) {
-                this.f$0.voiceDialog(jSONObject);
+                MainActivity.this.voiceDialog(jSONObject);
             }
         });
     }
@@ -752,7 +752,7 @@ public final class MainActivity extends Activity {
         withServer27(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda48
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1691lambda$buildVoice$24$rureplyaiandroidMainActivity();
+                MainActivity.this.m1691lambda$buildVoice$24$rureplyaiandroidMainActivity();
             }
         });
     }
@@ -767,7 +767,7 @@ public final class MainActivity extends Activity {
         api("POST", "/api/voice/clear", new JSONObject(), new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda41
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) throws Exception {
-                this.f$0.m1694lambda$buildVoice$27$rureplyaiandroidMainActivity(jSONObject);
+                MainActivity.this.m1694lambda$buildVoice$27$rureplyaiandroidMainActivity(jSONObject);
             }
         });
     }
@@ -775,7 +775,7 @@ public final class MainActivity extends Activity {
         withServer27(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda54
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1695lambda$buildVoice$28$rureplyaiandroidMainActivity();
+                MainActivity.this.m1695lambda$buildVoice$28$rureplyaiandroidMainActivity();
             }
         });
     }
@@ -784,7 +784,7 @@ public final class MainActivity extends Activity {
         withServer27(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda55
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1709lambda$loadVoice$30$rureplyaiandroidMainActivity();
+                MainActivity.this.m1709lambda$loadVoice$30$rureplyaiandroidMainActivity();
             }
         });
     }
@@ -792,7 +792,7 @@ public final class MainActivity extends Activity {
         api("GET", "/api/voice", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda80
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) {
-                this.f$0.showVoice(jSONObject);
+                MainActivity.this.showVoice(jSONObject);
             }
         });
     }
@@ -819,7 +819,7 @@ public final class MainActivity extends Activity {
                 action(this.transcriptsList, new SimpleDateFormat("dd.MM HH:mm", Locale.ROOT).format(new Date(jSONObjectOptJSONObject.optLong("at") * 1000)) + "\n" + strReplace, new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda37
                     @Override // android.view.View.OnClickListener
                     public final void onClick(View view) {
-                        this.f$0.m1720lambda$showVoice$31$rureplyaiandroidMainActivity(strOptString, view);
+                        MainActivity.this.m1720lambda$showVoice$31$rureplyaiandroidMainActivity(strOptString, view);
                     }
                 });
             }
@@ -879,7 +879,7 @@ public final class MainActivity extends Activity {
         alertDialogDialog.setOnShowListener(new DialogInterface.OnShowListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda13
             @Override // android.content.DialogInterface.OnShowListener
             public final void onShow(DialogInterface dialogInterface) {
-                this.f$0.m1729lambda$voiceDialog$35$rureplyaiandroidMainActivity(alertDialogDialog, editTextField2, checkBox, checkBox2, editTextField, strArr, spinner, strArr2, spinner2, dialogInterface);
+                MainActivity.this.m1729lambda$voiceDialog$35$rureplyaiandroidMainActivity(alertDialogDialog, editTextField2, checkBox, checkBox2, editTextField, strArr, spinner, strArr2, spinner2, dialogInterface);
             }
         });
         alertDialogDialog.show();
@@ -900,7 +900,7 @@ public final class MainActivity extends Activity {
             api("PUT", "/api/voice", jSONObjectPut, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda92
                 @Override // ru.replyai.android.MainActivity.Result
                 public final void accept(JSONObject jSONObject) throws Exception {
-                    this.f$0.m1727lambda$voiceDialog$33$rureplyaiandroidMainActivity(jSONObject);
+                    MainActivity.this.m1727lambda$voiceDialog$33$rureplyaiandroidMainActivity(jSONObject);
                 }
             });
         } catch (Exception unused) {
@@ -911,7 +911,7 @@ public final class MainActivity extends Activity {
         alertDialog.getButton(-1).setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda44
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1728lambda$voiceDialog$34$rureplyaiandroidMainActivity(editText, checkBox, checkBox2, editText2, strArr, spinner, strArr2, spinner2, alertDialog, view);
+                MainActivity.this.m1728lambda$voiceDialog$34$rureplyaiandroidMainActivity(editText, checkBox, checkBox2, editText2, strArr, spinner, strArr2, spinner2, alertDialog, view);
             }
         });
     }
@@ -928,7 +928,7 @@ public final class MainActivity extends Activity {
         action(linearLayoutCard2, "Открыть профиль автора", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda89
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1659lambda$buildAbout$36$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1659lambda$buildAbout$36$rureplyaiandroidMainActivity(view);
             }
         });
     }
@@ -960,7 +960,7 @@ public final class MainActivity extends Activity {
         action(linearLayoutCard, "Установить сервер из приложения", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda85
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1666lambda$buildConnection$37$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1666lambda$buildConnection$37$rureplyaiandroidMainActivity(view);
             }
         });
         EditText editTextField = field(linearLayoutCard, "Адрес сервера", this.settings.url(), false, 2048);
@@ -973,13 +973,13 @@ public final class MainActivity extends Activity {
         action(linearLayoutCard, "Сохранить подключение", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda86
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1667lambda$buildConnection$38$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1667lambda$buildConnection$38$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Сохранить диагностику", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda87
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1668lambda$buildConnection$39$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1668lambda$buildConnection$39$rureplyaiandroidMainActivity(view);
             }
         });
     }
@@ -1020,34 +1020,34 @@ public final class MainActivity extends Activity {
         action(linearLayoutCard, "Объединение сообщений", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda71
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1670lambda$buildControls$41$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1670lambda$buildControls$41$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Тихие часы", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda72
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1672lambda$buildControls$43$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1672lambda$buildControls$43$rureplyaiandroidMainActivity(view);
             }
         });
         Button button = button("Включить автоответы", true);
         button.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda73
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1673lambda$buildControls$44$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1673lambda$buildControls$44$rureplyaiandroidMainActivity(view);
             }
         });
         add(linearLayoutCard, button, 14);
         action(linearLayoutCard, "Остановить автоответы", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda74
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1674lambda$buildControls$45$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1674lambda$buildControls$45$rureplyaiandroidMainActivity(view);
             }
         });
         add(linearLayoutCard, label("Остановка отправляет команду серверу. При отсутствии связи команда не считается выполненной.", 12, this.MUTED), 8);
         action(linearLayoutCard, "Обновить состояние", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda75
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1675lambda$buildControls$46$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1675lambda$buildControls$46$rureplyaiandroidMainActivity(view);
             }
         });
     }
@@ -1055,7 +1055,7 @@ public final class MainActivity extends Activity {
         api("GET", "/api/behavior", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda42
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) {
-                this.f$0.batchDialog(jSONObject);
+                MainActivity.this.batchDialog(jSONObject);
             }
         });
     }
@@ -1063,7 +1063,7 @@ public final class MainActivity extends Activity {
         withServer27(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda26
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1669lambda$buildControls$40$rureplyaiandroidMainActivity();
+                MainActivity.this.m1669lambda$buildControls$40$rureplyaiandroidMainActivity();
             }
         });
     }
@@ -1071,7 +1071,7 @@ public final class MainActivity extends Activity {
         api("GET", "/api/behavior", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda6
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) {
-                this.f$0.quietDialog(jSONObject);
+                MainActivity.this.quietDialog(jSONObject);
             }
         });
     }
@@ -1079,7 +1079,7 @@ public final class MainActivity extends Activity {
         withServer27(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda58
             @Override // java.lang.Runnable
             public final void run() {
-                this.f$0.m1671lambda$buildControls$42$rureplyaiandroidMainActivity();
+                MainActivity.this.m1671lambda$buildControls$42$rureplyaiandroidMainActivity();
             }
         });
     }
@@ -1107,25 +1107,25 @@ public final class MainActivity extends Activity {
         action(linearLayoutCard, "Войти в личный аккаунт Telegram", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda0
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1681lambda$buildTelegram$47$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1681lambda$buildTelegram$47$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Войти через QR — без кода", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda11
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1685lambda$buildTelegram$51$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1685lambda$buildTelegram$51$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Ввести код или облачный пароль", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda22
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1687lambda$buildTelegram$53$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1687lambda$buildTelegram$53$rureplyaiandroidMainActivity(view);
             }
         });
         action(linearLayoutCard, "Отключить аккаунт Telegram", new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda33
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1690lambda$buildTelegram$56$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1690lambda$buildTelegram$56$rureplyaiandroidMainActivity(view);
             }
         });
     }
@@ -1136,7 +1136,7 @@ public final class MainActivity extends Activity {
         api("GET", "/api/telegram/qr", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda60
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) throws Exception {
-                this.f$0.m1684lambda$buildTelegram$50$rureplyaiandroidMainActivity(jSONObject);
+                MainActivity.this.m1684lambda$buildTelegram$50$rureplyaiandroidMainActivity(jSONObject);
             }
         });
     }
@@ -1147,12 +1147,12 @@ public final class MainActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("Вход через QR").setMessage("Использовать данные последнего входа? Номер заканчивается на " + jSONObject.optString("phone_last4") + ". На втором устройстве откроется QR; подтвердите его в Telegram именно этого аккаунта.").setPositiveButton("Создать QR", new DialogInterface.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda56
                 @Override // android.content.DialogInterface.OnClickListener
                 public final void onClick(DialogInterface dialogInterface, int i) {
-                    this.f$0.m1682lambda$buildTelegram$48$rureplyaiandroidMainActivity(dialogInterface, i);
+                    MainActivity.this.m1682lambda$buildTelegram$48$rureplyaiandroidMainActivity(dialogInterface, i);
                 }
             }).setNeutralButton("Изменить данные", new DialogInterface.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda57
                 @Override // android.content.DialogInterface.OnClickListener
                 public final void onClick(DialogInterface dialogInterface, int i) {
-                    this.f$0.m1683lambda$buildTelegram$49$rureplyaiandroidMainActivity(dialogInterface, i);
+                    MainActivity.this.m1683lambda$buildTelegram$49$rureplyaiandroidMainActivity(dialogInterface, i);
                 }
             }).setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).show();
         } else {
@@ -1169,7 +1169,7 @@ public final class MainActivity extends Activity {
         api("GET", "/api/status", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda59
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) throws Exception {
-                this.f$0.m1686lambda$buildTelegram$52$rureplyaiandroidMainActivity(jSONObject);
+                MainActivity.this.m1686lambda$buildTelegram$52$rureplyaiandroidMainActivity(jSONObject);
             }
         });
     }
@@ -1190,7 +1190,7 @@ public final class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Завершить серверный сеанс?").setMessage("Автоответчик остановится, сеанс Telegram на сервере будет завершён. Для повторного подключения потребуется вход.").setNegativeButton("Отмена", (DialogInterface.OnClickListener) null).setPositiveButton("Отключить", new DialogInterface.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda39
             @Override // android.content.DialogInterface.OnClickListener
             public final void onClick(DialogInterface dialogInterface, int i) {
-                this.f$0.m1689lambda$buildTelegram$55$rureplyaiandroidMainActivity(dialogInterface, i);
+                MainActivity.this.m1689lambda$buildTelegram$55$rureplyaiandroidMainActivity(dialogInterface, i);
             }
         }).show();
     }
@@ -1202,7 +1202,7 @@ public final class MainActivity extends Activity {
         api("POST", "/api/telegram/logout", new JSONObject(), new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda76
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) throws Exception {
-                this.f$0.m1688lambda$buildTelegram$54$rureplyaiandroidMainActivity(jSONObject);
+                MainActivity.this.m1688lambda$buildTelegram$54$rureplyaiandroidMainActivity(jSONObject);
             }
         });
     }
@@ -1225,7 +1225,7 @@ public final class MainActivity extends Activity {
         button.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda50
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1721lambda$telegramLogin$57$rureplyaiandroidMainActivity(view);
+                MainActivity.this.m1721lambda$telegramLogin$57$rureplyaiandroidMainActivity(view);
             }
         });
         add(linearLayoutDialogBox, button, 4);
@@ -1245,7 +1245,7 @@ public final class MainActivity extends Activity {
         alertDialogDialog.setOnShowListener(new DialogInterface.OnShowListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda51
             @Override // android.content.DialogInterface.OnShowListener
             public final void onShow(DialogInterface dialogInterface) {
-                this.f$0.m1723lambda$telegramLogin$59$rureplyaiandroidMainActivity(alertDialogDialog, checkBox, editTextField2, editTextField3, editTextField, z, dialogInterface);
+                MainActivity.this.m1723lambda$telegramLogin$59$rureplyaiandroidMainActivity(alertDialogDialog, checkBox, editTextField2, editTextField3, editTextField, z, dialogInterface);
             }
         });
         alertDialogDialog.show();
@@ -1257,7 +1257,7 @@ public final class MainActivity extends Activity {
         alertDialog.getButton(-1).setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda66
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1722lambda$telegramLogin$58$rureplyaiandroidMainActivity(checkBox, editText, editText2, editText3, alertDialog, z, view);
+                MainActivity.this.m1722lambda$telegramLogin$58$rureplyaiandroidMainActivity(checkBox, editText, editText2, editText3, alertDialog, z, view);
             }
         });
     }
@@ -1352,13 +1352,13 @@ public final class MainActivity extends Activity {
                 alertDialogDialog.setOnDismissListener(new DialogInterface.OnDismissListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda3
                     @Override // android.content.DialogInterface.OnDismissListener
                     public final void onDismiss(DialogInterface dialogInterface) {
-                        this.f$0.m1710lambda$loginNext$60$rureplyaiandroidMainActivity(runnable, dialogInterface);
+                        MainActivity.this.m1710lambda$loginNext$60$rureplyaiandroidMainActivity(runnable, dialogInterface);
                     }
                 });
                 button.setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda4
                     @Override // android.view.View.OnClickListener
                     public final void onClick(View view) {
-                        this.f$0.m1711lambda$loginNext$61$rureplyaiandroidMainActivity(alertDialogDialog, view);
+                        MainActivity.this.m1711lambda$loginNext$61$rureplyaiandroidMainActivity(alertDialogDialog, view);
                     }
                 });
                 runnableArr[0] = runnable;
@@ -1370,7 +1370,7 @@ public final class MainActivity extends Activity {
         alertDialogDialog.setOnShowListener(new DialogInterface.OnShowListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda5
             @Override // android.content.DialogInterface.OnShowListener
             public final void onShow(DialogInterface dialogInterface) {
-                this.f$0.m1713lambda$loginNext$63$rureplyaiandroidMainActivity(runnableArr, alertDialogDialog, zEquals2, editText2, zEquals, dialogInterface);
+                MainActivity.this.m1713lambda$loginNext$63$rureplyaiandroidMainActivity(runnableArr, alertDialogDialog, zEquals2, editText2, zEquals, dialogInterface);
             }
         });
         alertDialogDialog.show();
@@ -1390,7 +1390,7 @@ public final class MainActivity extends Activity {
         alertDialog.getButton(-1).setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda21
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1712lambda$loginNext$62$rureplyaiandroidMainActivity(z, alertDialog, editText, z2, view);
+                MainActivity.this.m1712lambda$loginNext$62$rureplyaiandroidMainActivity(z, alertDialog, editText, z2, view);
             }
         });
     }
@@ -1418,7 +1418,7 @@ public final class MainActivity extends Activity {
         api("GET", "/api/chats", null, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda32
             @Override // ru.replyai.android.MainActivity.Result
             public final void accept(JSONObject jSONObject) throws Exception {
-                this.f$0.m1700lambda$chooseChats$67$rureplyaiandroidMainActivity(jSONObject);
+                MainActivity.this.m1700lambda$chooseChats$67$rureplyaiandroidMainActivity(jSONObject);
             }
         });
     }
@@ -1452,7 +1452,7 @@ public final class MainActivity extends Activity {
         alertDialogDialog.setOnShowListener(new DialogInterface.OnShowListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda81
             @Override // android.content.DialogInterface.OnShowListener
             public final void onShow(DialogInterface dialogInterface) {
-                this.f$0.m1699lambda$chooseChats$66$rureplyaiandroidMainActivity(alertDialogDialog, checkBoxArr, jSONArrayOptJSONArray, checkBox, linearLayoutDialogBox, dialogInterface);
+                MainActivity.this.m1699lambda$chooseChats$66$rureplyaiandroidMainActivity(alertDialogDialog, checkBoxArr, jSONArrayOptJSONArray, checkBox, linearLayoutDialogBox, dialogInterface);
             }
         });
         alertDialogDialog.show();
@@ -1461,7 +1461,7 @@ public final class MainActivity extends Activity {
         alertDialog.getButton(-1).setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda82
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1698lambda$chooseChats$65$rureplyaiandroidMainActivity(checkBoxArr, jSONArray, checkBox, linearLayout, alertDialog, view);
+                MainActivity.this.m1698lambda$chooseChats$65$rureplyaiandroidMainActivity(checkBoxArr, jSONArray, checkBox, linearLayout, alertDialog, view);
             }
         });
     }
@@ -1486,7 +1486,7 @@ public final class MainActivity extends Activity {
             api("PUT", "/api/chats", jSONObjectPut, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda84
                 @Override // ru.replyai.android.MainActivity.Result
                 public final void accept(JSONObject jSONObject) throws Exception {
-                    this.f$0.m1697lambda$chooseChats$64$rureplyaiandroidMainActivity(jSONObject);
+                    MainActivity.this.m1697lambda$chooseChats$64$rureplyaiandroidMainActivity(jSONObject);
                 }
             });
         } catch (Exception unused) {
@@ -1502,7 +1502,7 @@ public final class MainActivity extends Activity {
             new AlertDialog.Builder(this).setTitle("Обновите сервер до 2.6").setMessage("Для оформления ответов нужна новая серверная часть. В разделе VPS нажмите «Установить сервер из приложения»: подключение Telegram и сохранённые ключи останутся на сервере.").setPositiveButton("Открыть раздел VPS", new DialogInterface.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda24
                 @Override // android.content.DialogInterface.OnClickListener
                 public final void onClick(DialogInterface dialogInterface, int i) {
-                    this.f$0.m1704lambda$formatDialog$68$rureplyaiandroidMainActivity(dialogInterface, i);
+                    MainActivity.this.m1704lambda$formatDialog$68$rureplyaiandroidMainActivity(dialogInterface, i);
                 }
             }).setNegativeButton("Позже", (DialogInterface.OnClickListener) null).show();
             return;
@@ -1539,7 +1539,7 @@ public final class MainActivity extends Activity {
         alertDialogDialog.setOnShowListener(new DialogInterface.OnShowListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda25
             @Override // android.content.DialogInterface.OnShowListener
             public final void onShow(DialogInterface dialogInterface) {
-                this.f$0.m1707lambda$formatDialog$71$rureplyaiandroidMainActivity(alertDialogDialog, strArr, spinner, dialogInterface);
+                MainActivity.this.m1707lambda$formatDialog$71$rureplyaiandroidMainActivity(alertDialogDialog, strArr, spinner, dialogInterface);
             }
         });
         alertDialogDialog.show();
@@ -1551,7 +1551,7 @@ public final class MainActivity extends Activity {
         alertDialog.getButton(-1).setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda34
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1706lambda$formatDialog$70$rureplyaiandroidMainActivity(strArr, spinner, alertDialog, view);
+                MainActivity.this.m1706lambda$formatDialog$70$rureplyaiandroidMainActivity(strArr, spinner, alertDialog, view);
             }
         });
     }
@@ -1562,7 +1562,7 @@ public final class MainActivity extends Activity {
             api("PUT", "/api/formatting", jSONObjectPut, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda68
                 @Override // ru.replyai.android.MainActivity.Result
                 public final void accept(JSONObject jSONObject) throws Exception {
-                    this.f$0.m1705lambda$formatDialog$69$rureplyaiandroidMainActivity(jSONObject);
+                    MainActivity.this.m1705lambda$formatDialog$69$rureplyaiandroidMainActivity(jSONObject);
                 }
             });
         } catch (Exception unused) {
@@ -1678,7 +1678,7 @@ public final class MainActivity extends Activity {
         alertDialogDialog.setOnShowListener(new DialogInterface.OnShowListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda28
             @Override // android.content.DialogInterface.OnShowListener
             public final void onShow(DialogInterface dialogInterface) {
-                this.f$0.m1652lambda$aiDialog$74$rureplyaiandroidMainActivity(alertDialogDialog, editTextField5, strArr, spinner, editTextField, editTextField2, editTextField3, editTextField4, dialogInterface);
+                MainActivity.this.m1652lambda$aiDialog$74$rureplyaiandroidMainActivity(alertDialogDialog, editTextField5, strArr, spinner, editTextField, editTextField2, editTextField3, editTextField4, dialogInterface);
             }
         });
         alertDialogDialog.show();
@@ -1687,7 +1687,7 @@ public final class MainActivity extends Activity {
         alertDialog.getButton(-1).setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda43
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1651lambda$aiDialog$73$rureplyaiandroidMainActivity(editText, strArr, spinner, editText2, editText3, editText4, editText5, alertDialog, view);
+                MainActivity.this.m1651lambda$aiDialog$73$rureplyaiandroidMainActivity(editText, strArr, spinner, editText2, editText3, editText4, editText5, alertDialog, view);
             }
         });
     }
@@ -1703,7 +1703,7 @@ public final class MainActivity extends Activity {
             api("PUT", "/api/settings", jSONObjectPut, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda90
                 @Override // ru.replyai.android.MainActivity.Result
                 public final void accept(JSONObject jSONObject) throws Exception {
-                    this.f$0.m1650lambda$aiDialog$72$rureplyaiandroidMainActivity(jSONObject);
+                    MainActivity.this.m1650lambda$aiDialog$72$rureplyaiandroidMainActivity(jSONObject);
                 }
             });
         } catch (Exception unused) {
@@ -1723,7 +1723,7 @@ public final class MainActivity extends Activity {
         alertDialogDialog.setOnShowListener(new DialogInterface.OnShowListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda93
             @Override // android.content.DialogInterface.OnShowListener
             public final void onShow(DialogInterface dialogInterface) {
-                this.f$0.m1726lambda$testDialog$77$rureplyaiandroidMainActivity(alertDialogDialog, editTextField, dialogInterface);
+                MainActivity.this.m1726lambda$testDialog$77$rureplyaiandroidMainActivity(alertDialogDialog, editTextField, dialogInterface);
             }
         });
         alertDialogDialog.show();
@@ -1732,7 +1732,7 @@ public final class MainActivity extends Activity {
         alertDialog.getButton(-1).setOnClickListener(new View.OnClickListener() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda40
             @Override // android.view.View.OnClickListener
             public final void onClick(View view) {
-                this.f$0.m1725lambda$testDialog$76$rureplyaiandroidMainActivity(editText, alertDialog, view);
+                MainActivity.this.m1725lambda$testDialog$76$rureplyaiandroidMainActivity(editText, alertDialog, view);
             }
         });
     }
@@ -1743,7 +1743,7 @@ public final class MainActivity extends Activity {
             api("POST", "/api/test", jSONObjectPut, new Result() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda70
                 @Override // ru.replyai.android.MainActivity.Result
                 public final void accept(JSONObject jSONObject) throws Exception {
-                    this.f$0.m1724lambda$testDialog$75$rureplyaiandroidMainActivity(jSONObject);
+                    MainActivity.this.m1724lambda$testDialog$75$rureplyaiandroidMainActivity(jSONObject);
                 }
             });
         } catch (Exception unused) {
@@ -1762,7 +1762,7 @@ public final class MainActivity extends Activity {
             this.network.execute(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda62
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m1655lambda$api$80$rureplyaiandroidMainActivity(remoteClient, str, str2, jSONObject, j, j2, result);
+                    MainActivity.this.m1655lambda$api$80$rureplyaiandroidMainActivity(remoteClient, str, str2, jSONObject, j, j2, result);
                 }
             });
         } catch (Exception unused) {
@@ -1783,7 +1783,7 @@ public final class MainActivity extends Activity {
                     this.handler.post(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda65
                         @Override // java.lang.Runnable
                         public final void run() {
-                            this.f$0.m1653lambda$api$78$rureplyaiandroidMainActivity(j3, j4, result, jSONObjectCall);
+                            MainActivity.this.m1653lambda$api$78$rureplyaiandroidMainActivity(j3, j4, result, jSONObjectCall);
                         }
                     });
                 } catch (Exception e) {
@@ -1792,7 +1792,7 @@ public final class MainActivity extends Activity {
                     mainActivity.handler.post(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda67
                         @Override // java.lang.Runnable
                         public final void run() {
-                            this.f$0.m1654lambda$api$79$rureplyaiandroidMainActivity(j3, j4, exc);
+                            MainActivity.this.m1654lambda$api$79$rureplyaiandroidMainActivity(j3, j4, exc);
                         }
                     });
                 }
@@ -1834,7 +1834,7 @@ public final class MainActivity extends Activity {
             this.network.execute(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda1
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m1703lambda$fetchStatus$83$rureplyaiandroidMainActivity(remoteClient, j, z);
+                    MainActivity.this.m1703lambda$fetchStatus$83$rureplyaiandroidMainActivity(remoteClient, j, z);
                 }
             });
         } catch (Exception unused) {
@@ -1849,14 +1849,14 @@ public final class MainActivity extends Activity {
             this.handler.post(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda78
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m1701lambda$fetchStatus$81$rureplyaiandroidMainActivity(j, jSONObjectCall);
+                    MainActivity.this.m1701lambda$fetchStatus$81$rureplyaiandroidMainActivity(j, jSONObjectCall);
                 }
             });
         } catch (Exception e) {
             this.handler.post(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda79
                 @Override // java.lang.Runnable
                 public final void run() {
-                    this.f$0.m1702lambda$fetchStatus$82$rureplyaiandroidMainActivity(j, z, e);
+                    MainActivity.this.m1702lambda$fetchStatus$82$rureplyaiandroidMainActivity(j, z, e);
                 }
             });
         }
