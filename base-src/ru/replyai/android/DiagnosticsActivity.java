@@ -218,38 +218,17 @@ public final class DiagnosticsActivity extends Activity {
         });
     }
     /* synthetic */ void m1636lambda$onActivityResult$7$rureplyaiandroidDiagnosticsActivity(Uri uri, byte[] bArr) {
-        final boolean z = false;
-        try {
-            OutputStream outputStreamOpenOutputStream = getContentResolver().openOutputStream(uri, "w");
-            try {
-                if (outputStreamOpenOutputStream == null) {
-                    throw new IOException();
-                }
-                outputStreamOpenOutputStream.write(bArr);
-                outputStreamOpenOutputStream.flush();
-                z = true;
-                if (outputStreamOpenOutputStream != null) {
-                    outputStreamOpenOutputStream.close();
-                }
-                this.ui.post(new Runnable() { // from class: ru.replyai.android.DiagnosticsActivity$$ExternalSyntheticLambda0
-                    @Override // java.lang.Runnable
-                    public final void run() {
-                        DiagnosticsActivity.this.m1635lambda$onActivityResult$6$rureplyaiandroidDiagnosticsActivity(z);
-                    }
-                });
-            } catch (Throwable th) {
-                if (outputStreamOpenOutputStream != null) {
-                    try {
-                        outputStreamOpenOutputStream.close();
-                    } catch (Throwable th2) {
-                        th.addSuppressed(th2);
-                    }
-                }
-                throw th;
-            }
+        boolean ok = false;
+        try (OutputStream out = getContentResolver().openOutputStream(uri, "w")) {
+            if (out == null) throw new IOException();
+            out.write(bArr);
+            out.flush();
+            ok = true;
         } catch (Exception e) {
             DiagnosticLog.event("export", "save", e);
         }
+        final boolean saved = ok;
+        this.ui.post(() -> m1635lambda$onActivityResult$6$rureplyaiandroidDiagnosticsActivity(saved));
     }
     /* synthetic */ void m1635lambda$onActivityResult$6$rureplyaiandroidDiagnosticsActivity(boolean z) {
         if (isFinishing() || isDestroyed()) {

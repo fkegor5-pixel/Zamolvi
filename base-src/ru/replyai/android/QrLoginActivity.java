@@ -269,10 +269,11 @@ public final class QrLoginActivity extends Activity {
     /* synthetic */ void m1737lambda$call$11$rureplyaiandroidQrLoginActivity(final String str, String str2, String str3, String str4, JSONObject jSONObject, boolean z) {
         try {
             RemoteClient remoteClient = new RemoteClient(str, str2);
-            final JSONObject jSONObjectCall = remoteClient.call(str3, str4, jSONObject);
+            JSONObject answer = remoteClient.call(str3, str4, jSONObject);
             if (str4.equals("/api/telegram/password")) {
-                jSONObjectCall = remoteClient.call("GET", "/api/telegram/qr", null);
+                answer = remoteClient.call("GET", "/api/telegram/qr", null);
             }
+            final JSONObject jSONObjectCall = answer;
             this.ui.post(new Runnable() { // from class: ru.replyai.android.QrLoginActivity$$ExternalSyntheticLambda12
                 @Override // java.lang.Runnable
                 public final void run() {

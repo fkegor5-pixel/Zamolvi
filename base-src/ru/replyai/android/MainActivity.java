@@ -1289,7 +1289,7 @@ public final class MainActivity extends Activity {
         String str;
         LinearLayout linearLayout;
         EditText editText;
-        final MainActivity mainActivity = this;
+        MainActivity mainActivity = this;
         String strOptString = jSONObject.optString("stage");
         if (strOptString.equals("authorized")) {
             mainActivity.message("Telegram подключён. Настройте AI и выберите чаты.");
@@ -1769,42 +1769,12 @@ public final class MainActivity extends Activity {
             error("Сначала сохраните HTTPS адрес и ключ управления сервером.");
         }
     }
-    /* synthetic */ void m1655lambda$api$80$rureplyaiandroidMainActivity(RemoteClient remoteClient, String str, String str2, JSONObject jSONObject, long j, long j2, final Result result) {
-        final MainActivity mainActivity;
-        final long j3;
-        final long j4;
+    /* synthetic */ void m1655lambda$api$80$rureplyaiandroidMainActivity(RemoteClient remoteClient, String str, String str2, JSONObject jSONObject, final long j, final long j2, final Result result) {
         try {
-            final JSONObject jSONObjectCall = remoteClient.call(str, str2, jSONObject);
-            j3 = j;
-            j4 = j2;
-            try {
-                mainActivity = this;
-                try {
-                    this.handler.post(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda65
-                        @Override // java.lang.Runnable
-                        public final void run() {
-                            MainActivity.this.m1653lambda$api$78$rureplyaiandroidMainActivity(j3, j4, result, jSONObjectCall);
-                        }
-                    });
-                } catch (Exception e) {
-                    e = e;
-                    final Exception exc = e;
-                    mainActivity.handler.post(new Runnable() { // from class: ru.replyai.android.MainActivity$$ExternalSyntheticLambda67
-                        @Override // java.lang.Runnable
-                        public final void run() {
-                            MainActivity.this.m1654lambda$api$79$rureplyaiandroidMainActivity(j3, j4, exc);
-                        }
-                    });
-                }
-            } catch (Exception e2) {
-                e = e2;
-                mainActivity = this;
-            }
-        } catch (Exception e3) {
-            e = e3;
-            mainActivity = this;
-            j3 = j;
-            j4 = j2;
+            final JSONObject answer = remoteClient.call(str, str2, jSONObject);
+            this.handler.post(() -> m1653lambda$api$78$rureplyaiandroidMainActivity(j, j2, result, answer));
+        } catch (Exception e) {
+            this.handler.post(() -> m1654lambda$api$79$rureplyaiandroidMainActivity(j, j2, e));
         }
     }
     /* synthetic */ void m1653lambda$api$78$rureplyaiandroidMainActivity(long j, long j2, Result result, JSONObject jSONObject) {
