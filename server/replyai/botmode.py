@@ -99,6 +99,10 @@ class OwnBot:
     async def check(self):
         """A running bot that stopped answering Telegram (a hang) is restarted at the next tick."""
         now = self.engine.clock()
+        if self.client and not self.state().get("token"):  # forgotten with the account or made anew
+            self.log("остановлен: данные бота удалены")
+            await self.stop()
+            return
         if not self.client or now < self.next_check:
             return
         self.next_check = now + CHECK
@@ -298,7 +302,7 @@ class OwnBot:
             return
         word = text.split("@")[0].lower()
         unit = self.waiting.get(event.chat_id)
-        if unit and not text.startswith("/"):
+        if unit and not text.startswith("/") and word not in OPEN:
             found = REMIND_ANSWER.match(text)
             if not found:
                 await event.respond(f"Напишите число и текст, например: {UNITS[unit][1]}", buttons=back())

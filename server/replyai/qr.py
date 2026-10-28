@@ -8,7 +8,7 @@ import secrets
 import qrcode
 from telethon import errors, events, functions, types
 from .errors import UserError
-from . import archive, privacy
+from . import privacy
 
 
 class QrLogin:

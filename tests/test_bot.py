@@ -237,3 +237,53 @@ async def test_remind_with_buttons(env, commands_on):
     assert bot.client.sent[-1][1].startswith("Напомню") and bot.waiting == {}
     reminder = env.store.read()["reminders"][-1]
     assert reminder["text"] == "забрать посылку" and reminder["due"] == env.clock[0] + 7200 and reminder["bot"]
+
+
+@pytest.mark.asyncio
+async def test_bot_reminder_waits_while_the_bot_is_down(env, commands_on):
+    bot = env.engine.bot
+    bot.client, bot.owner_id = BotClient(), 1
+    env.store.update(lambda s: s.update(bot={"token": TOKEN, "allowed": {}}))
+    await bot.on_message(message(1, "напомни через 2 минуты позвонить"))
+    running, bot.client = bot.client, None  # the bot is restarting when the reminder is due
+    env.clock[0] += 121
+    await env.engine.send_reminders()
+    assert len(env.store.read()["reminders"]) == 1  # kept, not lost
+    bot.client = running
+    await env.engine.send_reminders()
+    assert running.sent[-1][:2] == (1, "⏰ Напоминание: позвонить") and env.store.read()["reminders"] == []
+
+
+@pytest.mark.asyncio
+async def test_menu_words_cancel_a_reminder_in_progress(env, commands_on):
+    bot = env.engine.bot
+    bot.client, bot.owner_id = BotClient(), 1
+    env.store.update(lambda s: s.update(bot={"token": TOKEN, "allowed": {}}))
+    await bot.on_button(button(1, "ru:м".encode()))
+    await bot.on_message(message(1, "меню"))
+    assert bot.client.sent[-1][1] == botmode.MENU_TEXT and bot.waiting == {}
+
+
+@pytest.mark.asyncio
+async def test_bot_stops_when_its_account_is_forgotten(env, commands_on):
+    bot = env.engine.bot
+
+    class Running(BotClient):
+        disconnected = False
+
+        def is_connected(self):
+            return True
+
+        async def get_me(self):
+            return SimpleNamespace(id=5)
+
+        async def disconnect(self):
+            Running.disconnected = True
+    bot.client = Running()
+    env.store.update(lambda s: s.pop("bot", None))  # privacy.forget_account after another login
+
+    async def create():  # the new account then gets its own bot; not part of this test
+        return False
+    bot.create = create
+    await bot.tick()
+    assert bot.client is None and Running.disconnected
