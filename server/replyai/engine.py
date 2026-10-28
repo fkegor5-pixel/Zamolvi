@@ -1137,6 +1137,8 @@ class Engine:
         due = [r for r in s.get('reminders', []) if r['due'] <= self.clock()]
         if not s['enabled']:
             due = [r for r in due if r.get('bot')]  # the own bot works with the auto-reply off too
+        if not self.bot.client:
+            due = [r for r in due if not r.get('bot')]  # wait for the bot to run again, never lose one
         if not due or not self.authorized or not self.client:
             return
         self.store.update(lambda x: x.update(reminders=[r for r in x.get('reminders', []) if r not in due]))
