@@ -25,8 +25,8 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parent.parent
 NS = "http://schemas.android.com/apk/res/android"
 APP_NAME = "Zamolvi"
-VERSION_NAME = "3.7"
-VERSION_CODE = "36"
+VERSION_NAME = "3.8"
+VERSION_CODE = "37"
 FORMER_NAME = "Reply AI"
 ORIGINAL_SHA256 = "3bd84dd57a4709ac1abb9692055af3a414659decf8ded86799fe10e133fc291b"
 ET.register_namespace("android", NS)
