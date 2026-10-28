@@ -216,7 +216,14 @@ public final class NotificationReplyService extends NotificationListenerService 
             for (RemoteInput input : reply.getRemoteInputs()) values.putCharSequence(input.getResultKey(), answer);
             Intent intent = new Intent();
             RemoteInput.addResultsToIntent(reply.getRemoteInputs(), intent, values);
-            reply.actionIntent.send(this, 0, intent);
+            // Some messengers (VK) answer through a screen, not a background receiver: Android 14+ silently
+            // drops such a start from the background unless the sender allows it.
+            Bundle options = null;
+            if (android.os.Build.VERSION.SDK_INT >= 34) {
+                options = android.app.ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
+                        android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED).toBundle();
+            }
+            reply.actionIntent.send(this, 0, intent, null, null, null, options);
             SharedPreferences p = getSharedPreferences(PREFS, 0);
             if (ai) p.edit().putString(COUNT_DAY, today()).putInt(COUNT, usedToday(p) + 1).apply();
             remember(this, chat);
