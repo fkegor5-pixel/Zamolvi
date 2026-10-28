@@ -47,6 +47,9 @@ jobs:
           ls -la android/app/build/outputs/apk/release/
           cp android/app/build/outputs/apk/release/app-release.apk "Zamolvi-${{ inputs.release || 'test' }}.apk"
           $ANDROID_HOME/build-tools/35.0.0/apksigner verify --print-certs Zamolvi-*.apk | head -3 | sed 's/^/::notice title=signature::/'
+      - name: Keep the APK for the smoke test
+        uses: actions/upload-artifact@v4
+        with: {name: apk, path: "Zamolvi-*.apk"}
       - name: Publish
         if: inputs.release != ''
         env:
@@ -57,3 +60,33 @@ jobs:
           flag=""; [ "${{ inputs.prerelease }}" = "true" ] && flag="--prerelease"
           gh release view "$TAG" > /dev/null 2>&1 || gh release create "$TAG" --target "$GITHUB_SHA" --title "Zamolvi ${TAG#v}" --notes-file "$notes" $flag
           gh release upload "$TAG" Zamolvi-*.apk --clobber
+
+  smoke:
+    needs: apk
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with: {name: apk}
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules && sudo udevadm trigger --name-match=kvm
+      - name: Emulator run
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disable-animations: true
+          script: bash build-tools/smoke.sh Zamolvi-*.apk shots
+      - name: Report
+        if: always()
+        run: |
+          [ -f shots/crashes.txt ] && [ -s shots/crashes.txt ] && echo "::error title=crash::$(head -c 20000 shots/crashes.txt | sed 's/%/%25/g' | tr '\n' '|')"
+          [ -f shots/summary.txt ] && echo "::notice title=smoke::$(cat shots/summary.txt | tr '\n' '|')"
+          git config user.name "zamolvi-bot"; git config user.email "actions@users.noreply.github.com"
+          git fetch -q origin ci-shots && git checkout -q -B ci-shots origin/ci-shots || git checkout -q --orphan ci-shots
+          git rm -rq --cached . > /dev/null 2>&1 || true
+          dest="runs/${GITHUB_SHA::8}"; mkdir -p "$dest"; cp -r shots/* "$dest/" 2>/dev/null || true
+          git add runs && git commit -qm "Smoke ${GITHUB_SHA::8}" && git push -q origin ci-shots || true
