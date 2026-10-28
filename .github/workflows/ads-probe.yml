@@ -14,16 +14,17 @@ jobs:
       - name: Resolve
         run: |
           cd build-tools/ads
-          if ! gradle :lib:collect --no-daemon > gradle.log 2>&1; then
+          if ! gradle :lib:collect --no-daemon -PadsDep=com.my.target:mytarget-sdk:5.+ > gradle.log 2>&1; then
             echo "::error title=gradle::$(tail -n 40 gradle.log | sed 's/%/%25/g' | tr '\n' '|' )"; exit 1
           fi
-          gradle -q :lib:dependencies --configuration releaseRuntimeClasspath --no-daemon > tree.txt 2>&1 || true
+          gradle -q :lib:dependencies -PadsDep=com.my.target:mytarget-sdk:5.+ --configuration releaseRuntimeClasspath --no-daemon > tree.txt 2>&1 || true
           echo "::notice title=tree::$(grep -E '^[+\\| ]' tree.txt | head -150 | sed 's/%/%25/g' | tr '\n' '|')"
       - name: Report
         run: |
           set -e
           cd build-tools/ads/out
-          list=$(ls aar jar | grep -v ':$' | tr '\n' ' ')
+          list=$(ls aar jar | grep -v ':$' | tr '\n' ' '); size=$(du -ch aar/* jar/* 2>/dev/null | tail -1)
+          echo "::notice title=size::$size"
           echo "::notice title=deps::$list"
           rep=""
           for f in aar/*.aar; do
