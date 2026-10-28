@@ -13,8 +13,7 @@ import com.yandex.mobile.ads.common.MobileAds;
 
 /** A sticky banner of the Yandex Advertising Network at the bottom of the menu and of every section. */
 final class AdBanner {
-    // shortcut: Yandex demo block until the real «Баннер» block ID is set here.
-    static final String AD_UNIT = "demo-banner-yandex";
+    static final String AD_UNIT = "R-M-20292618-2";
     private static final String TAG = "zamolvi.banner";
     private static final String COLUMN = "zamolvi.banner.column";
     private static boolean initialized;
