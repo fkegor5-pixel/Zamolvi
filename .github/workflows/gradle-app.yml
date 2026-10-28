@@ -79,7 +79,7 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: bash build-tools/smoke.sh Zamolvi-*.apk shots
+          script: python3 build-tools/smoke.py $(ls Zamolvi-*.apk) shots
       - name: Report
         if: always()
         run: |
