@@ -40,12 +40,12 @@ public final class HomeFeatures {
             {"replyai.stats.navigation.v1", "14. Подробная статистика", "Расходы AI, чаты, время ответа, ошибки"},
             {"replyai.checkup.navigation.v1", "15. Проверка функций", "Что работает, что нет и почему"},
             {"replyai.update.navigation.v1", "16. Обновление", "Версия приложения и выпуски на GitHub"},
+            {"replyai.notification.navigation.v1", "17. Ответы из уведомлений", "Без сервера, с телефона: WhatsApp, VK, Viber, SMS"},
+            {"replyai.style.navigation.v1", "18. Стиль общения", "Тон ответов: деловой, добрый, дерзкий…"},
     };
     private static final Class<?>[] SCREENS = {DeletedMessagesActivity.class, MemoryActivity.class,
             MediaActivity.class, ApprovalActivity.class, StatsActivity.class, CheckupActivity.class,
-            UpdateActivity.class};
-    private static final String NOTIFY_TAG = "replyai.notification.reply.v1";
-    private static final String STYLE_TAG = "replyai.style.v1";
+            UpdateActivity.class, NotificationReplyActivity.class, StyleActivity.class};
     private static final String LANGUAGE_TAG = "replyai.language.v1";
     private static final String LOGO_TAG = "replyai.developer.logo.v1";
     private static final String AUTOREPLY_TAG = "replyai.autoreply.intro.v1";
@@ -263,6 +263,7 @@ public final class HomeFeatures {
     private static void hookLogo(Activity a, ImageView logo) {
         if (LOGO_TAG.equals(logo.getTag())) return;
         logo.setTag(LOGO_TAG);
+        logo.setImageResource(a.getApplicationInfo().icon); // the app's own icon, not the messenger logo
         logo.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         logo.setContentDescription("Логотип " + Brand.NAME + ". Три нажатия — режим разработчика");
         logo.setOnClickListener(new View.OnClickListener() {
@@ -299,12 +300,9 @@ public final class HomeFeatures {
     /** Entries added to original sections: card title that marks the section, tag, title, subtitle. */
     /** Buttons added inside cards of original sections: card title, tag, button text; screens in the same order. */
     private static final String[][] SECTION_ENTRIES = {
-            {"Личный аккаунт", NOTIFY_TAG, "Ответы из уведомлений"},
-            {"AI API и ответы", STYLE_TAG, "Стиль общения"},
             {"Выберите тему", LANGUAGE_TAG, "Язык · Language"},
     };
-    private static final Class<?>[] SECTION_SCREENS = {NotificationReplyActivity.class, StyleActivity.class,
-            LanguageActivity.class};
+    private static final Class<?>[] SECTION_SCREENS = {LanguageActivity.class};
 
     private static void addSectionEntries(Activity a, ViewGroup content) {
         for (int i = 0; i < SECTION_ENTRIES.length; i++) {
@@ -391,12 +389,16 @@ public final class HomeFeatures {
     private static final String HEAD_TAG = "replyai.menu.head.v1";
     private static final String OPEN_PREF = "menu_open";
     private static final int FOLD_FROM = 12; // fold only a complete menu, never one still being built
-    /** Folded main menu: group title, then the numbers of the entries inside it. */
+    /**
+     * Folded main menu: group title, then the numbers of the entries inside it, in the order shown.
+     * Connect first, then how to answer, what is remembered, the numbers, and the app itself.
+     */
     private static final String[][] GROUPS = {
-            {"Настройка", "1.", "2.", "9.", "16."},
-            {"Ответы", "3.", "4.", "5.", "13."},
-            {"Данные и память", "10.", "11.", "12."},
-            {"Статистика и проверка", "6.", "7.", "8.", "14.", "15."},
+            {"Подключения", "1.", "2.", "17."},
+            {"Ответы", "5.", "4.", "3.", "18.", "13."},
+            {"Данные и память", "11.", "12.", "10."},
+            {"Статистика", "8.", "14.", "6."},
+            {"Приложение", "9.", "15.", "16.", "7."},
     };
 
     /** The 15 entries are folded into four groups; one is open at a time and the choice is remembered. */
