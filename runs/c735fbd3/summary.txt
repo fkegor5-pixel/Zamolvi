@@ -1,0 +1,3 @@
+groups: ['Connections', 'Replies', 'Data and memory', 'Statistics']
+screens: 6
+crash lines: 0
