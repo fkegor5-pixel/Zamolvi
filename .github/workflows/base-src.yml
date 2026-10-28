@@ -15,9 +15,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download --repo skylot/jadx --pattern 'jadx-1*.zip' --output jadx.zip
+          gh release download --repo skylot/jadx --pattern 'jadx-1*.zip' --output jadx.zip || { echo "::error title=dl::$(gh release view --repo skylot/jadx --json assets -q '.assets[].name' | tr '\n' ' ')"; exit 1; }
           unzip -q jadx.zip -d jadx
-          ./jadx/bin/jadx --no-imports-renaming -d decompiled base/base-app-2.7.apk > jadx.log 2>&1 || true
+          ./jadx/bin/jadx -d decompiled base/base-app-2.7.apk > jadx.log 2>&1 || echo "::warning title=jadx::$(tail -n 15 jadx.log | tr '\n' '|')"
+          ls decompiled decompiled/sources | tr '\n' ' ' | sed 's/^/::notice title=tree::/' 
           mkdir -p reference/base-2.7
           cp -r decompiled/sources/ru reference/base-2.7/ 2>/dev/null || true
           cp -r decompiled/resources/res reference/base-2.7/res
