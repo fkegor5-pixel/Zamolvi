@@ -1,0 +1,18 @@
+// Resolves the Yandex Mobile Ads SDK with its dependencies; nothing is built here.
+plugins { id "com.android.library" version "8.7.3" }
+android { namespace "ru.replyai.ads"; compileSdk 35; defaultConfig { minSdk 28 } }
+dependencies { implementation "com.yandex.android:mobileads:${findProperty('adsVersion') ?: '7.+'}" }
+tasks.register("collect") {
+    doLast {
+        def out = file("$rootDir/out"); out.mkdirs()
+        ["aar", "jar"].each { type ->
+            configurations.releaseRuntimeClasspath.incoming.artifactView {
+                attributes { attribute(Attribute.of("artifactType", String), type) }
+                lenient true
+            }.artifacts.each { a ->
+                def id = a.id.componentIdentifier.displayName.replace(':', '__')
+                copy { from a.file; into "$out/$type"; rename { "${id}.${type}" } }
+            }
+        }
+    }
+}

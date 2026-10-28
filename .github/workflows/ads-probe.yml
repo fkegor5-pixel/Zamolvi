@@ -1,0 +1,40 @@
+name: Ads SDK probe
+on:
+  push:
+    branches: [ads-probe]
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with: {distribution: temurin, java-version: "17"}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: "8.11.1"}
+      - name: Resolve
+        run: |
+          cd build-tools/ads && gradle -q :lib:collect --no-daemon 2>&1 | tail -n 30
+          ls out/aar out/jar | tee ../../deps.txt
+      - name: Report
+        run: |
+          set -e
+          cd build-tools/ads/out
+          list=$(ls aar jar | grep -v ':$' | tr '\n' ' ')
+          echo "::notice title=deps::$list"
+          rep=""
+          for f in aar/*.aar; do
+            n=$(unzip -l "$f" | grep -c ' res/' || true); j=$(unzip -l "$f" | grep -c '^.*jni/' || true)
+            m=$(unzip -p "$f" AndroidManifest.xml | tr -d '\n' | grep -o '<\(activity\|provider\|service\|receiver\|uses-permission\|meta-data\)[^>]*android:name="[^"]*"' | sed 's/.*android:name="\([^"]*\)"/\1/' | tr '\n' ',')
+            s=$(unzip -l "$f" classes.jar | tail -1 | awk '{print $1}')
+            rep="$rep$(basename $f) res=$n jni=$j cls=$s man=[$m]%0A"
+          done
+          echo "::notice title=aars::$rep"
+      - name: Base app classes
+        run: |
+          sudo apt-get install -y dexdump >/dev/null 2>&1 || true
+          DD=$(ls $ANDROID_HOME/build-tools/*/dexdump | tail -1)
+          mkdir b && cd b && unzip -q ../base/base-app-2.7.apk 'classes*.dex' 'META-INF/*.version'
+          pk=$(for d in classes*.dex; do $DD -l plain $d 2>/dev/null | grep "Class descriptor" | sed "s/.*'L\([^;]*\);'/\1/"; done | awk -F/ '{print $1"/"$2"/"$3}' | sort | uniq -c | sort -rn | head -60 | awk '{print $2"("$1")"}' | tr '\n' ' ')
+          echo "::notice title=base-packages::$pk"
+          v=$(for f in META-INF/*.version; do echo "$(basename $f .version)=$(cat $f)"; done | tr '\n' ' ')
+          echo "::notice title=base-versions::$v"
