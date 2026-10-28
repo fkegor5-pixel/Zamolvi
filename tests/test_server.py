@@ -1,6 +1,4 @@
-import asyncio
 import datetime as dt
-import json
 import ssl
 from pathlib import Path
 from unittest.mock import AsyncMock
@@ -15,7 +13,7 @@ from replyai.ai import AiClient, AiError, PREFIX
 from replyai.errors import UserError
 from replyai.formatting import render, utf16_length
 from replyai.store import Store, initial
-from replyai import queueing, quiet, stats
+from replyai import quiet, stats
 from replyai.voice import VoiceClient, VoiceError
 from replyai.web import create_app
 
