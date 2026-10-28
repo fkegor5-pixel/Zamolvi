@@ -121,6 +121,14 @@ def main(apk, out):
             count += 1
             adb("shell", "input", "keyevent", "4")
             time.sleep(1)
+    # The classic look: switch it in «App theme», then the menu and a section again.
+    open_group("App")
+    if tap_prefix("App theme"):
+        adb("shell", "input", "swipe", "160", "460", "160", "90", "600"); time.sleep(1)
+        tap_text("Classic"); time.sleep(3)
+        shot(out, "classic-theme")
+        home(); shot(out, "classic-home")
+        open_group("Connections"); tap_prefix("VPS connection"); time.sleep(2); shot(out, "classic-vps")
     crashes = adb("logcat", "-d", "-b", "crash")
     (out / "crashes.txt").write_text(crashes)
     log = adb("logcat", "-d")
