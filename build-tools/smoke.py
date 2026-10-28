@@ -65,6 +65,7 @@ def shot(out, name):
 
 
 def home():
+    adb("shell", "am", "force-stop", PKG)  # a fresh menu, scrolled to the top
     adb("shell", "am", "start", "-W", "-n", f"{PKG}/.MainActivity")
     time.sleep(3)
     dismiss()
