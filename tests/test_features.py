@@ -545,7 +545,8 @@ ROUTES_29 = [("GET", "/api/memory"), ("PUT", "/api/memory"), ("POST", "/api/memo
              ("GET", "/api/media"), ("PUT", "/api/media"), ("GET", "/api/approval"), ("PUT", "/api/approval"),
              ("POST", "/api/approval/decide"), ("POST", "/api/stats/extended"), ("GET", "/api/pricing"),
              ("PUT", "/api/pricing"), ("GET", "/api/features"),
-             ("POST", "/api/memory/import"), ("POST", "/api/memory/import/cancel")]
+             ("POST", "/api/memory/import"), ("POST", "/api/memory/import/cancel"),
+             ("GET", "/api/commands"), ("PUT", "/api/commands"), ("POST", "/api/commands/preview")]
 
 
 @pytest.fixture
@@ -1062,3 +1063,20 @@ async def test_digest_reads_channels_asks_the_model_once_and_caches(env):
     finally:
         online.steam_specials = original
         restore()
+
+
+def test_own_commands_are_saved_previewed_and_answer_notifications(api29, env):
+    asked = []
+    async def complete(config, system, text, max_tokens=1024):
+        asked.append((system, text))
+        return "Ответ команды"
+    env.engine.ai.complete = complete
+    command = {"word": "привет бот", "sources": [], "task": "Поздоровайся смешно"}
+    assert api29.put("/api/commands", headers=AUTH, json={"commands": [dict(command, word="")]}).status_code == 400
+    saved = api29.put("/api/commands", headers=AUTH, json={"commands": [command]}).json()
+    assert saved["commands"] == [command]
+    assert api29.get("/api/commands", headers=AUTH).json() == {"commands": [command]}
+    preview = api29.post("/api/commands/preview", headers=AUTH, json={"command": command}).json()
+    assert preview["answer"] == "Ответ команды" and "Поздоровайся смешно" in asked[-1][0]
+    answer = api29.post("/api/notification/answer", headers=AUTH, json={"text": "Привет бот"}).json()
+    assert answer == {"answer": "[AI-автоответ] Ответ команды"}

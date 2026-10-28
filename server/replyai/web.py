@@ -22,7 +22,7 @@ from .store import Store
 from .diagnostics import REQUEST_ID, ROUTES
 from .viewer import PAGE
 from .formatting import preview, render
-from . import stats, archive, style
+from . import stats, archive, style, custom
 
 
 class Input(BaseModel):
@@ -94,6 +94,21 @@ class Test(Input):
 
 class StyleChoice(Input):
     style: str = Field(default='', max_length=20)
+
+
+class Command(Input):
+    word: str = Field(max_length=40)
+    sources: list[str] = Field(default=[], max_length=5)
+    task: str = Field(max_length=1000)
+
+
+class Commands(Input):
+    commands: list[Command] = Field(max_length=custom.MAX_COMMANDS)
+
+
+class CommandPreview(Input):
+    command: Command
+    text: str = Field(default='', max_length=200)  # words after the command, for «{запрос}»
 
 
 class NotificationReply(Input):
@@ -404,6 +419,11 @@ def create_app(store=None, engine=None, token=None):
         key = s.get("style", "") if data.style is None else data.style
         if not style.validate(key):
             raise UserError('Неизвестный стиль общения.')
+        found = custom.match(s.get("commands"), data.text)
+        if found:
+            with ai_purpose('notification'):
+                answer = await custom.answer(engine.ai, s["ai"], *found)
+            return {"answer": render(answer, "plain", PREFIX)[0]}
         config = style.apply(dict(s["ai"], formatting="plain"), key, data.note)
         with ai_purpose('notification'):
             answer = style.finish(key, await engine.ai.answer(config, data.text))
@@ -523,6 +543,26 @@ def create_app(store=None, engine=None, token=None):
             raise UserError('Неизвестный стиль общения.')
         store.update(lambda s: s.update(style=data.style))
         return style.report(data.style)
+
+    @app.get('/api/commands', dependencies=protected)
+    async def get_commands():
+        return {'commands': store.read().get('commands', [])}
+
+    @app.put('/api/commands', dependencies=protected)
+    async def put_commands(data: Commands):
+        commands = custom.clean([c.model_dump() for c in data.commands])
+        store.update(lambda s: s.update(commands=commands))
+        return {'commands': commands, 'message': 'Команды сохранены.'}
+
+    @app.post('/api/commands/preview', dependencies=protected)
+    async def preview_command(data: CommandPreview):
+        if test_lock.locked():
+            raise HTTPException(409, "Проверка уже выполняется.")
+        async with test_lock:
+            command = custom.clean([data.command.model_dump()])[0]
+            with ai_purpose('test'):
+                answer = await custom.answer(engine.ai, store.read()['ai'], command, data.text.strip())
+            return preview(answer, 'plain')
 
     @app.get('/api/pricing', dependencies=protected)
     async def pricing():

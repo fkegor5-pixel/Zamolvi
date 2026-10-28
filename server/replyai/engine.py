@@ -15,12 +15,12 @@ from .ai import AiClient, AiError, PREFIX, validate, purpose as ai_purpose
 from .diagnostics import Diagnostics
 from .qr import QrLogin
 from .formatting import render, MODES, with_links
-from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style, online
+from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style, online, custom
 from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.3.0"
+SERVER_VERSION = "3.4.0"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -924,6 +924,13 @@ class Engine:
             return
         try:
             answer = job.get('answer')
+            found = None if answer else custom.match(s.get('commands'), job['text'])
+            if found:
+                if not online.allowed(job['chat'], self.clock()):
+                    self.remove_job(job)
+                    return
+                with ai_purpose('reply', job['chat']):
+                    answer = await custom.answer(self.ai, s['ai'], *found)
             if not answer and online.is_command(job['text']):
                 if not online.allowed(job['chat'], self.clock()):  # commands too often: no answer at all
                     self.remove_job(job)

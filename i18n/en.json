@@ -1119,5 +1119,20 @@
  "Реклама сейчас не загрузилась — подсказки открыты бесплатно на сутки.": "The ad did not load — tips are open for free for a day.",
  "Рекламу не удалось показать — подсказки открыты бесплатно на сутки.": "The ad could not be shown — tips are open for free for a day.",
  "Досмотрите рекламу до конца, чтобы открыть подсказки.": "Watch the ad to the end to open the tips.",
- "Спасибо! Подсказки открыты на сутки.": "Thank you! Tips are open for a day."
+ "Спасибо! Подсказки открыты на сутки.": "Thank you! Tips are open for a day.",
+ "⚡ Свои команды": "⚡ Custom commands",
+ "Слово, где искать и как ответить — отвечает нейросеть": "A word, where to look and how to answer — the AI replies",
+ "＋  Новая команда": "＋  New command",
+ "Команда": "Command",
+ "👁  Как будет выглядеть": "👁  Preview",
+ "Изменить": "Edit",
+ "Удалить": "Delete",
+ "Удалить команду?": "Delete the command?",
+ "Команд пока нет.": "No commands yet.",
+ "Без источников": "No sources",
+ "Нейросеть отвечает…": "The AI is answering…",
+ "Собеседник пишет слово команды — нейросеть читает указанные вами сайты или каналы и отвечает так, как вы описали. Работает в выбранных чатах Telegram и в «Ответах из уведомлений». Нужен свой сервер и подключённая нейросеть.": "Someone writes the command word — the AI reads the sites or channels you set and answers the way you described. Works in selected Telegram chats and in «Replies from notifications». Needs your own server and a connected AI.",
+ "Где искать — по одной ссылке в строке: сайт https://… или канал @имя. {запрос} в ссылке заменится словами после команды. Можно оставить пустым.": "Where to look — one link per line: a site https://… or a channel @name. {запрос} in a link is replaced by the words after the command. May be empty.",
+ "Как ответить — задание для нейросети.": "How to answer — a task for the AI.",
+ "Пример слов после команды (для проверки {запрос}).": "Example words after the command (to test {запрос})."
 }
