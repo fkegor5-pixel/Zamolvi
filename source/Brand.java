@@ -19,7 +19,7 @@ import java.util.WeakHashMap;
  */
 public final class Brand {
     public static final String NAME = "Zamolvi";
-    public static final String VERSION = "3.7";
+    public static final String VERSION = "3.8";
     public static final String AUTHOR = "@stytam";
     public static final String VERSION_LABEL = NAME + " " + VERSION + " · " + AUTHOR;
     static final String FORMER = "Reply AI";
