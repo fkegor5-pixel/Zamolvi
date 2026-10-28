@@ -70,6 +70,28 @@ def home():
     dismiss()
 
 
+def tap_prefix(prefix):
+    for text, x, y, _, _ in nodes():
+        if text.startswith(prefix):
+            adb("shell", "input", "tap", str(x), str(y))
+            time.sleep(1.5)
+            return True
+    return False
+
+
+def open_group(name):
+    """Only one group is open at a time and the choice is remembered: close the open one, then open ours."""
+    home()
+    for text, x, y, _, _ in nodes():
+        if " · " in text and text.rstrip().endswith("▾"):
+            if text.startswith(name + " · "):
+                return nodes()
+            adb("shell", "input", "tap", str(x), str(y)); time.sleep(1.5)
+            break
+    tap_prefix(name + " · ")
+    return nodes()
+
+
 def main(apk, out):
     out.mkdir(parents=True, exist_ok=True)
     print(adb("install", "-r", apk))
@@ -78,22 +100,16 @@ def main(apk, out):
     home()
     shot(out, "00-home")
     (out / "ui-home.txt").write_text("\n".join(LAST_DUMP) if nodes() is not None else "")
-    heads = [t for t, *_ in nodes() if " · " in t]
+    heads = [t.split(" · ")[0] for t, *_ in nodes() if " · " in t and t.rstrip().endswith(("▸", "▾"))]
     count = 0
     for g, head in enumerate(heads):
-        home()
-        tap_text(head)
-        entries = [t.split("\n")[0] for t, x, y, c, p in nodes()
+        entries = [t.split("\n")[0] for t, x, y, c, p in open_group(head)
                    if c and p == PKG and t and " · " not in t and "\n" in t]
         for e, entry in enumerate(entries):
-            home()
-            if not any(t == head for t, *_ in nodes() if False):
-                pass
-            # the group stays open between visits (the choice is remembered)
-            if not tap_text(entry) and not (tap_text(head) and False):
-                for text, x, y, c, p in nodes():
-                    if text.startswith(entry):
-                        adb("shell", "input", "tap", str(x), str(y)); time.sleep(1.5); break
+            open_group(head)
+            if not tap_prefix(entry):
+                adb("shell", "input", "swipe", "500", "1500", "500", "600"); time.sleep(1)
+                tap_prefix(entry)
             time.sleep(2)
             dismiss()
             shot(out, f"g{g}-{e}-{re.sub(r'[^A-Za-zА-Яа-я0-9]+', '_', entry)[:30]}")
