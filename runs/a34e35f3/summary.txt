@@ -1,0 +1,3 @@
+groups: ['Connections · 3   ▸', 'Replies · 5   ▸', 'Data and memory · 3   ▸', 'Statistics · 3   ▸', 'App · 4   ▸', 'Zamolvi 3.8 · @stytam']
+screens: 23
+crash lines: 0
