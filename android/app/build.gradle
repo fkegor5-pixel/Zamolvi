@@ -49,6 +49,7 @@ android {
 dependencies {
     implementation "androidx.core:core:1.15.0"
     implementation "com.github.mwiede:jsch:0.2.20"
+    implementation "com.yandex.android:mobileads:7.18.8"
 }
 
 // Server bundle, interface translations and the optional intro video, made by the same code as before.

@@ -1110,5 +1110,14 @@
  "GitHub ответил": "GitHub antwortete",
  "Подключения": "Verbindungen",
  "Без сервера, с телефона: WhatsApp, VK, Viber, SMS": "Ohne Server, vom Telefon: WhatsApp, VK, Viber, SMS",
- "Тон ответов: деловой, добрый, дерзкий…": "Ton der Antworten: sachlich, freundlich, frech…"
+ "Тон ответов: деловой, добрый, дерзкий…": "Ton der Antworten: sachlich, freundlich, frech…",
+ "💡 Подсказки": "💡 Tipps",
+ "Где взять сервер, бесплатные нейросети и советы": "Server, kostenlose KI und Ratschläge",
+ "Подсказки открываются на сутки после короткой рекламы. Реклама показывается через Рекламную сеть Яндекса и помогает развивать Zamolvi.": "Die Tipps öffnen sich nach kurzer Werbung für einen Tag. Die Werbung kommt vom Yandex-Werbenetzwerk und unterstützt Zamolvi.",
+ "▶  Посмотреть рекламу и открыть": "▶  Werbung ansehen und öffnen",
+ "Загружаю рекламу…": "Werbung wird geladen…",
+ "Реклама сейчас не загрузилась — подсказки открыты бесплатно на сутки.": "Die Werbung wurde nicht geladen — die Tipps sind einen Tag lang kostenlos offen.",
+ "Рекламу не удалось показать — подсказки открыты бесплатно на сутки.": "Die Werbung konnte nicht angezeigt werden — die Tipps sind einen Tag lang kostenlos offen.",
+ "Досмотрите рекламу до конца, чтобы открыть подсказки.": "Sehen Sie die Werbung bis zum Ende, um die Tipps zu öffnen.",
+ "Спасибо! Подсказки открыты на сутки.": "Danke! Die Tipps sind einen Tag lang offen."
 }

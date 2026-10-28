@@ -42,10 +42,11 @@ public final class HomeFeatures {
             {"replyai.update.navigation.v1", "16. Обновление", "Версия приложения и выпуски на GitHub"},
             {"replyai.notification.navigation.v1", "17. Ответы из уведомлений", "Без сервера, с телефона: WhatsApp, VK, Viber, SMS"},
             {"replyai.style.navigation.v1", "18. Стиль общения", "Тон ответов: деловой, добрый, дерзкий…"},
+            {"replyai.tips.navigation.v1", "19. 💡 Подсказки", "Где взять сервер, бесплатные нейросети и советы"},
     };
     private static final Class<?>[] SCREENS = {DeletedMessagesActivity.class, MemoryActivity.class,
             MediaActivity.class, ApprovalActivity.class, StatsActivity.class, CheckupActivity.class,
-            UpdateActivity.class, NotificationReplyActivity.class, StyleActivity.class};
+            UpdateActivity.class, NotificationReplyActivity.class, StyleActivity.class, TipsActivity.class};
     private static final String LANGUAGE_TAG = "replyai.language.v1";
     private static final String LOGO_TAG = "replyai.developer.logo.v1";
     private static final String AUTOREPLY_TAG = "replyai.autoreply.intro.v1";
@@ -398,7 +399,7 @@ public final class HomeFeatures {
             {"Ответы", "5.", "4.", "3.", "18.", "13."},
             {"Данные и память", "11.", "12.", "10."},
             {"Статистика", "8.", "14.", "6."},
-            {"Приложение", "9.", "15.", "16.", "7."},
+            {"Приложение", "19.", "9.", "15.", "16.", "7."},
     };
 
     /** The 15 entries are folded into four groups; one is open at a time and the choice is remembered. */

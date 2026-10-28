@@ -48,6 +48,7 @@
         <activity android:name=".ProfilesActivity" android:exported="false"/>
         <activity android:name=".RulesActivity" android:exported="false"/>
         <activity android:name=".UpdateActivity" android:exported="false"/>
+        <activity android:name=".TipsActivity" android:exported="false"/>
         <activity
             android:name=".VideoAdActivity"
             android:exported="false"

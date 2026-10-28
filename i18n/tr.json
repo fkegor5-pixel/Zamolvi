@@ -1110,5 +1110,14 @@
  "GitHub ответил": "GitHub yanıt verdi",
  "Подключения": "Bağlantılar",
  "Без сервера, с телефона: WhatsApp, VK, Viber, SMS": "Sunucusuz, telefondan: WhatsApp, VK, Viber, SMS",
- "Тон ответов: деловой, добрый, дерзкий…": "Yanıt tonu: resmi, nazik, cüretkâr…"
+ "Тон ответов: деловой, добрый, дерзкий…": "Yanıt tonu: resmi, nazik, cüretkâr…",
+ "💡 Подсказки": "💡 İpuçları",
+ "Где взять сервер, бесплатные нейросети и советы": "Sunucu, ücretsiz yapay zeka ve öneriler",
+ "Подсказки открываются на сутки после короткой рекламы. Реклама показывается через Рекламную сеть Яндекса и помогает развивать Zamolvi.": "İpuçları kısa bir reklamdan sonra bir günlüğüne açılır. Reklamlar Yandex Reklam Ağı tarafından gösterilir ve Zamolvi'nin gelişmesine yardımcı olur.",
+ "▶  Посмотреть рекламу и открыть": "▶  Reklam izle ve aç",
+ "Загружаю рекламу…": "Reklam yükleniyor…",
+ "Реклама сейчас не загрузилась — подсказки открыты бесплатно на сутки.": "Reklam yüklenmedi — ipuçları bir günlüğüne ücretsiz açık.",
+ "Рекламу не удалось показать — подсказки открыты бесплатно на сутки.": "Reklam gösterilemedi — ipuçları bir günlüğüne ücretsiz açık.",
+ "Досмотрите рекламу до конца, чтобы открыть подсказки.": "İpuçlarını açmak için reklamı sonuna kadar izleyin.",
+ "Спасибо! Подсказки открыты на сутки.": "Teşekkürler! İpuçları bir günlüğüne açık."
 }
