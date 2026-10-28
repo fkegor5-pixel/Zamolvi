@@ -31,7 +31,7 @@ public final class RemoteClient {
     public RemoteClient(String str, String str2) throws Exception {
         this(str, str2, new ConnectionFactory() { // from class: ru.replyai.android.RemoteClient$$ExternalSyntheticLambda0
             @Override // ru.replyai.android.RemoteClient.ConnectionFactory
-            public final HttpURLConnection open(URL url) {
+            public final HttpURLConnection open(URL url) throws Exception {
                 return RemoteClient.lambda$new$0(url);
             }
         });
