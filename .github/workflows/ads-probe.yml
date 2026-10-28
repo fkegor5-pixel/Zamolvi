@@ -13,8 +13,12 @@ jobs:
         with: {gradle-version: "8.11.1"}
       - name: Resolve
         run: |
-          cd build-tools/ads && gradle -q :lib:collect --no-daemon 2>&1 | tail -n 30
-          ls out/aar out/jar | tee ../../deps.txt
+          cd build-tools/ads
+          if ! gradle :lib:collect --no-daemon > gradle.log 2>&1; then
+            echo "::error title=gradle::$(tail -n 40 gradle.log | sed 's/%/%25/g' | tr '\n' '|' )"; exit 1
+          fi
+          gradle -q :lib:dependencies --configuration releaseRuntimeClasspath --no-daemon > tree.txt 2>&1 || true
+          echo "::notice title=tree::$(grep -E '^[+\\| ]' tree.txt | head -150 | sed 's/%/%25/g' | tr '\n' '|')"
       - name: Report
         run: |
           set -e
