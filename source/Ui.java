@@ -22,9 +22,21 @@ final class Ui {
     /** Saturated tones that keep white text readable on both light and dark themes. */
     private static final int[] ACCENTS = {0xFF4F46E5, 0xFF7C3AED, 0xFF0891B2, 0xFF059669, 0xFFEA580C, 0xFFDB2777, 0xFF2563EB};
 
+    /** The classic look: one calm teal instead of the many accents, no gradients. */
+    private static final int CLASSIC = 0xFF0D9488;
+    private static final String PREFS = "replyai_features", COLORFUL = "colorful";
+    static boolean colorful = true;
+
     private Ui() { }
 
-    static int accent(int index) { return ACCENTS[Math.floorMod(index, ACCENTS.length)]; }
+    static void load(android.content.Context c) { colorful = c.getSharedPreferences(PREFS, 0).getBoolean(COLORFUL, true); }
+
+    static void save(android.content.Context c, boolean value) {
+        colorful = value;
+        c.getSharedPreferences(PREFS, 0).edit().putBoolean(COLORFUL, value).apply();
+    }
+
+    static int accent(int index) { return colorful ? ACCENTS[Math.floorMod(index, ACCENTS.length)] : CLASSIC; }
 
     static int alpha(int color, int alpha) { return (alpha << 24) | (color & 0xFFFFFF); }
 
@@ -49,7 +61,7 @@ final class Ui {
     /** A button filled with a two-tone gradient, white text, ripple and a soft press. */
     static void filled(Button button, int color) {
         GradientDrawable fill = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{color, neighbour(color)});
+                new int[]{color, colorful ? neighbour(color) : color});
         fill.setCornerRadius(dp(button, 14));
         button.setBackground(new RippleDrawable(ColorStateList.valueOf(0x55FFFFFF), fill, null));
         button.setTextColor(0xFFFFFFFF);
@@ -89,6 +101,10 @@ final class Ui {
 
     /** Heading text painted with a gradient across its width. */
     static void gradientText(TextView view, int from, int to) {
+        if (!colorful) {
+            view.getPaint().setShader(null);
+            return;
+        }
         float width = Math.max(1f, view.getPaint().measureText(view.getText().toString()));
         view.getPaint().setShader(new LinearGradient(0, 0, width, 0, from, to, Shader.TileMode.CLAMP));
         view.invalidate();

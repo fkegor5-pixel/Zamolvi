@@ -129,7 +129,8 @@ abstract class FeatureActivity extends Activity {
         GradientDrawable bg = new GradientDrawable();
         bg.setColor(colors.card);
         bg.setCornerRadius(dp(18));
-        bg.setStroke(dp(2), Ui.alpha(nextTone(), 0xB0));
+        int tone = nextTone();
+        bg.setStroke(dp(Ui.colorful ? 2 : 1), Ui.colorful ? Ui.alpha(tone, 0xB0) : colors.border);
         card.setBackground(bg);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
         lp.topMargin = dp(12);

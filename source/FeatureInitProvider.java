@@ -12,6 +12,7 @@ import android.os.Bundle;
 public final class FeatureInitProvider extends ContentProvider {
     @Override public boolean onCreate() {
         Application app = (Application) getContext().getApplicationContext();
+        Ui.load(app);
         android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
         app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
             @Override public void onActivityCreated(Activity a, Bundle state) {

@@ -1134,5 +1134,9 @@
  "Собеседник пишет слово команды — нейросеть читает указанные вами сайты или каналы и отвечает так, как вы описали. Работает в выбранных чатах Telegram и в «Ответах из уведомлений». Нужен свой сервер и подключённая нейросеть.": "Biri komut kelimesini yazar — yapay zeka belirttiğiniz siteleri veya kanalları okur ve tarif ettiğiniz gibi yanıtlar. Seçili Telegram sohbetlerinde ve «Bildirimlerden yanıtlar»da çalışır. Kendi sunucunuz ve bağlı bir yapay zeka gerekir.",
  "Где искать — по одной ссылке в строке: сайт https://… или канал @имя. {запрос} в ссылке заменится словами после команды. Можно оставить пустым.": "Nereye bakılacak — her satıra bir bağlantı: site https://… veya kanal @ad. Bağlantıdaki {запрос}, komuttan sonraki kelimelerle değiştirilir. Boş bırakılabilir.",
  "Как ответить — задание для нейросети.": "Nasıl yanıtlanacak — yapay zeka için görev.",
- "Пример слов после команды (для проверки {запрос}).": "Komuttan sonra örnek kelimeler ({запрос} denemek için)."
+ "Пример слов после команды (для проверки {запрос}).": "Komuttan sonra örnek kelimeler ({запрос} denemek için).",
+ "Оформление": "Görünüm",
+ "Цветное": "Renkli",
+ "Классическое": "Klasik",
+ "Цветное — разноцветные рамки, кнопки и заголовки. Классическое — спокойное, в одном цвете.": "Renkli — çok renkli çerçeveler, düğmeler ve başlıklar. Klasik — sade, tek renk."
 }

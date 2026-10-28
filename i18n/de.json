@@ -1134,5 +1134,9 @@
  "Собеседник пишет слово команды — нейросеть читает указанные вами сайты или каналы и отвечает так, как вы описали. Работает в выбранных чатах Telegram и в «Ответах из уведомлений». Нужен свой сервер и подключённая нейросеть.": "Jemand schreibt das Befehlswort — die KI liest die angegebenen Seiten oder Kanäle und antwortet wie beschrieben. Funktioniert in ausgewählten Telegram-Chats und in «Antworten aus Benachrichtigungen». Eigener Server und verbundene KI nötig.",
  "Где искать — по одной ссылке в строке: сайт https://… или канал @имя. {запрос} в ссылке заменится словами после команды. Можно оставить пустым.": "Wo suchen — ein Link pro Zeile: Website https://… oder Kanal @name. {запрос} im Link wird durch die Wörter nach dem Befehl ersetzt. Darf leer sein.",
  "Как ответить — задание для нейросети.": "Wie antworten — Aufgabe für die KI.",
- "Пример слов после команды (для проверки {запрос}).": "Beispielwörter nach dem Befehl (zum Testen von {запрос})."
+ "Пример слов после команды (для проверки {запрос}).": "Beispielwörter nach dem Befehl (zum Testen von {запрос}).",
+ "Оформление": "Darstellung",
+ "Цветное": "Farbig",
+ "Классическое": "Klassisch",
+ "Цветное — разноцветные рамки, кнопки и заголовки. Классическое — спокойное, в одном цвете.": "Farbig — bunte Rahmen, Schaltflächen und Überschriften. Klassisch — ruhig, in einer Farbe."
 }

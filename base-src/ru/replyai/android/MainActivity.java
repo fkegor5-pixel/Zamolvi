@@ -162,8 +162,11 @@ public final class MainActivity extends Activity {
         return windowInsetsCompat;
     }
 
+    private int tone;  // the next accent of the colorful look; starts again on every screen
+
     private void showScreen(Screen screen) {
         this.screen = screen;
+        this.tone = 0;
         this.screenGeneration++;
         this.content.removeAllViews();
         this.urlField = null;
@@ -189,6 +192,7 @@ public final class MainActivity extends Activity {
             add(this.content, button, 0);
             TextView textViewLabel = label(screenTitle(this.screen), 27, this.INK);
             textViewLabel.setTypeface(null, 1);
+            Ui.gradientText(textViewLabel, Ui.accent(0), Ui.accent(5));
             add(this.content, textViewLabel, 20);
         }
         switch (this.screen) {
@@ -221,6 +225,7 @@ public final class MainActivity extends Activity {
                 break;
             case APPEARANCE:
                 buildAppearance();
+                buildLook();
                 break;
             case VOICE:
                 buildVoice();
@@ -285,6 +290,8 @@ public final class MainActivity extends Activity {
         linearLayoutColumn.addView(textViewLabel);
         linearLayoutColumn.addView(label("Ваш AI-автоответчик в Telegram", 13, this.MUTED));
         linearLayout.addView(linearLayoutColumn, new LinearLayout.LayoutParams(0, -2, 1.0f));
+        headerIcon(linearLayout, "💡", "Подсказки", TipsActivity.class, 4);
+        headerIcon(linearLayout, "🌐", "Язык · Language", LanguageActivity.class, 2);
         add(this.content, linearLayout, 0);
         buildStatus(card("Сейчас"));
         navigation("1. Подключение к VPS", "Сервер, адрес и ключ доступа", Screen.CONNECTION);
@@ -296,6 +303,23 @@ public final class MainActivity extends Activity {
         navigation("7. Как это работает", "О приложении и авторе", Screen.ABOUT);
         navigation("8. Статистика", "Ответы, голосовые и ошибки по дням", Screen.STATS);
         navigation("9. Тема приложения", "Светлая, тёмная или системная", Screen.APPEARANCE);
+    }
+
+    /** A round emoji button at the right of the home header. */
+    private void headerIcon(LinearLayout row, String emoji, String description, Class<?> target, int accent) {
+        TextView icon = label(emoji, 22, this.INK);
+        icon.setGravity(17);
+        icon.setContentDescription(description);
+        icon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        GradientDrawable round = new GradientDrawable();
+        round.setShape(GradientDrawable.OVAL);
+        round.setColor(Ui.colorful ? Ui.alpha(Ui.accent(accent), 0x2E) : this.colors.soft);
+        icon.setBackground(new RippleDrawable(ColorStateList.valueOf(Ui.alpha(Ui.accent(accent), 0x55)), round, null));
+        icon.setOnClickListener(v -> startActivity(new Intent(this, target)));
+        Ui.press(icon);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(46), dp(46));
+        lp.leftMargin = dp(8);
+        row.addView(icon, lp);
     }
 
     private void navigation(String str, String str2, final Screen screen) {
@@ -524,6 +548,31 @@ public final class MainActivity extends Activity {
             }
         });
     }
+    /** «Оформление»: the colorful look of 3.x or the calm classic one; changes every screen. */
+    private void buildLook() {
+        LinearLayout card = card("Оформление");
+        add(card, label("Цветное — разноцветные рамки, кнопки и заголовки. Классическое — спокойное, в одном цвете.", 15, this.MUTED), 6);
+        RadioGroup group = new RadioGroup(this);
+        String[] names = {"Цветное", "Классическое"};
+        for (int i = 0; i < 2; i++) {
+            RadioButton radio = new RadioButton(this);
+            radio.setId(View.generateViewId());
+            radio.setText(names[i]);
+            radio.setTextColor(this.INK);
+            radio.setTextSize(17.0f);
+            radio.setMinHeight(dp(56));
+            group.addView(radio);
+            if ((i == 0) == Ui.colorful) group.check(radio.getId());
+        }
+        add(card, group, 12);
+        group.setOnCheckedChangeListener((g, id) -> {
+            boolean colorful = g.indexOfChild(g.findViewById(id)) == 0;
+            if (colorful == Ui.colorful) return;
+            Ui.save(this, colorful);
+            recreate();
+        });
+    }
+
     /* synthetic */ void m1664lambda$buildAppearance$15$rureplyaiandroidMainActivity(int[] iArr, String[] strArr, RadioGroup radioGroup, int i) {
         for (int i2 = 0; i2 < 3; i2++) {
             if (iArr[i2] == i && !strArr[i2].equals(ThemeManager.choice(this))) {
@@ -2042,6 +2091,7 @@ public final class MainActivity extends Activity {
         GradientDrawable gradientDrawable = new GradientDrawable();
         gradientDrawable.setColor(this.colors.card);
         gradientDrawable.setCornerRadius(dp(18));
+        if (Ui.colorful) gradientDrawable.setStroke(dp(2), Ui.alpha(Ui.accent(this.tone++), 0xB0));
         linearLayoutColumn.setBackground(gradientDrawable);
         TextView textViewLabel = label(str, 17, this.INK);
         textViewLabel.setTypeface(null, 1);
@@ -2068,6 +2118,10 @@ public final class MainActivity extends Activity {
         gradientDrawable.setCornerRadius(dp(12));
         button.setBackground(gradientDrawable);
         button.setPadding(dp(14), dp(10), dp(14), dp(10));
+        if (Ui.colorful) {
+            if (z) Ui.filled(button, Ui.accent(this.tone++));
+            else Ui.pill(button, Ui.accent(Math.max(0, this.tone - 1)));
+        }
         return button;
     }
 
@@ -2088,6 +2142,7 @@ public final class MainActivity extends Activity {
         editText.setImportantForAutofill(2);
         editText.setSaveEnabled(false);
         editText.setText(str2);
+        if (Ui.colorful) Ui.input(editText, Ui.accent(Math.max(0, this.tone - 1)));
         add(linearLayout, editText, 2);
         return editText;
     }
