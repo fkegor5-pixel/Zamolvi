@@ -53,8 +53,9 @@ def tap_text(*texts):
 
 
 def dismiss():
+    time.sleep(1.5)  # system dialogs come a moment after the screen
     for _ in range(3):
-        if not tap_text("Do not add tile", "Don't allow", "Не добавлять", "Запретить"):
+        if not tap_text("Do not add tile", "Don't allow", "Don\u2019t allow", "Не добавлять", "Запретить"):
             return
 
 
@@ -72,6 +73,7 @@ def home():
 def main(apk, out):
     out.mkdir(parents=True, exist_ok=True)
     print(adb("install", "-r", apk))
+    adb("shell", "pm", "grant", PKG, "android.permission.POST_NOTIFICATIONS")
     adb("logcat", "-c")
     home()
     shot(out, "00-home")
