@@ -190,7 +190,7 @@ public final class HomeFeatures {
     /** android.R.id.content → ScrollView → LinearLayout (MainActivity.content). */
     private static ViewGroup screenContent(View root) {
         if (!(root instanceof ViewGroup) || ((ViewGroup) root).getChildCount() == 0) return null;
-        View scroll = ((ViewGroup) root).getChildAt(0);
+        View scroll = AdBanner.unwrap(((ViewGroup) root).getChildAt(0));
         if (!(scroll instanceof ScrollView) || ((ScrollView) scroll).getChildCount() == 0) return null;
         View content = ((ScrollView) scroll).getChildAt(0);
         return content instanceof ViewGroup ? (ViewGroup) content : null;
