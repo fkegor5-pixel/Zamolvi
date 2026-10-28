@@ -89,7 +89,9 @@ def open_group(name):
                 return nodes()
             adb("shell", "input", "tap", str(x), str(y)); time.sleep(1.5)
             break
-    tap_prefix(name + " · ")
+    if not tap_prefix(name + " · "):  # below the screen (the banner takes the bottom)
+        adb("shell", "input", "swipe", "160", "560", "160", "120", "600"); time.sleep(1)
+        tap_prefix(name + " · ")
     return nodes()
 
 
