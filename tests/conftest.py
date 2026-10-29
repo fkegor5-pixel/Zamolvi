@@ -40,6 +40,7 @@ class FakeTelegram:
         self.session = session or SimpleNamespace(save=lambda: None)
         self.connected = True
         self.sent = []
+        self.deleted = []
         self.send_error = None
         self.source_error = None
         self.source_text = "Привет"
@@ -80,6 +81,10 @@ class FakeTelegram:
             if self.send_error:
                 raise self.send_error
             self.sent.append(request)
+            return None
+        if isinstance(request, functions.messages.DeleteMessagesRequest):
+            assert request.revoke  # always «удалить у всех»
+            self.deleted.extend(request.id)
             return None
         if isinstance(request, functions.auth.SendCodeRequest):
             return types.auth.SentCode(types.auth.SentCodeTypeApp(5), "test-hash")

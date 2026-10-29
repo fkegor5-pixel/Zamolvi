@@ -1080,3 +1080,23 @@ def test_own_commands_are_saved_previewed_and_answer_notifications(api29, env):
     assert preview["answer"] == "Ответ команды" and "Поздоровайся смешно" in asked[-1][0]
     answer = api29.post("/api/notification/answer", headers=AUTH, json={"text": "Привет бот"}).json()
     assert answer == {"answer": "[AI-автоответ] Ответ команды"}
+
+
+@pytest.mark.asyncio
+async def test_mute_deletes_the_contacts_new_messages_for_both_until_unmute(env):
+    setup_chats(env, ("123", "456"))
+    client = env.engine.client
+    await env.engine.on_message(owner_message(env, 50, 456, "mute"))
+    assert env.store.read()["muted"] == ["456"]
+    assert client.deleted == [50]  # the command itself is gone too
+    assert "Мут" in client.sent[-1].message and isinstance(client.sent[-1].peer, types.InputPeerSelf)
+    await env.engine.on_message(incoming(env, 51, 456, "привет"))
+    await env.engine.on_message(incoming(env, 52, 789, "привет"))  # another chat: untouched
+    assert client.deleted == [50, 51]
+    assert all(j["chat"] != "456" for j in env.store.read()["queue"])  # and no auto-reply to a muted chat
+    await env.engine.on_message(owner_message(env, 53, 456, "Unmute"))
+    assert env.store.read()["muted"] == [] and client.deleted == [50, 51, 53]
+    await env.engine.on_message(incoming(env, 54, 456, "снова тут"))
+    assert 54 not in client.deleted
+    await env.engine.on_message(owner_message(env, 55, 456, "mute это слово в предложении"))
+    assert env.store.read()["muted"] == []  # only the whole message is the command

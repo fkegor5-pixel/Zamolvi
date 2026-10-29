@@ -17,6 +17,7 @@ def forget_account(state):
     state["message_archive"] = archive.initial()
     state["memory"] = memory.initial()
     state["reminders"] = []
+    state["muted"] = []
     state.pop("bot", None)  # the own bot belongs to the old account
     state["approval"]["chats"] = []
     if state["approval"]["mode"] == "chats":
