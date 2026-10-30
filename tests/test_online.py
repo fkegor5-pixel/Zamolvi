@@ -190,16 +190,12 @@ def test_help_lists_the_commands():
         assert online.is_command(word), word
     from replyai.formatting import render, with_links
 
-    def marked(username):
-        message, entities = with_links(*render(online.HELP, "auto", "[AI] "), online.COMMAND_WORDS, username)
-        assert "<b>" not in message
-        return [(message.encode("utf-16-le")[2 * e.offset:2 * (e.offset + e.length)].decode("utf-16-le"),
-                 getattr(e, "url", None)) for e in entities if type(e).__name__ in ("MessageEntityTextUrl",
-                                                                                     "MessageEntityCode")]
-    links = [x for x in marked("owner") if x[1]]
-    assert len(links) == len(online.COMMAND_WORDS) - 1  # every command but «команды» itself
-    assert ("онлайн график", "https://t.me/owner?text=%D0%BE%D0%BD%D0%BB%D0%B0%D0%B9%D0%BD%20%D0%B3%D1%80%D0%B0%D1%84%D0%B8%D0%BA") in links
-    assert ("дембель", None) in marked(None)  # no username: monospace, a tap copies
+    message, entities = with_links(*render(online.HELP, "auto", "[AI] "), online.COMMAND_WORDS)
+    assert "<b>" not in message
+    code = {message.encode("utf-16-le")[2 * e.offset:2 * (e.offset + e.length)].decode("utf-16-le")
+            for e in entities if type(e).__name__ == "MessageEntityCode"}
+    assert set(online.COMMAND_WORDS) - {"команды"} <= code  # every command is monospace: a tap copies it
+    assert not any(type(e).__name__ == "MessageEntityTextUrl" for e in entities)
     assert len(online.HELP) < 1600
 
 
@@ -288,6 +284,17 @@ def test_one_command_per_cooldown_in_a_chat():
 def test_owner_switch_words():
     assert online.owner_switch("бот выкл") is False and online.owner_switch("Бот вкл!") is True
     assert online.owner_switch("бот привет") is None
+
+
+def test_ai_on_off_works_without_the_owner_flag():
+    saved = os.environ.pop(online.COMMANDS_ENV, None)
+    try:
+        assert online.owner_switch("/ai-on") is True and online.owner_switch("/AI_ON") is True
+        assert online.owner_switch("/ai-off") is False and online.owner_switch("бот вкл") is None
+        assert online.owner_switch("/ai-onn") is None
+    finally:
+        if saved is not None:
+            os.environ[online.COMMANDS_ENV] = saved
 
 
 def test_faceit_of_our_accounts_through_wok():
@@ -382,9 +389,18 @@ def test_pgl_match_started_early_is_live_not_upcoming():
     page = "<html>" + block("Сегодня в 16:00", "Vitality", "9z Team", None, "/matches/cs2/3") + "</html>"
     bo3 = json.dumps({"results": [{"status": "current", "team1": {"name": "9z"}, "team2": {"name": "Team Vitality"},
                                    "team1_score": 0, "team2_score": 1}]})
-    assert online.answer("pgl", fetcher=fake({online.PGL_URL: page, online.BO3_MATCHES: bo3}),
-                         clock=lambda: 1400.0).split("\n\n")[2:] == [
+    assert online.pgl_cybersport(fetcher=fake({online.PGL_URL: page, online.BO3_MATCHES: bo3}),
+                                 clock=lambda: 1400.0).split("\n\n")[2:] == [
         "Онлайн:\nVitality 1-0 9z Team", "Ожидаются игры:\nнет"]
+
+
+def test_pgl_prefers_bo3_over_a_stale_cybersport_page():
+    online._cache.clear()
+    stale = "<html>" + block("Сегодня в 14:00", "The MongolZ", "Nemiga", None, "/matches/cs2/5") + "</html>"
+    bo3 = json.dumps({"results": [{"status": "finished", "team1": {"name": "The MongolZ"}, "team2": {"name": "Nemiga"},
+                                   "team1_score": 2, "team2_score": 0, "start_date": "1970-01-01T11:00:00Z"}]})
+    answer = online.answer("pgl", fetcher=fake({online.PGL_URL: stale, online.BO3_MATCHES: bo3}), clock=lambda: 50000.0)
+    assert answer.startswith("Источник: bo3.gg") and "The MongolZ 2-0 Nemiga" in answer and "Ожидаются игры:\nнет" in answer
 
 
 def test_pgl_without_live_or_site():
@@ -462,6 +478,23 @@ def test_playoff_waits_then_draws():
     png = online.image("pgl плей-офф", fetcher=fake({online.BO3_MATCHES: json.dumps({"results": rows})}),
                        clock=lambda: 3000.0)
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
+
+
+def test_playoff_final_is_between_the_semifinal_winners():
+    from replyai import bracket
+    online._cache.clear()
+    rows = [bo3_row("FUT", "Nemiga", 0, 2), bo3_row("Vitality", "NaVi", 2, 1), bo3_row("Aurora", "MOUZ", 0, 2),
+            bo3_row("BetBoom", "FURIA", 0, 2), bo3_row("Nemiga", "Vitality", 2, 0), bo3_row("MOUZ", "FURIA", 1, 2),
+            bo3_row("Vitality", "MOUZ", 0, 0, "upcoming")]  # a stray match of two losers
+    boxes = bracket.rounds(online.bo3_rows(fake({online.BO3_MATCHES: json.dumps({"results": rows})}), lambda: 1.0))
+    assert [(b["team1"], b["team2"]) for b in boxes[4:]] == [("Nemiga", "Vitality"), ("MOUZ", "FURIA"),
+                                                             ("Nemiga", "FURIA")]
+    assert not boxes[6].get("done")
+    # quarterfinals played out of bracket order are regrouped by their semifinals
+    online._cache.clear()
+    swapped = bracket.rounds([{**m} for m in online.bo3_rows(fake({online.BO3_MATCHES: json.dumps(
+        {"results": [rows[0], rows[2], rows[1], rows[3], rows[4]]})}), lambda: 2.0)])
+    assert [b["team2"] for b in swapped[:2]] == ["Nemiga", "NaVi"] and swapped[5]["team1"] == "MOUZ"
 
 
 def test_pgl_team_shows_last_live_and_next_match():

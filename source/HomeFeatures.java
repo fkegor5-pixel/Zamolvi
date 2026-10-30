@@ -42,11 +42,11 @@ public final class HomeFeatures {
             {"replyai.update.navigation.v1", "16. Обновление", "Версия приложения и выпуски на GitHub"},
             {"replyai.notification.navigation.v1", "17. Ответы из уведомлений", "Без сервера, с телефона: WhatsApp, VK, Viber, SMS"},
             {"replyai.style.navigation.v1", "18. Стиль общения", "Тон ответов: деловой, добрый, дерзкий…"},
+            {"replyai.commands.navigation.v1", "20. ⚡ Свои команды", "Слово, где искать и как ответить — отвечает нейросеть"},
     };
     private static final Class<?>[] SCREENS = {DeletedMessagesActivity.class, MemoryActivity.class,
             MediaActivity.class, ApprovalActivity.class, StatsActivity.class, CheckupActivity.class,
-            UpdateActivity.class, NotificationReplyActivity.class, StyleActivity.class};
-    private static final String LANGUAGE_TAG = "replyai.language.v1";
+            UpdateActivity.class, NotificationReplyActivity.class, StyleActivity.class, CommandsActivity.class};
     private static final String LOGO_TAG = "replyai.developer.logo.v1";
     private static final String AUTOREPLY_TAG = "replyai.autoreply.intro.v1";
     private static final String AUTOREPLY_PREFIX = "5. Автоответчик";
@@ -109,7 +109,6 @@ public final class HomeFeatures {
             int count = content.getChildCount();
             if (first == lastFirstChild && count == lastChildCount) return;
             install(activity, content);
-            addSectionEntries(activity, content);
             if (isHome(content)) {
                 colorMenu(activity, content);
                 group(activity, content);
@@ -188,7 +187,7 @@ public final class HomeFeatures {
     /** android.R.id.content → ScrollView → LinearLayout (MainActivity.content). */
     private static ViewGroup screenContent(View root) {
         if (!(root instanceof ViewGroup) || ((ViewGroup) root).getChildCount() == 0) return null;
-        View scroll = ((ViewGroup) root).getChildAt(0);
+        View scroll = AdBanner.unwrap(((ViewGroup) root).getChildAt(0));
         if (!(scroll instanceof ScrollView) || ((ScrollView) scroll).getChildCount() == 0) return null;
         View content = ((ScrollView) scroll).getChildAt(0);
         return content instanceof ViewGroup ? (ViewGroup) content : null;
@@ -297,64 +296,6 @@ public final class HomeFeatures {
         }
     }
 
-    /** Entries added to original sections: card title that marks the section, tag, title, subtitle. */
-    /** Buttons added inside cards of original sections: card title, tag, button text; screens in the same order. */
-    private static final String[][] SECTION_ENTRIES = {
-            {"Выберите тему", LANGUAGE_TAG, "Язык · Language"},
-    };
-    private static final Class<?>[] SECTION_SCREENS = {LanguageActivity.class};
-
-    private static void addSectionEntries(Activity a, ViewGroup content) {
-        for (int i = 0; i < SECTION_ENTRIES.length; i++) {
-            String[] e = SECTION_ENTRIES[i];
-            if (content.findViewWithTag(e[1]) != null) continue;
-            TextView title = findText(content, e[0], a);
-            if (title == null || !(title.getParent() instanceof LinearLayout)) continue;
-            LinearLayout card = (LinearLayout) title.getParent();
-            Button sample = null;
-            int at = card.getChildCount();
-            for (int j = 0; j < card.getChildCount(); j++) {
-                if (card.getChildAt(j) instanceof Button) { sample = (Button) card.getChildAt(j); at = j + 1; }
-            }
-            Class<?> screen = SECTION_SCREENS[i];
-            // Same look as the card's own buttons, right after them.
-            Button button = new Button(a);
-            button.setText(I18n.t(a, e[2]));
-            button.setAllCaps(false);
-            if (sample != null) {
-                button.setTextSize(android.util.TypedValue.COMPLEX_UNIT_PX, sample.getTextSize());
-                button.setTextColor(sample.getTextColors());
-                button.setMinHeight(sample.getMinHeight());
-                if (sample.getBackground() != null && sample.getBackground().getConstantState() != null) {
-                    button.setBackground(sample.getBackground().getConstantState().newDrawable().mutate());
-                }
-            }
-            button.setTag(e[1]);
-            button.setOnClickListener(v -> a.startActivity(new Intent(a, screen)));
-            LinearLayout.LayoutParams lp = sample != null && sample.getLayoutParams() instanceof LinearLayout.LayoutParams
-                    ? new LinearLayout.LayoutParams((LinearLayout.LayoutParams) sample.getLayoutParams())
-                    : new LinearLayout.LayoutParams(-1, -2);
-            card.addView(button, at, lp);
-        }
-    }
-
-    /** The view showing this original (Russian) text, before or after translation. */
-    private static TextView findText(View v, String value, Activity a) {
-        if (v instanceof TextView) {
-            CharSequence text = ((TextView) v).getText();
-            return value.contentEquals(text) || I18n.t(a, value).contentEquals(text) ? (TextView) v : null;
-        }
-        if (v instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) v;
-            for (int i = 0; i < group.getChildCount(); i++) {
-                TextView found = findText(group.getChildAt(i), value, a);
-                if (found != null) return found;
-            }
-        }
-        return null;
-    }
-
-
     /** Same look as the original menu entries: bold title, muted subtitle, chevron, ripple. */
     private static Button entry(Activity a, String title, String subtitle) {
         ThemeManager.Palette colors = ThemeManager.colors(a);
@@ -395,7 +336,7 @@ public final class HomeFeatures {
      */
     private static final String[][] GROUPS = {
             {"Подключения", "1.", "2.", "17."},
-            {"Ответы", "5.", "4.", "3.", "18.", "13."},
+            {"Ответы", "5.", "4.", "3.", "18.", "20.", "13."},
             {"Данные и память", "11.", "12.", "10."},
             {"Статистика", "8.", "14.", "6."},
             {"Приложение", "9.", "15.", "16.", "7."},
@@ -534,6 +475,7 @@ public final class HomeFeatures {
 
     /** Menu rows get their own color: a tinted card, an accent outline and a dot, instead of one gray list. */
     private static void colorMenu(Activity a, ViewGroup menu) {
+        if (!Ui.colorful) return; // the classic look keeps the original rows
         ThemeManager.Palette colors = ThemeManager.colors(a);
         int tone = 0;
         for (int i = 0; i < menu.getChildCount(); i++) {

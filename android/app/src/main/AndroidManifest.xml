@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <!-- Status notification (Android 13+) and its restore after a reboot. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Keep «Ответы из уведомлений» working with the screen off and the app in the background. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+    <application
+        android:name=".ReplyAiApplication"
+        android:label="Zamolvi"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:theme="@style/AppTheme"
+        android:allowBackup="false"
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <activity android:name=".QrLoginActivity" android:exported="false" android:windowSoftInputMode="adjustResize"/>
+        <activity android:name=".DiagnosticsActivity" android:exported="false"/>
+        <activity android:name=".ServerSetupActivity" android:exported="false" android:windowSoftInputMode="adjustResize"/>
+
+        <activity android:name=".DeletedMessagesActivity" android:exported="false"/>
+        <activity android:name=".DeveloperActivity" android:exported="false"/>
+        <activity android:name=".MemoryActivity" android:exported="false"/>
+        <activity android:name=".MediaActivity" android:exported="false"/>
+        <activity android:name=".ApprovalActivity" android:exported="false"/>
+        <activity android:name=".StatsActivity" android:exported="false"/>
+        <activity android:name=".CheckupActivity" android:exported="false"/>
+        <activity android:name=".NotificationReplyActivity" android:exported="false"/>
+        <activity android:name=".StyleActivity" android:exported="false"/>
+        <activity android:name=".LanguageActivity" android:exported="false"/>
+        <activity android:name=".ProfilesActivity" android:exported="false"/>
+        <activity android:name=".RulesActivity" android:exported="false"/>
+        <activity android:name=".UpdateActivity" android:exported="false"/>
+        <activity android:name=".TipsActivity" android:exported="false"/>
+        <activity android:name=".CommandsActivity" android:exported="false"/>
+        <activity
+            android:name=".VideoAdActivity"
+            android:exported="false"
+            android:theme="@style/ZamolviIntroTheme"
+            android:enableOnBackInvokedCallback="false"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"/>
+
+        <provider
+            android:name=".FeatureInitProvider"
+            android:authorities="${applicationId}.features"
+            android:exported="false"/>
+
+        <!-- Home-screen widget; its buttons go to the non-exported ControlReceiver. -->
+        <receiver android:name=".ReplyWidget" android:exported="true" android:label="Zamolvi">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/replyai_widget_info"/>
+        </receiver>
+        <receiver android:name=".ControlReceiver" android:exported="false"/>
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+            </intent-filter>
+        </receiver>
+
+        <!-- Quick Settings tile «Автоответчик»; only the system can bind it. -->
+        <service
+            android:name=".ReplyTileService"
+            android:exported="true"
+            android:label="Автоответчик"
+            android:icon="@drawable/replyai_notification_icon"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE"/>
+            </intent-filter>
+            <meta-data android:name="android.service.quicksettings.TOGGLEABLE_TILE" android:value="true"/>
+        </service>
+        <!-- Daily check of GitHub Releases for a newer version. -->
+        <service
+            android:name=".UpdateJob"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE"/>
+        <!-- «Ответы из уведомлений»; only the system can bind it. -->
+        <service
+            android:name=".NotificationReplyService"
+            android:exported="true"
+            android:label="Ответы из уведомлений"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService"/>
+            </intent-filter>
+        </service>
+    </application>
+</manifest>

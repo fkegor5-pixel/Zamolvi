@@ -12,11 +12,13 @@ import android.os.Bundle;
 public final class FeatureInitProvider extends ContentProvider {
     @Override public boolean onCreate() {
         Application app = (Application) getContext().getApplicationContext();
+        Ui.load(app);
         android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
         app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
             @Override public void onActivityCreated(Activity a, Bundle state) {
                 // After onCreate: the screen has set its content and window features by then.
                 main.post(() -> { if (!a.isFinishing() && !a.isDestroyed()) Brand.attach(a); });
+                if (AdBanner.wanted(a)) main.post(() -> { if (!a.isFinishing() && !a.isDestroyed()) AdBanner.attach(a); });
                 if (isMain(a)) {
                     HomeFeatures.attach(a); // reveals its own screens
                 } else {
@@ -27,6 +29,7 @@ public final class FeatureInitProvider extends ContentProvider {
             }
             @Override public void onActivityDestroyed(Activity a) {
                 Brand.detach(a);
+                AdBanner.detach(a);
                 if (isMain(a)) HomeFeatures.detach(a);
             }
             @Override public void onActivityStarted(Activity a) { }
@@ -67,6 +70,7 @@ public final class FeatureInitProvider extends ContentProvider {
     /** android.R.id.content → ScrollView → vertical LinearLayout. */
     private static android.view.ViewGroup column(android.view.View view) {
         for (int depth = 0; depth < 4 && view instanceof android.view.ViewGroup; depth++) {
+            view = AdBanner.unwrap(view);
             android.view.ViewGroup group = (android.view.ViewGroup) view;
             if (group instanceof android.widget.LinearLayout
                     && ((android.widget.LinearLayout) group).getOrientation() == android.widget.LinearLayout.VERTICAL) {

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="@style/AppThemeBase">
+    </style>
+    <style name="AppThemeBase" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#f2f6fb</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#2196d2</item>
+        <item name="android:statusBarColor">#f2f6fb</item>
+        <item name="android:navigationBarColor">#f2f6fb</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+    <style name="AppThemeDark" parent="@style/AppThemeDarkBase">
+    </style>
+    <style name="AppThemeDarkBase" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorBackground">#101820</item>
+        <item name="android:textColorPrimary">#e8eef7</item>
+        <item name="android:textColorSecondary">#a0aec0</item>
+        <item name="android:windowBackground">#101820</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#63bfff</item>
+        <item name="android:statusBarColor">#101820</item>
+        <item name="android:navigationBarColor">#101820</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <style name="ZamolviIntroTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#000000</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+</resources>

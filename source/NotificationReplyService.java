@@ -107,7 +107,7 @@ public final class NotificationReplyService extends NotificationListenerService 
         }
         String fixed = Rules.fixedReply(p.getString(QUICK, ""), message);
         if (fixed != null) {
-            worker.execute(() -> deliver(chat, OUR_PREFIX + " " + fixed, reply, false));
+            worker.execute(() -> deliver(sbn.getPackageName(), chat, message, OUR_PREFIX + " " + fixed, reply, false));
             return;
         }
         int limit = p.getInt(LIMIT, 0);
@@ -115,7 +115,7 @@ public final class NotificationReplyService extends NotificationListenerService 
             trace(p, chat, "дневной лимит ответов нейросети исчерпан (" + limit + ")");
             return;
         }
-        worker.execute(() -> answer(chat, message, reply));
+        worker.execute(() -> answer(sbn.getPackageName(), chat, message, reply));
     }
 
     /** The owner must answer this one: a loud notification that opens the messenger. */
@@ -177,7 +177,7 @@ public final class NotificationReplyService extends NotificationListenerService 
         return found;
     }
 
-    private void answer(String chat, String text, Notification.Action reply) {
+    private void answer(String pkg, String chat, String text, Notification.Action reply) {
         // The phone may fall asleep between the AI request and the reply.
         android.os.PowerManager.WakeLock lock = getSystemService(android.os.PowerManager.class)
                 .newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "zamolvi:notification-reply");
@@ -200,7 +200,7 @@ public final class NotificationReplyService extends NotificationListenerService 
                     .call("POST", "/api/notification/answer", data);
             String answer = response.optString("answer").trim();
             if (answer.isEmpty()) throw new Exception("AI не вернул ответ");
-            deliver(chat, answer, reply, true);
+            deliver(pkg, chat, text, answer, reply, true);
         } catch (Exception error) {
             Log.w(TAG, "Reply failed", error);
             finish(chat, error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
@@ -210,21 +210,62 @@ public final class NotificationReplyService extends NotificationListenerService 
     }
 
     /** Sends the text through the «Reply» action and records it; counts toward the daily limit when the AI wrote it. */
-    private void deliver(String chat, String answer, Notification.Action reply, boolean ai) {
+    private void deliver(String pkg, String chat, String incoming, String answer, Notification.Action reply, boolean ai) {
         try {
             Bundle values = new Bundle();
             for (RemoteInput input : reply.getRemoteInputs()) values.putCharSequence(input.getResultKey(), answer);
             Intent intent = new Intent();
             RemoteInput.addResultsToIntent(reply.getRemoteInputs(), intent, values);
-            reply.actionIntent.send(this, 0, intent);
+            // Some messengers (VK) answer through a screen, not a background receiver: Android 14+ silently
+            // drops such a start from the background unless the sender allows it.
+            Bundle options = null;
+            if (android.os.Build.VERSION.SDK_INT >= 34) {
+                options = android.app.ActivityOptions.makeBasic().setPendingIntentBackgroundActivityStartMode(
+                        android.app.ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED).toBundle();
+            }
+            reply.actionIntent.send(this, 0, intent, null, null, null, options);
             SharedPreferences p = getSharedPreferences(PREFS, 0);
             if (ai) p.edit().putString(COUNT_DAY, today()).putInt(COUNT, usedToday(p) + 1).apply();
             remember(this, chat);
+            // The messenger takes the text and only then sends it; after a real send it marks the chat
+            // read and removes the notification. One still showing the same message means nothing was sent.
+            Thread.sleep(CONFIRM_MS);
+            if (stillShown(pkg, chat, incoming)) {
+                DiagnosticLog.event("notification", "send_ambiguous", null);
+                boolean limited = !getSystemService(android.os.PowerManager.class).isIgnoringBatteryOptimizations(pkg);
+                record("Не подтверждено «" + chat + "»: мессенджер не отправил ответ — уведомление осталось. "
+                        + (limited ? "У мессенджера ограничена работа в фоне: Настройки → Приложения → "
+                                + "мессенджер → Батарея → «Без ограничений» и «Автозапуск»"
+                                : "Откройте мессенджер — ответ может уйти при запуске"));
+                return;
+            }
+            DiagnosticLog.event("notification", "send", null);
             record("Ответ отправлен: «" + chat + "»" + (ai ? "" : " (быстрый ответ)"));
         } catch (Exception error) {
             Log.w(TAG, "Reply failed", error);
             finish(chat, error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
         }
+    }
+
+    private static final long CONFIRM_MS = 8000;
+
+    /** The chat's notification still shows the message we answered; false when it cannot be checked. */
+    private boolean stillShown(String pkg, String chat, String incoming) {
+        StatusBarNotification[] active;
+        try {
+            active = getActiveNotifications();
+        } catch (RuntimeException listenerGone) {
+            return false;
+        }
+        if (active == null) return false;
+        for (StatusBarNotification sbn : active) {
+            Bundle x = sbn.getNotification().extras;
+            if (!pkg.equals(sbn.getPackageName()) || x == null) continue;
+            CharSequence title = x.getCharSequence(Notification.EXTRA_CONVERSATION_TITLE);
+            if (title == null) title = x.getCharSequence(Notification.EXTRA_TITLE);
+            if (title != null && chat.equals(title.toString().trim()) && incoming.equals(lastIncoming(x))) return true;
+        }
+        return false;
     }
 
     private void finish(String chat, String reason) {

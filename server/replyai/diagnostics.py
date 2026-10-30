@@ -22,11 +22,11 @@ ROUTES = {'/api/status', '/api/settings', '/api/control', '/api/telegram/start',
           '/api/archive', '/api/archive/list', '/api/archive/clear',
           '/api/memory', '/api/memory/forget', '/api/media', '/api/approval', '/api/approval/decide',
           '/api/stats/extended', '/api/pricing', '/api/features', '/api/notification/answer', '/api/style',
-          '/api/memory/import', '/api/memory/import/cancel'}
+          '/api/memory/import', '/api/memory/import/cancel', '/api/commands', '/api/commands/preview'}
 TEXT_FIELDS = {'kind', 'operation', 'error_type', 'provider', 'delivery', 'stage', 'request_id'}
 NUMBER_FIELDS = {'http_status', 'duration_ms', 'retry_after_s', 'resend_after_s'}
 FILES = {'engine.py', 'web.py', 'ai.py', 'store.py', '__main__.py', 'diagnostics.py', 'qr.py', 'formatting.py', 'voice.py', 'stats.py', 'queueing.py', 'quiet.py',
-         'archive.py', 'memory.py', 'media.py', 'approval.py', 'privacy.py'}
+         'archive.py', 'memory.py', 'media.py', 'approval.py', 'privacy.py', 'custom.py'}
 
 
 def identifier(value, limit=80):
@@ -96,7 +96,7 @@ class Diagnostics:
             'schema': 'replyai.diagnostics.v1',
             'generated_at': dt.datetime.now(dt.timezone.utc).isoformat(timespec='seconds'),
             'report_id': uuid.uuid4().hex,
-            'runtime': {'server_version': '3.3.0', 'python_version': platform.python_version(),
+            'runtime': {'server_version': '3.4.3', 'python_version': platform.python_version(),
                         'platform': platform.system(), 'machine': platform.machine(),
                         'telethon_version': version('telethon'), 'httpx_version': version('httpx'),
                         'uptime_s': max(0, int(time.monotonic() - self.started)),

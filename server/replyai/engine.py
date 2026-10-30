@@ -1,4 +1,5 @@
 from .errors import UserError
+import re
 import asyncio
 import io
 import copy
@@ -15,12 +16,12 @@ from .ai import AiClient, AiError, PREFIX, validate, purpose as ai_purpose
 from .diagnostics import Diagnostics
 from .qr import QrLogin
 from .formatting import render, MODES, with_links
-from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style, online
+from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style, online, custom
 from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.3.0"
+SERVER_VERSION = "3.4.3"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -43,6 +44,9 @@ class PersistentSession(StringSession):
         self.store.update(lambda s: s.update(session=value))
         return value["string"]
 
+
+# «mute» / «unmute» — the whole message, any case
+MUTE = re.compile(r"^/?(un)?mute[.!\s]*$", re.IGNORECASE)
 
 class Engine:
     def __init__(self, store, ai=None, client_factory=TelegramClient, clock=time.time, voice=None):
@@ -73,7 +77,6 @@ class Engine:
         self.memory_next = 0
         self.drafts_checked_at = 0
         self.online_sampled_at = 0
-        self.me_username = None  # cached owner's @username, '' when there is none
         self.bot = OwnBot(self)  # the owner's own Telegram bot (owner's server only)
         self.digests = {}  # kind -> (time, answer) of «стим игры»
         self.draft_notice_at = {}
@@ -519,7 +522,10 @@ class Engine:
             if not text.startswith(PREFIX):
                 self.cancel_chat(chat)
             switch = online.owner_switch(text)
-            if online.CREATE_BOT_COMMAND.match(text) and online.enabled():
+            mute = MUTE.match(text.strip())
+            if mute and not getattr(await event.get_chat(), 'is_self', False):
+                await self.set_muted(event, chat, mute.group(1) is None)
+            elif online.CREATE_BOT_COMMAND.match(text) and online.enabled():
                 if getattr(await event.get_chat(), 'is_self', False):
                     await self.bot.recreate()
             elif switch is not None:
@@ -531,6 +537,9 @@ class Engine:
             return
         sender = await event.get_sender()
         if not isinstance(sender, types.User) or sender.bot or sender.is_self or sender.id == 777000:
+            return
+        if chat in self.store.read().get('muted', []):
+            await self.delete_for_all([event.id], 'Сообщение в замученном чате не удалено')
             return
         if text.strip().lower() == '/ai_off':
             def revoke(s):
@@ -924,6 +933,13 @@ class Engine:
             return
         try:
             answer = job.get('answer')
+            found = None if answer else custom.match(s.get('commands'), job['text'])
+            if found:
+                if not online.allowed(job['chat'], self.clock()):
+                    self.remove_job(job)
+                    return
+                with ai_purpose('reply', job['chat']):
+                    answer = await custom.answer(self.ai, s['ai'], *found)
             if not answer and online.is_command(job['text']):
                 if not online.allowed(job['chat'], self.clock()):  # commands too often: no answer at all
                     self.remove_job(job)
@@ -1005,8 +1021,7 @@ class Engine:
             self.change_job(job, state="delivering")
             try:
                 if online.is_command(job['text']):  # command answers carry their own markup and links
-                    message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS,
-                                                   await self.owner_username())
+                    message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS)
                 else:
                     message, entities = render(answer, s["ai"].get("formatting", "auto"), PREFIX)
                 await self.client(functions.messages.SendMessageRequest(
@@ -1165,15 +1180,6 @@ class Engine:
             answer += '\n\n' + online.bot_link(username)
         return answer
 
-    async def owner_username(self):
-        """The owner's @username for command links of a contact; None when there is none."""
-        if self.me_username is None:
-            try:
-                self.me_username = getattr(await self.client.get_me(), 'username', None) or ''
-            except (errors.RPCError, OSError, asyncio.TimeoutError, AttributeError):
-                return None
-        return self.me_username or None
-
     async def owner_command(self, event, chat, text):
         """A command written by the owner in any private chat: the answer goes to the same chat."""
         if online.is_image_command(text):
@@ -1187,8 +1193,7 @@ class Engine:
             else:
                 answer = (self.add_reminder(chat, *plan, owner=True) if plan
                           else await self.command_answer(text))
-            message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS,
-                                           getattr(await event.get_chat(), 'username', None))
+            message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS)
             async with self.telegram_lock:
                 await self.client(functions.messages.SendMessageRequest(
                     peer=await event.get_input_chat(), message=message, entities=entities, random_id=secrets.randbits(63),
@@ -1213,6 +1218,35 @@ class Engine:
                         reply_to=types.InputReplyToMessage(reply_to_msg_id=reply_to)))
         except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
             self.log('Картинка не отправлена: ' + type(exc).__name__)
+
+    async def delete_for_all(self, ids, failure):
+        """Deletes private-chat messages for both sides («удалить у всех»)."""
+        try:
+            async with self.telegram_lock:
+                await self.client(functions.messages.DeleteMessagesRequest(id=ids, revoke=True))
+            return True
+        except (errors.RPCError, OSError, asyncio.TimeoutError) as exc:
+            self.log(f'{failure}: ' + type(exc).__name__)
+            return False
+
+    async def set_muted(self, event, chat, on):
+        """«mute» / «unmute» written by the owner in a private chat: the contact's new messages are deleted for both."""
+        def change(s):
+            muted = [c for c in s.get('muted', []) if c != chat]
+            s['muted'] = muted + [chat] if on else muted
+        self.store.update(change)
+        # the command itself disappears too: the contact never sees «mute»
+        await self.delete_for_all([event.id], 'Команда mute не удалена')
+        name = getattr(await event.get_chat(), 'first_name', None) or chat
+        note = (f'🔇 Мут: {name}. Его новые сообщения удаляются у всех. Снять — напишите в его чат «unmute».' if on
+                else f'🔊 Мут снят: {name}.')
+        self.log(note)
+        try:
+            async with self.telegram_lock:
+                await self.client(functions.messages.SendMessageRequest(
+                    peer=types.InputPeerSelf(), message=PREFIX + note, random_id=secrets.randbits(63), no_webpage=True))
+        except (errors.RPCError, OSError, asyncio.TimeoutError) as exc:
+            self.log('Ответ в «Избранное» не отправлен: ' + type(exc).__name__)
 
     async def owner_switch(self, event, on):
         """«бот вкл» / «бот выкл» written by the owner in «Избранное» (Saved Messages) only."""

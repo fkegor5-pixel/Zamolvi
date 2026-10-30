@@ -115,6 +115,7 @@ REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,15})\s*(минут
                        re.IGNORECASE | re.DOTALL)
 REMIND_AT = re.compile(r"^напомни\s+в\s+(\d{1,2})[:.](\d{2})\s+(.{1,200}?)\s*$", re.IGNORECASE | re.DOTALL)
 OWNER_SWITCH = re.compile(r"^бот\s+(вкл|выкл)\w*[.!\s]*$", re.IGNORECASE)
+AI_SWITCH = re.compile(r"^/ai[-_ ]?(on|off)[.!\s]*$", re.IGNORECASE)
 ARZ_ALL = "https://arzdata.com/online"
 # a row of the full list as plain text: «1 Phoenix 331 / 1000 33% Свободен 0» (number, name, online, status, queue)
 # shortcut: server names with digits are not matched; switch to the HTML table if such servers appear
@@ -139,7 +140,7 @@ COOLDOWN = 10          # seconds between commands of one chat
 MAX_REMINDERS = 5      # per chat
 MAX_AHEAD = 366 * 86400  # a birthday a year ahead fits
 UNIT = {"м": 60, "ч": 3600, "д": 86400}
-# «/online» typed by hand works too; the help links the Russian words instead (see formatting.with_links)
+# «/online» typed by hand works too; the help shows the Russian words in monospace (see formatting.with_links)
 SLASH = {"/help": "команды", "/commands": "команды", "/online": "онлайн", "/top": "топ онлайн",
          "/graph": "онлайн график", "/hours": "часы в кс", "/ingame": "кто в игре",
          "/faceit": "фейсит", "/inventory": "инвентарь", "/level": "уровень стим", "/steam_games": "стим игры",
@@ -147,8 +148,8 @@ SLASH = {"/help": "команды", "/commands": "команды", "/online": "�
          "/demob": "дембель", "/rates": "курс", "/coin": "монетка", "/random": "рандом",
          "/news": "новости", "/money": "получить деньги"}
 HELP = ("🤖 <b>Команды бота</b>\n"
-        "Нажмите на синюю команду — она появится в поле ввода, останется отправить. "
-        "Серые — нажмите, чтобы скопировать. Можно писать с «бот» или без.\n\n"
+        "Нажмите на команду — она скопируется, останется вставить и отправить. "
+        "Можно писать с «бот» или без.\n\n"
         "🎮 <b>Arizona RP</b>\n"
         "онлайн — Excellent, Space, Wednesday\n"
         "топ онлайн — 5 самых заполненных серверов\n"
@@ -176,7 +177,7 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "<code>погода Москва</code>\n"
         "<code>напомни через 30 минут позвонить</code>\n"
         "<code>напомни в 18:30 позвонить</code>")
-COMMAND_WORDS = sorted(set(SLASH.values()))  # linked in the answers, see formatting.with_links
+COMMAND_WORDS = sorted(set(SLASH.values()))  # monospace in the answers, see formatting.with_links
 COUNT = re.compile(r"(\d[\d ]*)\s*/\s*\d+")
 TAGS = re.compile(r"<(script|style)\b.*?</\1>|<[^>]+>", re.IGNORECASE | re.DOTALL)
 
@@ -226,6 +227,9 @@ def is_command(text):
 
 def owner_switch(text):
     """True for «бот вкл», False for «бот выкл», None for anything else (only on the owner's server)."""
+    slash = AI_SWITCH.match((text or "").strip())  # «/ai-on» / «/ai-off»: in every installation
+    if slash:
+        return slash.group(1).lower() == "on"
     m = OWNER_SWITCH.match((text or "").strip()) if enabled() else None
     return None if m is None else m.group(1).lower() == "вкл"
 
@@ -744,7 +748,15 @@ def short_time(when):
 
 
 def pgl(fetcher=fetch, clock=time.time):
-    """The answer to «pgl»: today's results, live matches with the current map, the upcoming ones (cybersport.ru)."""
+    """The answer to «pgl»: bo3.gg first — its API has live statuses and scores, while the cybersport.ru page
+    can keep finished matches as upcoming for hours; cybersport.ru when bo3.gg cannot be read."""
+    if bo3_rows(fetcher, clock) is not None:
+        return pgl_bo3(fetcher, clock)
+    return pgl_cybersport(fetcher, clock)
+
+
+def pgl_cybersport(fetcher=fetch, clock=time.time):
+    """Today's results, live matches with the current map, the upcoming ones (cybersport.ru)."""
     raw = page(PGL_URL, fetcher, clock, raw=True)
     matches = pgl_matches(raw) if raw else []
     if not matches:  # the site is down, blocks the server or shows a captcha: bo3.gg has the same matches
