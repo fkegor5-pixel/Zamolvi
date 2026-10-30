@@ -480,6 +480,23 @@ def test_playoff_waits_then_draws():
     assert png[:8] == b"\x89PNG\r\n\x1a\n"
 
 
+def test_playoff_final_is_between_the_semifinal_winners():
+    from replyai import bracket
+    online._cache.clear()
+    rows = [bo3_row("FUT", "Nemiga", 0, 2), bo3_row("Vitality", "NaVi", 2, 1), bo3_row("Aurora", "MOUZ", 0, 2),
+            bo3_row("BetBoom", "FURIA", 0, 2), bo3_row("Nemiga", "Vitality", 2, 0), bo3_row("MOUZ", "FURIA", 1, 2),
+            bo3_row("Vitality", "MOUZ", 0, 0, "upcoming")]  # a stray match of two losers
+    boxes = bracket.rounds(online.bo3_rows(fake({online.BO3_MATCHES: json.dumps({"results": rows})}), lambda: 1.0))
+    assert [(b["team1"], b["team2"]) for b in boxes[4:]] == [("Nemiga", "Vitality"), ("MOUZ", "FURIA"),
+                                                             ("Nemiga", "FURIA")]
+    assert not boxes[6].get("done")
+    # quarterfinals played out of bracket order are regrouped by their semifinals
+    online._cache.clear()
+    swapped = bracket.rounds([{**m} for m in online.bo3_rows(fake({online.BO3_MATCHES: json.dumps(
+        {"results": [rows[0], rows[2], rows[1], rows[3], rows[4]]})}), lambda: 2.0)])
+    assert [b["team2"] for b in swapped[:2]] == ["Nemiga", "NaVi"] and swapped[5]["team1"] == "MOUZ"
+
+
 def test_pgl_team_shows_last_live_and_next_match():
     online._cache.clear()
     rows = [bo3_row("Team Vitality", "MOUZ", 2, 1, slug="v-m"), bo3_row("G2", "Vitality", 2, 0),

@@ -154,6 +154,36 @@ def playoff(matches):
 ROUNDS = (("Четвертьфиналы", 4), ("Полуфиналы", 2), ("Финал", 1))
 
 
+def _winner(m):
+    if m and m.get("done") and m.get("score1") is not None and m["score1"] != m["score2"]:
+        return m["team1"] if m["score1"] > m["score2"] else m["team2"]
+    return None
+
+
+def rounds(games):
+    """The 7 boxes of the bracket (None when unknown): each later box is the match between the winners of its two
+    boxes, not simply the next match in time — a stray or misdated match never lands in the final."""
+    quarter, rest = games[:4], games[4:]
+    used, order = set(), []
+    for g in rest:  # a semifinal tells which two quarterfinals feed it
+        pair = [i for i, q in enumerate(quarter) if i not in used and _winner(q) in (g["team1"], g["team2"])]
+        if len(pair) == 2:
+            used.update(pair)
+            order += pair
+    order += [i for i in range(len(quarter)) if i not in used]
+    boxes = [quarter[i] for i in order] + [None] * (4 - len(quarter))
+    prev = boxes
+    while len(prev) > 1:
+        now = []
+        for a, b in zip(prev[::2], prev[1::2]):
+            a, b = _winner(a), _winner(b)
+            match = next((g for g in rest if a and b and {g["team1"], g["team2"]} == {a, b}), None)
+            now.append(match or ({"team1": a or "?", "team2": b or "?"} if a or b else None))
+        boxes += now
+        prev = now
+    return boxes
+
+
 def render_playoff(games, title, subtitle=""):
     """PNG bytes of an 8-team single-elimination bracket; games fill the rounds in time order."""
     from PIL import Image, ImageDraw
@@ -163,6 +193,7 @@ def render_playoff(games, title, subtitle=""):
     draw = ImageDraw.Draw(image)
     draw.text((20, 18), title, font=_font(30, True), fill=TEXT)
     draw.text((20, 56), subtitle, font=_font(15), fill=MUTED)
+    games = rounds(games)
     first, centers = 0, []
     for c, (name, count) in enumerate(ROUNDS):
         x = 20 + c * (COL_W + 20)
