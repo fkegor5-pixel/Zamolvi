@@ -190,16 +190,12 @@ def test_help_lists_the_commands():
         assert online.is_command(word), word
     from replyai.formatting import render, with_links
 
-    def marked(username):
-        message, entities = with_links(*render(online.HELP, "auto", "[AI] "), online.COMMAND_WORDS, username)
-        assert "<b>" not in message
-        return [(message.encode("utf-16-le")[2 * e.offset:2 * (e.offset + e.length)].decode("utf-16-le"),
-                 getattr(e, "url", None)) for e in entities if type(e).__name__ in ("MessageEntityTextUrl",
-                                                                                     "MessageEntityCode")]
-    links = [x for x in marked("owner") if x[1]]
-    assert len(links) == len(online.COMMAND_WORDS) - 1  # every command but «команды» itself
-    assert ("онлайн график", "https://t.me/owner?text=%D0%BE%D0%BD%D0%BB%D0%B0%D0%B9%D0%BD%20%D0%B3%D1%80%D0%B0%D1%84%D0%B8%D0%BA") in links
-    assert ("дембель", None) in marked(None)  # no username: monospace, a tap copies
+    message, entities = with_links(*render(online.HELP, "auto", "[AI] "), online.COMMAND_WORDS)
+    assert "<b>" not in message
+    code = {message.encode("utf-16-le")[2 * e.offset:2 * (e.offset + e.length)].decode("utf-16-le")
+            for e in entities if type(e).__name__ == "MessageEntityCode"}
+    assert set(online.COMMAND_WORDS) - {"команды"} <= code  # every command is monospace: a tap copies it
+    assert not any(type(e).__name__ == "MessageEntityTextUrl" for e in entities)
     assert len(online.HELP) < 1600
 
 

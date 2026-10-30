@@ -77,7 +77,6 @@ class Engine:
         self.memory_next = 0
         self.drafts_checked_at = 0
         self.online_sampled_at = 0
-        self.me_username = None  # cached owner's @username, '' when there is none
         self.bot = OwnBot(self)  # the owner's own Telegram bot (owner's server only)
         self.digests = {}  # kind -> (time, answer) of «стим игры»
         self.draft_notice_at = {}
@@ -1022,8 +1021,7 @@ class Engine:
             self.change_job(job, state="delivering")
             try:
                 if online.is_command(job['text']):  # command answers carry their own markup and links
-                    message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS,
-                                                   await self.owner_username())
+                    message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS)
                 else:
                     message, entities = render(answer, s["ai"].get("formatting", "auto"), PREFIX)
                 await self.client(functions.messages.SendMessageRequest(
@@ -1182,15 +1180,6 @@ class Engine:
             answer += '\n\n' + online.bot_link(username)
         return answer
 
-    async def owner_username(self):
-        """The owner's @username for command links of a contact; None when there is none."""
-        if self.me_username is None:
-            try:
-                self.me_username = getattr(await self.client.get_me(), 'username', None) or ''
-            except (errors.RPCError, OSError, asyncio.TimeoutError, AttributeError):
-                return None
-        return self.me_username or None
-
     async def owner_command(self, event, chat, text):
         """A command written by the owner in any private chat: the answer goes to the same chat."""
         if online.is_image_command(text):
@@ -1204,8 +1193,7 @@ class Engine:
             else:
                 answer = (self.add_reminder(chat, *plan, owner=True) if plan
                           else await self.command_answer(text))
-            message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS,
-                                           getattr(await event.get_chat(), 'username', None))
+            message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS)
             async with self.telegram_lock:
                 await self.client(functions.messages.SendMessageRequest(
                     peer=await event.get_input_chat(), message=message, entities=entities, random_id=secrets.randbits(63),

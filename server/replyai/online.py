@@ -140,7 +140,7 @@ COOLDOWN = 10          # seconds between commands of one chat
 MAX_REMINDERS = 5      # per chat
 MAX_AHEAD = 366 * 86400  # a birthday a year ahead fits
 UNIT = {"м": 60, "ч": 3600, "д": 86400}
-# «/online» typed by hand works too; the help links the Russian words instead (see formatting.with_links)
+# «/online» typed by hand works too; the help shows the Russian words in monospace (see formatting.with_links)
 SLASH = {"/help": "команды", "/commands": "команды", "/online": "онлайн", "/top": "топ онлайн",
          "/graph": "онлайн график", "/hours": "часы в кс", "/ingame": "кто в игре",
          "/faceit": "фейсит", "/inventory": "инвентарь", "/level": "уровень стим", "/steam_games": "стим игры",
@@ -148,8 +148,8 @@ SLASH = {"/help": "команды", "/commands": "команды", "/online": "�
          "/demob": "дембель", "/rates": "курс", "/coin": "монетка", "/random": "рандом",
          "/news": "новости", "/money": "получить деньги"}
 HELP = ("🤖 <b>Команды бота</b>\n"
-        "Нажмите на синюю команду — она появится в поле ввода, останется отправить. "
-        "Серые — нажмите, чтобы скопировать. Можно писать с «бот» или без.\n\n"
+        "Нажмите на команду — она скопируется, останется вставить и отправить. "
+        "Можно писать с «бот» или без.\n\n"
         "🎮 <b>Arizona RP</b>\n"
         "онлайн — Excellent, Space, Wednesday\n"
         "топ онлайн — 5 самых заполненных серверов\n"
@@ -177,7 +177,7 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "<code>погода Москва</code>\n"
         "<code>напомни через 30 минут позвонить</code>\n"
         "<code>напомни в 18:30 позвонить</code>")
-COMMAND_WORDS = sorted(set(SLASH.values()))  # linked in the answers, see formatting.with_links
+COMMAND_WORDS = sorted(set(SLASH.values()))  # monospace in the answers, see formatting.with_links
 COUNT = re.compile(r"(\d[\d ]*)\s*/\s*\d+")
 TAGS = re.compile(r"<(script|style)\b.*?</\1>|<[^>]+>", re.IGNORECASE | re.DOTALL)
 
