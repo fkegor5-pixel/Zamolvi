@@ -115,6 +115,7 @@ REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,15})\s*(минут
                        re.IGNORECASE | re.DOTALL)
 REMIND_AT = re.compile(r"^напомни\s+в\s+(\d{1,2})[:.](\d{2})\s+(.{1,200}?)\s*$", re.IGNORECASE | re.DOTALL)
 OWNER_SWITCH = re.compile(r"^бот\s+(вкл|выкл)\w*[.!\s]*$", re.IGNORECASE)
+AI_SWITCH = re.compile(r"^/ai[-_ ]?(on|off)[.!\s]*$", re.IGNORECASE)
 ARZ_ALL = "https://arzdata.com/online"
 # a row of the full list as plain text: «1 Phoenix 331 / 1000 33% Свободен 0» (number, name, online, status, queue)
 # shortcut: server names with digits are not matched; switch to the HTML table if such servers appear
@@ -226,6 +227,9 @@ def is_command(text):
 
 def owner_switch(text):
     """True for «бот вкл», False for «бот выкл», None for anything else (only on the owner's server)."""
+    slash = AI_SWITCH.match((text or "").strip())  # «/ai-on» / «/ai-off»: in every installation
+    if slash:
+        return slash.group(1).lower() == "on"
     m = OWNER_SWITCH.match((text or "").strip()) if enabled() else None
     return None if m is None else m.group(1).lower() == "вкл"
 

@@ -969,6 +969,19 @@ async def test_owner_turns_the_bot_off_from_saved_messages_only(env):
         restore()
 
 
+@pytest.mark.asyncio
+async def test_ai_on_from_saved_messages_turns_the_bot_on(env):
+    setup_chats(env)
+    env.engine.disable()
+    own = incoming(env, 22, 999)
+    own.raw_text = own.message.raw_text = "/ai-on"
+    own.out = True
+    own.get_chat = AsyncMock(return_value=SimpleNamespace(is_self=True))
+    await env.engine.on_message(own)
+    assert env.store.read()["enabled"] is True
+    assert env.engine.client.sent[-1].message.endswith("Автоответчик включён.")
+
+
 
 def owner_message(env, message_id, chat, text):
     event = incoming(env, message_id, chat)

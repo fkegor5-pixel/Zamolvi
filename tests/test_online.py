@@ -290,6 +290,17 @@ def test_owner_switch_words():
     assert online.owner_switch("бот привет") is None
 
 
+def test_ai_on_off_works_without_the_owner_flag():
+    saved = os.environ.pop(online.COMMANDS_ENV, None)
+    try:
+        assert online.owner_switch("/ai-on") is True and online.owner_switch("/AI_ON") is True
+        assert online.owner_switch("/ai-off") is False and online.owner_switch("бот вкл") is None
+        assert online.owner_switch("/ai-onn") is None
+    finally:
+        if saved is not None:
+            os.environ[online.COMMANDS_ENV] = saved
+
+
 def test_faceit_of_our_accounts_through_wok():
     online._cache.clear()
     assert online.is_command("фейсит")
