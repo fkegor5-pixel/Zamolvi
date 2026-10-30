@@ -1107,7 +1107,7 @@ async def test_mute_deletes_the_contacts_new_messages_for_both_until_unmute(env)
     await env.engine.on_message(incoming(env, 52, 789, "привет"))  # another chat: untouched
     assert client.deleted == [50, 51]
     assert all(j["chat"] != "456" for j in env.store.read()["queue"])  # and no auto-reply to a muted chat
-    await env.engine.on_message(owner_message(env, 53, 456, "Unmute"))
+    await env.engine.on_message(owner_message(env, 53, 456, "/Unmute"))
     assert env.store.read()["muted"] == [] and client.deleted == [50, 51, 53]
     await env.engine.on_message(incoming(env, 54, 456, "снова тут"))
     assert 54 not in client.deleted

@@ -21,7 +21,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.4.0"
+SERVER_VERSION = "3.4.1"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -46,7 +46,7 @@ class PersistentSession(StringSession):
 
 
 # «mute» / «unmute» — the whole message, any case
-MUTE = re.compile(r"^(un)?mute[.!\s]*$", re.IGNORECASE)
+MUTE = re.compile(r"^/?(un)?mute[.!\s]*$", re.IGNORECASE)
 
 class Engine:
     def __init__(self, store, ai=None, client_factory=TelegramClient, clock=time.time, voice=None):
