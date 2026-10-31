@@ -361,8 +361,12 @@ def counts(fetcher=fetch, clock=time.time):
     except (ValueError, KeyError, TypeError):
         players = None
     found = [("Excellent", players if isinstance(players, int) else None)]
+    every = {n.lower(): online for n, online, _ in rows(fetcher, clock) or []}  # one request for both servers
     for name, url in SITES:
-        text = page(url, fetcher, clock)
+        if name.lower() in every:
+            found.append((name, every[name.lower()]))
+            continue
+        text = page(url, fetcher, clock)  # the full list failed: ask for the server alone
         number = count(text, name) if text else None
         found.append((name, int(number) if number else None))
     return found

@@ -49,6 +49,13 @@ def test_report_lists_each_server():
     assert result == "Excellent - 99\nSpace - 840\nWednesday - 12"
 
 
+def test_report_takes_both_servers_from_the_full_list():
+    online._cache.clear()
+    page = ROWS_PAGE + "<div>24</div><div>Wednesday</div><div>279 / 1000</div><div>28%</div><div>Свободен</div><b>0</b>"
+    result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.ARZ_ALL: page}), clock=lambda: 1500.0)
+    assert result == "Excellent - 99\nSpace - 854\nWednesday - 279"
+
+
 def test_report_says_no_data_when_site_fails():
     online._cache.clear()
     def broken(url):
