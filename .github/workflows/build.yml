@@ -26,10 +26,15 @@ jobs:
             https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task
       - name: Test and build
         run: gradle testDebugUnitTest assembleDebug
-      - uses: actions/upload-artifact@v4
-        with:
-          name: GazeClick-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+      - name: Commit APK to the branch (direct download link)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk GazeClick.apk
+          git config user.name github-actions
+          git config user.email github-actions@users.noreply.github.com
+          git add -f GazeClick.apk
+          git commit -m "APK build ${{ github.run_number }} [skip ci]"
+          git push
       - name: Publish APK as a release
         if: github.ref == 'refs/heads/main'
         env:
