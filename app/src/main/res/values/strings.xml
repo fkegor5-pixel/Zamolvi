@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GazeClick</string>
+    <string name="a11y_description">Показывает курсор там, куда вы смотрите, и нажимает на экран по двойному морганию.</string>
+</resources>

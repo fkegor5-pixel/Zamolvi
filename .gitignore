@@ -1,0 +1,7 @@
+build/
+.gradle/
+.idea/
+local.properties
+*.iml
+# downloaded by CI, ~3 MB
+app/src/main/assets/face_landmarker.task
