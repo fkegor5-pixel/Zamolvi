@@ -42,18 +42,31 @@ def test_count_is_the_one_next_to_the_name():
     assert "var space" not in text
 
 
+PAGE_VC = "<div>Vice City</div><div>423 / 750</div>"
+
+
 def test_report_lists_each_server():
     online._cache.clear()
-    result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.SITES[0][1]: PAGE_SPACE, online.SITES[1][1]: PAGE_WED}),
+    result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.SITES[0][1]: PAGE_SPACE, online.SITES[1][1]: PAGE_WED,
+                                               online.SITES[2][1]: PAGE_VC}),
                            clock=lambda: 1000.0)
-    assert result == "Excellent - 99\nSpace - 840\nWednesday - 12"
+    assert result == "Excellent - 99\nSpace - 840\nWednesday - 12\nVice City - 423"
+
+
+def test_report_takes_both_servers_from_the_full_list():
+    online._cache.clear()
+    page = ROWS_PAGE + "<div>24</div><div>Wednesday</div><div>279 / 1000</div><div>28%</div><div>Свободен</div><b>0</b>"
+    page += "<div>16</div><div>Vice City</div><div>423 / 750</div><div>56%</div><div>Свободен</div><b>0</b>"
+    result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.ARZ_ALL: page}), clock=lambda: 1500.0)
+    assert result == "Excellent - 99\nSpace - 854\nWednesday - 279\nVice City - 423"
 
 
 def test_report_says_no_data_when_site_fails():
     online._cache.clear()
     def broken(url):
         raise OSError("timeout")
-    assert online.report(fetcher=broken, clock=lambda: 2000.0) == "Excellent - нет данных\nSpace - нет данных\nWednesday - нет данных"
+    assert online.report(fetcher=broken, clock=lambda: 2000.0) == ("Excellent - нет данных\nSpace - нет данных\nWednesday - нет данных\n"
+                                                                   "Vice City - нет данных")
 
 
 def test_context_empty_without_space_question_and_no_fetch():
