@@ -35,6 +35,7 @@ def initial():
         "style": "",
         "commands": [],
         "muted": [],
+        "watch": [],
     }
 
 
@@ -65,7 +66,7 @@ class Store:
                 s['ai'].setdefault('formatting', 'auto')
                 fresh = initial()
                 for key in ('behavior', 'voice', 'voice_pause_until', 'transcripts', 'stats', 'message_archive',
-                            'memory', 'media', 'approval', 'pricing', 'style', 'commands', 'muted'):
+                            'memory', 'media', 'approval', 'pricing', 'style', 'commands', 'muted', 'watch'):
                     s.setdefault(key, fresh[key])
                 for key in ('memory', 'media', 'approval'):
                     for field, value in fresh[key].items():
