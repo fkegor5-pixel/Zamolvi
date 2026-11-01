@@ -78,6 +78,9 @@ PGL_TEAM_COMMAND = re.compile(r"^(?:pgl|пгл)\s+(?!сетк|плей|play)([^\
 CREATE_BOT_COMMAND = re.compile(r"^(?:бот\s+)?создать\s+бота[.!?\s]*$", re.IGNORECASE)  # in «Избранное» only
 GRAPH_COMMAND = re.compile(r"^онлайн\s+график[.!?\s]*$", re.IGNORECASE)
 STEAM_GAMES_COMMAND = re.compile(r"^(?:стим|steam)\s+игры[.!?\s]*$", re.IGNORECASE)
+WATCH = re.compile(r"^жди\s+(.{2,40}?)[.!?\s]*$", re.IGNORECASE)  # «жди space»: the owner hears when it starts
+WATCH_SECONDS = 60      # how often a watched server is checked
+MAX_WATCHES = 5
 SAMPLE_SECONDS = 300    # «онлайн график»: one count of every server per 5 minutes
 SAMPLE_KEEP = 26 * 3600
 # «стим игры»: recent posts of public channels, summed up by the model of the server
@@ -177,7 +180,8 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "рандом — число от 1 до 100\n"
         "<code>погода Москва</code>\n"
         "<code>напомни через 30 минут позвонить</code>\n"
-        "<code>напомни в 18:30 позвонить</code>")
+        "<code>напомни в 18:30 позвонить</code>\n"
+        "<code>жди Space</code> — сообщу, когда на сервере появится онлайн")
 COMMAND_WORDS = sorted(set(SLASH.values()))  # monospace in the answers, see formatting.with_links
 COUNT = re.compile(r"(\d[\d ]*)\s*/\s*\d+")
 TAGS = re.compile(r"<(script|style)\b.*?</\1>|<[^>]+>", re.IGNORECASE | re.DOTALL)
@@ -246,6 +250,8 @@ def allowed(chat, now):
 def answer(text, fetcher=None, clock=time.time, rng=None):
     """The fixed answer to a command (reminders are handled by the engine, see reminder())."""
     text, fetcher, rng = (text or "").strip(), fetcher or fetch, rng or _rng
+    if WATCH.match(text):  # the engine handles it for the owner
+        return "Эта команда только для владельца."
     if DEMOB_COMMAND.match(text):
         return demob(clock)
     if HELP_COMMAND.match(text):
@@ -380,6 +386,20 @@ def report(fetcher=fetch, clock=time.time):
     return "\n".join(f"{name} - {'нет данных' if n is None else n}" for name, n in counts(fetcher, clock))
 
 
+def watch_target(text):
+    """The server of «жди <сервер>», or None."""
+    m = WATCH.match((text or "").strip()) if enabled() else None
+    return m.group(1).strip() if m else None
+
+
+def players(server, fetcher=fetch, clock=time.time):
+    """(name as the site writes it, players) of one server; None when it is not listed or the site is down."""
+    if server.lower() == "excellent":
+        found = counts(fetcher, clock)[0][1]
+        return None if found is None else ("Excellent", found)
+    return next(((n, p) for n, p, _ in rows(fetcher, clock) or [] if n.lower() == server.lower()), None)
+
+
 def keep_sample(samples, now, found):
     """Adds [time, players...] for «онлайн график» and drops the ones older than SAMPLE_KEEP."""
     samples.append([now] + [n for _, n in found])
@@ -457,7 +477,7 @@ def demob(clock=time.time):
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
                 RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, FLAG_COMMAND, NEWS_COMMAND, MONEY_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
                 INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, PGL_GRID_COMMAND, PGL_PLAYOFF_COMMAND, PGL_TEAM_COMMAND,
-                GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT)
+                GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT, WATCH)
 
 
 def steam_key(key=None):

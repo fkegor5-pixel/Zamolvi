@@ -77,6 +77,7 @@ class Engine:
         self.memory_next = 0
         self.drafts_checked_at = 0
         self.online_sampled_at = 0
+        self.watch_checked_at = 0
         self.bot = OwnBot(self)  # the owner's own Telegram bot (owner's server only)
         self.digests = {}  # kind -> (time, answer) of «стим игры»
         self.draft_notice_at = {}
@@ -1079,6 +1080,7 @@ class Engine:
                         self.log(f'Черновиков без ответа удалено по сроку: {expired}.')
             await self.send_reminders()
             await self.sample_online()
+            await self.check_watches()
             await self.process_memory()
             await self.bot.tick()  # last: a failure here must not hold back the work above
         except asyncio.CancelledError:
@@ -1099,6 +1101,48 @@ class Engine:
         if not self.store.update(edit):
             return f'Не больше {online.MAX_REMINDERS} напоминаний в одном чате.'
         return 'Напомню ' + online.when(due) + '.'
+
+    async def add_watch(self, server):
+        """«жди <сервер>»: the owner gets a message once the server has players; the answer to the command."""
+        found = await asyncio.to_thread(online.players, server)
+        if found and found[1] > 0:
+            return f'На {found[0]} уже {found[1]} игроков.'
+        def edit(s):
+            rest = [w for w in s['watch'] if w['server'].lower() != server.lower()]
+            if len(rest) >= online.MAX_WATCHES:
+                return False
+            s['watch'] = rest + [{'server': found[0] if found else server, 'since': self.clock()}]
+            return True
+        if not self.store.update(edit):
+            return f'Не больше {online.MAX_WATCHES} серверов одновременно.'
+        where = 'в бот' if self.bot.client else 'в «Избранное»'
+        return (f'Слежу за {found[0] if found else server}: проверяю раз в минуту и напишу {where}, '
+                'как только появится онлайн.')
+
+    async def check_watches(self):
+        """Every minute: a watched server with players → one message to the owner, then the watch ends."""
+        watches = self.store.read().get('watch', [])
+        if not watches or self.clock() < self.watch_checked_at or not self.authorized or not self.client:
+            return
+        self.watch_checked_at = self.clock() + online.WATCH_SECONDS
+        for w in watches:
+            found = await asyncio.to_thread(online.players, w['server'])
+            if not found or found[1] <= 0:
+                continue
+            note = f'🟢 {found[0]} запустили! Онлайн: {found[1]} игроков.'
+            # the own bot first: a message in «Избранное» from yourself makes no sound
+            sent = bool(self.bot.owner_id) and await self.bot.safe_send(self.bot.owner_id, note)
+            if not sent:
+                try:
+                    async with self.telegram_lock:
+                        await self.client(functions.messages.SendMessageRequest(
+                            peer=types.InputPeerSelf(), message=PREFIX + note, random_id=secrets.randbits(63),
+                            no_webpage=True))
+                except (errors.RPCError, OSError, asyncio.TimeoutError) as exc:
+                    self.log('Сообщение о сервере не отправлено: ' + type(exc).__name__)
+                    continue  # try again next minute
+            self.log(note)
+            self.store.update(lambda s: s.update(watch=[x for x in s['watch'] if x['server'] != w['server']]))
 
     async def sample_online(self):
         """Counts the online of the servers every few minutes for «онлайн график» (owner's server only)."""
@@ -1188,7 +1232,9 @@ class Engine:
         plan = online.reminder(text, self.clock())
         kind = online.digest_kind(text)
         try:
-            if kind:
+            if online.watch_target(text):
+                answer = await self.add_watch(online.watch_target(text))
+            elif kind:
                 answer = await self.digest(chat, kind)
             else:
                 answer = (self.add_reminder(chat, *plan, owner=True) if plan

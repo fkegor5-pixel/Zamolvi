@@ -382,6 +382,9 @@ class OwnBot:
             elif online.digest_kind(body):
                 new.append(await self.client.send_message(chat, "⏳ Читаю каналы, это займёт до минуты…"))
                 answer = await e.digest(str(chat), online.digest_kind(body))
+            elif online.watch_target(body):
+                answer = (await e.add_watch(online.watch_target(body)) if chat == self.owner_id
+                          else "Эта команда только для владельца бота.")
             elif online.reminder(body, e.clock()):
                 answer = e.add_reminder(str(chat), *online.reminder(body, e.clock()), owner=True, bot=True)
             else:

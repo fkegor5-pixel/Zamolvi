@@ -1113,3 +1113,32 @@ async def test_mute_deletes_the_contacts_new_messages_for_both_until_unmute(env)
     assert 54 not in client.deleted
     await env.engine.on_message(owner_message(env, 55, 456, "mute это слово в предложении"))
     assert env.store.read()["muted"] == []  # only the whole message is the command
+
+
+@pytest.mark.asyncio
+async def test_owner_waits_for_a_server_and_hears_once_it_starts(env):
+    from replyai import online
+    restore = owner_commands_on()
+    real = online.players
+    count = [0]
+    online.players = lambda server, *a, **k: ("Space", count[0]) if server.lower() == "space" else None
+    try:
+        setup_chats(env)
+        sent = env.engine.client.sent
+        await env.engine.on_message(owner_message(env, 60, 777, "жди space"))
+        assert "Слежу за Space" in sent[-1].message and env.store.read()["watch"][0]["server"] == "Space"
+        before = len(sent)
+        await env.engine.check_watches()
+        assert len(sent) == before  # still 0 players: nothing
+        count[0] = 12
+        await env.engine.check_watches()
+        assert len(sent) == before  # checked once a minute only
+        env.clock[0] += online.WATCH_SECONDS
+        await env.engine.check_watches()
+        assert "Space запустили" in sent[-1].message and "12" in sent[-1].message
+        assert isinstance(sent[-1].peer, types.InputPeerSelf) and env.store.read()["watch"] == []
+        await env.engine.on_message(owner_message(env, 61, 777, "жди space"))
+        assert "уже 12 игроков" in sent[-1].message and env.store.read()["watch"] == []
+    finally:
+        online.players = real
+        restore()
