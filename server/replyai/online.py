@@ -15,7 +15,8 @@ from datetime import datetime, timedelta, timezone
 
 EXCELLENT = "https://exsellentrp.com/api/server/status"  # JSON with "players"
 SITES = (("Space", "https://arzdata.com/online?q=Space"),
-         ("Wednesday", "https://arzdata.com/online?q=Wednesday"))
+         ("Wednesday", "https://arzdata.com/online?q=Wednesday"),
+         ("Vice City", "https://arzdata.com/online?q=Vice%20City"))
 TIMEOUT = 10
 CACHE_SECONDS = 60
 MAX_BYTES = 8_000_000  # the cybersport.ru tournament page is about 4 MB
@@ -151,7 +152,7 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "Нажмите на команду — она скопируется, останется вставить и отправить. "
         "Можно писать с «бот» или без.\n\n"
         "🎮 <b>Arizona RP</b>\n"
-        "онлайн — Excellent, Space, Wednesday\n"
+        "онлайн — Excellent, Space, Wednesday, Vice City\n"
         "топ онлайн — 5 самых заполненных серверов\n"
         "онлайн график — график онлайна за сутки\n"
         "<code>онлайн Phoenix</code> — онлайн сервера\n\n"
@@ -354,14 +355,16 @@ def get_json(url, fetcher=fetch, clock=time.time, ttl=CACHE_SECONDS):
 
 
 def counts(fetcher=fetch, clock=time.time):
-    """[(server, players or None)] for Excellent, Space and Wednesday."""
+    """[(server, players or None)] for Excellent, Space, Wednesday and Vice City."""
     data = page(EXCELLENT, fetcher, clock)
     try:
         players = json.loads(data)["players"] if data else None
     except (ValueError, KeyError, TypeError):
         players = None
     found = [("Excellent", players if isinstance(players, int) else None)]
-    every = {n.lower(): online for n, online, _ in rows(fetcher, clock) or []}  # one request for both servers
+    every = {}
+    for n, online, _ in rows(fetcher, clock) or []:  # one request for all servers
+        every.setdefault(n.lower(), online)  # Arizona RP comes first on the page: a same-named server later loses
     for name, url in SITES:
         if name.lower() in every:
             found.append((name, every[name.lower()]))
