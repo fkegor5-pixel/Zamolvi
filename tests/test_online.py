@@ -58,7 +58,7 @@ def test_report_takes_both_servers_from_the_full_list():
     page = ROWS_PAGE + "<div>24</div><div>Wednesday</div><div>279 / 1000</div><div>28%</div><div>Свободен</div><b>0</b>"
     page += "<div>16</div><div>Vice City</div><div>423 / 750</div><div>56%</div><div>Свободен</div><b>0</b>"
     result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.ARZ_ALL: page}), clock=lambda: 1500.0)
-    assert result == "Excellent - 99\nSpace - 854\nWednesday - 279\nVice City - 423"
+    assert result == "Excellent - 99\nSpace - 854, очередь 3\nWednesday - 279, очередь 0\nVice City - 423, очередь 0"
 
 
 def test_report_says_no_data_when_site_fails():
@@ -215,11 +215,12 @@ def test_help_lists_the_commands():
 def test_server_by_name_and_top_from_the_full_list():
     online._cache.clear()
     get = fake({online.ARZ_ALL: ROWS_PAGE})
-    assert online.answer("онлайн space", fetcher=get, clock=lambda: 100.0) == "Space - 854 / 1000"
-    assert online.answer("онлайн Saint-Rose", fetcher=get, clock=lambda: 100.0) == "Saint-Rose - 180 / 1000"
+    assert online.answer("онлайн space", fetcher=get, clock=lambda: 100.0) == "Space - 854 / 1000, очередь 3"
+    assert online.answer("онлайн Saint-Rose", fetcher=get, clock=lambda: 100.0) == "Saint-Rose - 180 / 1000, очередь 0"
     assert "не найден" in online.answer("онлайн Нигде", fetcher=get, clock=lambda: 100.0)
     assert online.answer("топ онлайн", fetcher=get, clock=lambda: 100.0).splitlines() == [
-        "1. Space - 854 / 1000", "2. Vice City - 423 / 750", "3. Phoenix - 331 / 1000", "4. Saint-Rose - 180 / 1000"]
+        "1. Space - 854 / 1000, очередь 3", "2. Vice City - 423 / 750, очередь 0", "3. Phoenix - 331 / 1000, очередь 0",
+        "4. Saint-Rose - 180 / 1000, очередь 0"]
 
 
 def test_who_is_in_game():

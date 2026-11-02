@@ -123,7 +123,7 @@ AI_SWITCH = re.compile(r"^/ai[-_ ]?(on|off)[.!\s]*$", re.IGNORECASE)
 ARZ_ALL = "https://arzdata.com/online"
 # a row of the full list as plain text: «1 Phoenix 331 / 1000 33% Свободен 0» (number, name, online, status, queue)
 # shortcut: server names with digits are not matched; switch to the HTML table if such servers appear
-ROW = re.compile(r"(?<!\d)(\d{1,3}) ([^\d/%]{2,40}?) (\d+) / (\d+) \d+% [А-Яа-яЁё]+ \d+")
+ROW = re.compile(r"(?<!\d)(\d{1,3}) ([^\d/%]{2,40}?) (\d+) / (\d+) \d+% [А-Яа-яЁё]+ (\d+)")  # … status queue
 CBR = "https://www.cbr-xml-daily.ru/daily_json.js"
 GEO = "https://geocoding-api.open-meteo.com/v1/search?count=1&language=ru&format=json&name="
 FORECAST = ("https://api.open-meteo.com/v1/forecast?current=temperature_2m,apparent_temperature,weather_code,"
@@ -369,7 +369,7 @@ def counts(fetcher=fetch, clock=time.time):
         players = None
     found = [("Excellent", players if isinstance(players, int) else None)]
     every = {}
-    for n, online, _ in rows(fetcher, clock) or []:  # one request for all servers
+    for n, online, _, _ in rows(fetcher, clock) or []:  # one request for all servers
         every.setdefault(n.lower(), online)  # Arizona RP comes first on the page: a same-named server later loses
     for name, url in SITES:
         if name.lower() in every:
@@ -382,8 +382,13 @@ def counts(fetcher=fetch, clock=time.time):
 
 
 def report(fetcher=fetch, clock=time.time):
-    """The answer to «онлайн»: one line per server."""
-    return "\n".join(f"{name} - {'нет данных' if n is None else n}" for name, n in counts(fetcher, clock))
+    """The answer to «онлайн»: one line per server, with the queue arzdata shows (Excellent has none)."""
+    found = counts(fetcher, clock)
+    queue = {}
+    for name, _, _, q in rows(fetcher, clock) or []:  # the same cached page counts() just read
+        queue.setdefault(name.lower(), q)
+    return "\n".join(f"{name} - {'нет данных' if n is None else str(n) + queue_note(queue.get(name.lower()))}"
+                     for name, n in found)
 
 
 def watch_target(text):
@@ -397,7 +402,7 @@ def players(server, fetcher=fetch, clock=time.time):
     if server.lower() == "excellent":
         found = counts(fetcher, clock)[0][1]
         return None if found is None else ("Excellent", found)
-    return next(((n, p) for n, p, _ in rows(fetcher, clock) or [] if n.lower() == server.lower()), None)
+    return next(((n, p) for n, p, _, _ in rows(fetcher, clock) or [] if n.lower() == server.lower()), None)
 
 
 def keep_sample(samples, now, found):
@@ -518,11 +523,15 @@ def in_game(fetcher=fetch, clock=time.time, key=None):
 
 
 def rows(fetcher=fetch, clock=time.time):
-    """(name, online, slots) of every server on arzdata.com; None when the site cannot be read."""
+    """(name, online, slots, queue) of every server on arzdata.com; None when the site cannot be read."""
     text = page(ARZ_ALL, fetcher, clock)
     if text is None:
         return None
-    return [(m.group(2).strip(), int(m.group(3)), int(m.group(4))) for m in ROW.finditer(text)]
+    return [(m.group(2).strip(), int(m.group(3)), int(m.group(4)), int(m.group(5))) for m in ROW.finditer(text)]
+
+
+def queue_note(q):
+    return "" if q is None else f", очередь {q}"
 
 
 def top_online(fetcher=fetch, clock=time.time):
@@ -530,7 +539,7 @@ def top_online(fetcher=fetch, clock=time.time):
     if not found:
         return "Онлайн серверов сейчас недоступен."
     best = sorted(found, key=lambda r: -r[1])[:5]
-    return "\n".join(f"{i}. {name} - {online} / {slots}" for i, (name, online, slots) in enumerate(best, 1))
+    return "\n".join(f"{i}. {name} - {online} / {slots}{queue_note(q)}" for i, (name, online, slots, q) in enumerate(best, 1))
 
 
 def server_online(name, fetcher=fetch, clock=time.time):
@@ -540,7 +549,7 @@ def server_online(name, fetcher=fetch, clock=time.time):
     same = [r for r in found if r[0].casefold() == name.strip().casefold()]
     if not same:
         return f"Сервер «{name.strip()}» не найден на arzdata.com."
-    return "\n".join(f"{n} - {online} / {slots}" for n, online, slots in same)
+    return "\n".join(f"{n} - {online} / {slots}{queue_note(q)}" for n, online, slots, q in same)
 
 
 def rates(fetcher=fetch, clock=time.time):
