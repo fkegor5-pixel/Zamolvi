@@ -119,10 +119,12 @@ REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,15})\s*(минут
 REMIND_AT = re.compile(r"^напомни\s+в\s+(\d{1,2})[:.](\d{2})\s+(.{1,200}?)\s*$", re.IGNORECASE | re.DOTALL)
 OWNER_SWITCH = re.compile(r"^бот\s+(вкл|выкл)\w*[.!\s]*$", re.IGNORECASE)
 AI_SWITCH = re.compile(r"^/ai[-_ ]?(on|off)[.!\s]*$", re.IGNORECASE)
-ARZ_ALL = "https://arzdata.com/online"
-# a row of the full list as plain text: «1 Phoenix 331 / 1000 33% Свободен 0» (number, name, online, status, queue)
+# JSON of every server: name, online, maxPlayers, queue, status, category («arizona» first in the answers)
+DODGER = "https://dodger-wiki.com/api/servers"
+ARZ_ALL = "https://arzdata.com/online"  # the fallback: no queue there
+# a row of the full list as plain text: «1 Phoenix 331 / 1000 33% Свободен 0» (number, name, online, status)
 # shortcut: server names with digits are not matched; switch to the HTML table if such servers appear
-ROW = re.compile(r"(?<!\d)(\d{1,3}) ([^\d/%]{2,40}?) (\d+) / (\d+) \d+% [А-Яа-яЁё]+ (\d+)")  # … status queue
+ROW = re.compile(r"(?<!\d)(\d{1,3}) ([^\d/%]{2,40}?) (\d+) / (\d+) \d+% [А-Яа-яЁё]+ \d+")
 CBR = "https://www.cbr-xml-daily.ru/daily_json.js"
 GEO = "https://geocoding-api.open-meteo.com/v1/search?count=1&language=ru&format=json&name="
 FORECAST = ("https://api.open-meteo.com/v1/forecast?current=temperature_2m,apparent_temperature,weather_code,"
@@ -521,11 +523,21 @@ def in_game(fetcher=fetch, clock=time.time, key=None):
 
 
 def rows(fetcher=fetch, clock=time.time):
-    """(name, online, slots, queue) of every server on arzdata.com; None when the site cannot be read."""
+    """(name, online, slots, queue or None) of every server: dodger-wiki.com, arzdata.com when it fails;
+    None when neither can be read."""
+    data = get_json(DODGER, fetcher, clock)
+    found = []
+    for s in data if isinstance(data, list) else []:
+        if isinstance(s, dict) and s.get("name") and isinstance(s.get("online"), int):
+            online = s["online"] if s.get("status", "online") == "online" else 0  # a server that is down has nobody
+            queue = s.get("queue") if isinstance(s.get("queue"), int) else None
+            found.append((s.get("category") != "arizona", s["name"].strip(), online, s.get("maxPlayers") or 0, queue))
+    if found:
+        return [r[1:] for r in sorted(found, key=lambda r: r[0])]  # Arizona first: it wins a same-named server
     text = page(ARZ_ALL, fetcher, clock)
     if text is None:
         return None
-    return [(m.group(2).strip(), int(m.group(3)), int(m.group(4)), int(m.group(5))) for m in ROW.finditer(text)]
+    return [(m.group(2).strip(), int(m.group(3)), int(m.group(4)), None) for m in ROW.finditer(text)]
 
 
 def queue_note(q):
