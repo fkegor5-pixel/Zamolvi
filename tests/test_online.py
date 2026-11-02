@@ -55,10 +55,21 @@ def test_report_lists_each_server():
 
 def test_report_takes_both_servers_from_the_full_list():
     online._cache.clear()
+    servers = json.dumps([
+        {"name": "Space", "online": 999, "maxPlayers": 1000, "queue": 182, "status": "online", "category": "arizona"},
+        {"name": "Wednesday", "online": 279, "maxPlayers": 1000, "queue": 0, "status": "online", "category": "arizona"},
+        {"name": "Vice City", "online": 423, "maxPlayers": 750, "queue": 0, "status": "online", "category": "vice-city"},
+        {"name": "Space", "online": 5, "maxPlayers": 100, "queue": 0, "status": "online", "category": "mobile"}])
+    result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.DODGER: servers}), clock=lambda: 1500.0)
+    assert result == "Excellent - 99\nSpace - 999, очередь 182\nWednesday - 279, очередь 0\nVice City - 423, очередь 0"
+    online._cache.clear()
+    down = servers.replace('"online": 279, "maxPlayers": 1000, "queue": 0, "status": "online"',
+                           '"online": 279, "maxPlayers": 1000, "queue": 0, "status": "offline"')
+    assert online.players("wednesday", fetcher=fake({online.DODGER: down}), clock=lambda: 1600.0) == ("Wednesday", 0)
+    online._cache.clear()
     page = ROWS_PAGE + "<div>24</div><div>Wednesday</div><div>279 / 1000</div><div>28%</div><div>Свободен</div><b>0</b>"
-    page += "<div>16</div><div>Vice City</div><div>423 / 750</div><div>56%</div><div>Свободен</div><b>0</b>"
-    result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.ARZ_ALL: page}), clock=lambda: 1500.0)
-    assert result == "Excellent - 99\nSpace - 854, очередь 3\nWednesday - 279, очередь 0\nVice City - 423, очередь 0"
+    result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.ARZ_ALL: page}), clock=lambda: 1700.0)
+    assert result == "Excellent - 99\nSpace - 854\nWednesday - 279\nVice City - 423"  # arzdata: no queue
 
 
 def test_report_says_no_data_when_site_fails():
@@ -215,12 +226,11 @@ def test_help_lists_the_commands():
 def test_server_by_name_and_top_from_the_full_list():
     online._cache.clear()
     get = fake({online.ARZ_ALL: ROWS_PAGE})
-    assert online.answer("онлайн space", fetcher=get, clock=lambda: 100.0) == "Space - 854 / 1000, очередь 3"
-    assert online.answer("онлайн Saint-Rose", fetcher=get, clock=lambda: 100.0) == "Saint-Rose - 180 / 1000, очередь 0"
+    assert online.answer("онлайн space", fetcher=get, clock=lambda: 100.0) == "Space - 854 / 1000"
+    assert online.answer("онлайн Saint-Rose", fetcher=get, clock=lambda: 100.0) == "Saint-Rose - 180 / 1000"
     assert "не найден" in online.answer("онлайн Нигде", fetcher=get, clock=lambda: 100.0)
     assert online.answer("топ онлайн", fetcher=get, clock=lambda: 100.0).splitlines() == [
-        "1. Space - 854 / 1000, очередь 3", "2. Vice City - 423 / 750, очередь 0", "3. Phoenix - 331 / 1000, очередь 0",
-        "4. Saint-Rose - 180 / 1000, очередь 0"]
+        "1. Space - 854 / 1000", "2. Vice City - 423 / 750", "3. Phoenix - 331 / 1000", "4. Saint-Rose - 180 / 1000"]
 
 
 def test_who_is_in_game():
