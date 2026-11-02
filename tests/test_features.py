@@ -1035,10 +1035,10 @@ async def test_grid_command_is_answered_with_a_picture(env):
     try:
         setup_chats(env)
         env.engine.client.send_file = AsyncMock()
-        await env.engine.on_message(owner_message(env, 60, 777, "pgl сетка"))
+        await env.engine.on_message(owner_message(env, 60, 777, "турик кс2 IEM сетка"))
         args, kwargs = env.engine.client.send_file.call_args
         assert args[1].getvalue() == b"\x89PNG fake" and kwargs["reply_to"] == 60
-        await reply(env, 61, text="pgl сетка")  # a contact asks: also a picture, not a text
+        await reply(env, 61, text="турик кс2 IEM сетка")  # a contact asks: also a picture, not a text
         assert env.engine.client.send_file.call_count == 2
     finally:
         online.image = original

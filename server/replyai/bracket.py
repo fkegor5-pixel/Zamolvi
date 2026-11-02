@@ -1,4 +1,4 @@
-"""Swiss-stage grid of a CS2 tournament drawn as a PNG (team names, no logos).
+"""Tournament pictures as PNG (team names, no logos): a Swiss-stage grid, a play-off bracket, matches by day.
 
 The column of a match is the record both teams had before it: in a Swiss stage only teams with the same
 record meet, so it is computed from the results in time order. Three wins advance, three losses eliminate.
@@ -18,7 +18,9 @@ COLUMNS = [  # top to bottom; a tuple of two ints is a pool of matches, a string
 ]
 ZONE_SIZE = {"3:0": 2, "3:1": 3, "3:2": 3, "0:3": 2, "1:3": 3, "2:3": 3}
 BG, CARD, TEXT, MUTED, WIN = (30, 36, 48), (44, 52, 68), (235, 238, 245), (120, 128, 145), (255, 255, 255)
-GREEN, RED, LINE = (22, 120, 40), (130, 22, 22), (70, 80, 100)
+GREEN, RED, LINE, LIVE = (22, 120, 40), (130, 22, 22), (70, 80, 100), (239, 68, 68)
+WEEKDAYS = ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+MAX_DAYS, MAX_ROWS = 5, 10  # matches by day: columns around today, matches per column
 BOX_W, BOX_H, GAP, COL_W, LABEL_H, TOP = 230, 58, 10, 262, 30, 92
 FONTS = ("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf")
 
@@ -45,6 +47,24 @@ def swiss(matches):
         if w == 3 or l == 3:
             zones[f"{w}:{l}"].append(team)
     return pools, zones
+
+
+def is_swiss(matches):
+    """True for a 16-team Swiss stage (then its play-off): every match is between teams with the same record."""
+    if len({t for m in matches for t in (m["team1"], m["team2"])}) != 16:
+        return False
+    record = defaultdict(lambda: (0, 0))
+    for m in matches:
+        a, b = m["team1"], m["team2"]
+        if record[a][0] == 3 and record[b][0] == 3:
+            continue  # play-off
+        if record[a] != record[b] or 3 in record[a]:
+            return False
+        if m.get("done") and m.get("score1") != m.get("score2"):
+            winner, loser = (a, b) if m["score1"] > m["score2"] else (b, a)
+            record[winner] = (record[winner][0] + 1, record[winner][1])
+            record[loser] = (record[loser][0], record[loser][1] + 1)
+    return True
 
 
 def _font(size, bold=False):
@@ -126,8 +146,8 @@ def _match_box(draw, x, y, m):
                    and score == max(m.get("score1") or 0, m.get("score2") or 0) and m["score1"] != m["score2"])
         color = WIN if won or not (m and m.get("done")) else MUTED
         draw.text((x + 10, ty), _fit(draw, team, _font(17, won), BOX_W - 50), font=_font(17, won), fill=color)
-        if m and m.get("done"):
-            draw.text((x + BOX_W - 12, ty), str(score), font=_font(17, won), fill=color, anchor="ra")
+        if m and (m.get("done") or m.get("status") == "current"):  # a live match shows its series score
+            draw.text((x + BOX_W - 12, ty), str(score or 0), font=_font(17, won), fill=color, anchor="ra")
 
 
 def playoff(matches):
@@ -212,4 +232,39 @@ def render_playoff(games, title, subtitle=""):
                     draw.line((mid, py, mid, int(y) + BOX_H // 2), fill=LINE, width=2)
                     draw.line((mid, int(y) + BOX_H // 2, x, int(y) + BOX_H // 2), fill=LINE, width=2)
         centers, first = now, first + count
+    return _png(image)
+
+
+def render_days(matches, title, subtitle, today):
+    """PNG bytes of the matches by day (m["when"]: a datetime or None), up to MAX_DAYS columns around today."""
+    from PIL import Image, ImageDraw
+    days = sorted({m["when"].date() for m in matches if m.get("when")})
+    now = next((i for i, d in enumerate(days) if d >= today.date()), max(len(days) - 1, 0))
+    start = max(0, min(now - 2, len(days) - MAX_DAYS))
+    days = days[start:start + MAX_DAYS]
+    columns = [sorted((m for m in matches if m.get("when") and m["when"].date() == d), key=lambda m: m["when"])
+               for d in days]
+    step = BOX_H + 30
+    rows = min(max([len(c) for c in columns] or [1]), MAX_ROWS)
+    width = max(40 + COL_W * len(days), 700)
+    height = TOP + LABEL_H + rows * step + 50
+    image = Image.new("RGB", (width, height), BG)
+    draw = ImageDraw.Draw(image)
+    draw.text((20, 18), _fit(draw, title, _font(30, True), width - 40), font=_font(30, True), fill=TEXT)
+    draw.text((20, 56), subtitle, font=_font(15), fill=MUTED)
+    for c, (day, column) in enumerate(zip(days, columns)):
+        x = 20 + c * COL_W
+        draw.text((x, TOP), f"{WEEKDAYS[day.weekday()]} {day:%d.%m}" + (" · сегодня" if day == today.date() else ""),
+                  font=_font(20, True), fill=TEXT if day == today.date() else MUTED)
+        y = TOP + LABEL_H + 10
+        for m in column[:MAX_ROWS]:
+            live = m.get("status") == "current"
+            draw.text((x, y), "● LIVE" if live else f"{m['when']:%H:%M}", font=_font(15, live),
+                      fill=LIVE if live else MUTED)
+            _match_box(draw, x, y + 22, m)
+            y += step
+        if len(column) > MAX_ROWS:
+            draw.text((x, y), f"+ ещё {len(column) - MAX_ROWS}", font=_font(15), fill=MUTED)
+    if not days:
+        draw.text((20, TOP), "У матчей нет дат", font=_font(20, True), fill=MUTED)
     return _png(image)

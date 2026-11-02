@@ -21,7 +21,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.4.3"
+SERVER_VERSION = "3.5.0"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -1255,7 +1255,7 @@ class Engine:
             async with self.telegram_lock:
                 if isinstance(result, bytes):
                     picture = io.BytesIO(result)
-                    picture.name = 'pgl.png'
+                    picture.name = 'picture.png'
                     await self.client.send_file(peer, picture, caption=PREFIX + online.caption(text),
                                                 reply_to=reply_to)
                 else:

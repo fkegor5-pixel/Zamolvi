@@ -198,7 +198,7 @@ ROWS_PAGE = ("<h2>Arizona RP</h2> Arizona (Staging) 0 / 2000 0% · очеред�
 
 def test_help_lists_the_commands():
     assert "\nонлайн — " in online.answer("команды") and online.answer("Помощь") == online.HELP
-    assert online.addressed("/pgl_grid") == "pgl сетка" and online.addressed("/Online@x") == "онлайн"
+    assert online.addressed("/turik") == "турик" and online.addressed("/Online@x") == "онлайн"
     for word in online.COMMAND_WORDS:
         assert online.is_command(word), word
     from replyai.formatting import render, with_links
@@ -364,73 +364,6 @@ def test_levels_from_the_official_steam_api_and_removed_commands():
 
 
 
-def block(when, one, two, score, link):
-    middle = (f"<span>{score[0]}</span><span>:</span><span>{score[1]}</span>" if score else "<span>vs</span>")
-    return (f"<div><span>{when}</span><div><span>{one}</span></div><div><span>{two}</span></div>{middle}"
-            f'<div class="x"><span>Перейти на матч</span></div><a href="{link}"></a><span>1.13</span><span>Групповой этап</span></div>')
-
-
-PGL_PAGE = ("<html><script>var x='Перейти на матч';</script><a href=\"/matches\">Матчи</a>"
-            + block("Сегодня в 10:00", "FUT Esports", "TYLOO", ("2", "0"), "/matches/cs2/1")
-            + block("LIVE", "MOUZ", "Liquid", ("1", "1"), "/matches/cs2/2")
-            + block("Сегодня в 16:00", "Vitality", "9z Team", None, "/matches/cs2/3")
-            + block("Завтра в 13:00", "G2", "NAVI", None, "/matches/cs2/4") + "</html>")
-MATCH_PAGE = ("<div>MOUZ</div><div>Team Liquid</div><div>BEST-OF-3</div><b>1</b><b>:</b><b>1</b><div>LIVE</div>"
-              "<h2>Статистика матча</h2>"
-              "<div>Ancient</div><div>MOUZ</div><div>Liquid</div><b>16</b><b>:</b><b>13</b>"
-              "<div>Inferno</div><div>MOUZ</div><div>Liquid</div><b>12</b><b>:</b><b>16</b>"
-              "<div>Mirage</div><div>MOUZ</div><div>Liquid</div><b>7</b><b>:</b><b>5</b>")
-
-
-def test_pgl_live_with_the_current_map_and_upcoming():
-    online._cache.clear()
-    pages = {online.PGL_URL: PGL_PAGE, online.CYBERSPORT + "/matches/cs2/2": MATCH_PAGE}
-    assert online.is_command("PGL") and online.is_command("пгл")
-    online._pgl_times.clear()
-    before = PGL_PAGE.replace(block("LIVE", "MOUZ", "Liquid", ("1", "1"), "/matches/cs2/2"),
-                              block("Сегодня в 13:00", "MOUZ", "Liquid", None, "/matches/cs2/2"))
-    online.answer("pgl", fetcher=fake({online.PGL_URL: before}), clock=lambda: 1000.0)  # still upcoming: time seen
-    assert online.answer("pgl", fetcher=fake(pages), clock=lambda: 1100.0) == (
-        "Источник: cybersport.ru\nОбновлено: 01.01.1970 03:18 (МСК)\n\n"
-        "Сыграно сегодня:\n10:00 FUT Esports 2-0 TYLOO\n\n"
-        "Онлайн:\n13:00 MOUZ 1-1 Liquid\nКарта 3/3: Mirage 7:5\n\n"
-        "Ожидаются игры:\n16:00 Vitality - 9z Team\nзавтра 13:00 G2 - NAVI")
-
-
-def test_pgl_match_started_early_is_live_not_upcoming():
-    online._cache.clear()
-    online._pgl_times.clear()
-    page = "<html>" + block("Сегодня в 16:00", "Vitality", "9z Team", None, "/matches/cs2/3") + "</html>"
-    bo3 = json.dumps({"results": [{"status": "current", "team1": {"name": "9z"}, "team2": {"name": "Team Vitality"},
-                                   "team1_score": 0, "team2_score": 1}]})
-    assert online.pgl_cybersport(fetcher=fake({online.PGL_URL: page, online.BO3_MATCHES: bo3}),
-                                 clock=lambda: 1400.0).split("\n\n")[2:] == [
-        "Онлайн:\nVitality 1-0 9z Team", "Ожидаются игры:\nнет"]
-
-
-def test_pgl_prefers_bo3_over_a_stale_cybersport_page():
-    online._cache.clear()
-    stale = "<html>" + block("Сегодня в 14:00", "The MongolZ", "Nemiga", None, "/matches/cs2/5") + "</html>"
-    bo3 = json.dumps({"results": [{"status": "finished", "team1": {"name": "The MongolZ"}, "team2": {"name": "Nemiga"},
-                                   "team1_score": 2, "team2_score": 0, "start_date": "1970-01-01T11:00:00Z"}]})
-    answer = online.answer("pgl", fetcher=fake({online.PGL_URL: stale, online.BO3_MATCHES: bo3}), clock=lambda: 50000.0)
-    assert answer.startswith("Источник: bo3.gg") and "The MongolZ 2-0 Nemiga" in answer and "Ожидаются игры:\nнет" in answer
-
-
-def test_pgl_without_live_or_site():
-    online._cache.clear()
-    quiet = "<html>" + block("Сегодня в 16:00", "Vitality", "9z Team", None, "/matches/cs2/3") + "</html>"
-    assert online.answer("pgl", fetcher=fake({online.PGL_URL: quiet}), clock=lambda: 1200.0) == (
-        "Источник: cybersport.ru\nОбновлено: 01.01.1970 03:20 (МСК)\n\n"
-        "Сыграно сегодня:\nпока ничего\n\nОнлайн:\nсейчас матчей нет\n\nОжидаются игры:\n16:00 Vitality - 9z Team")
-    assert online.answer("pgl", fetcher=fake({}), clock=lambda: 1250.0).splitlines()[1] == \
-        "Обновлено: 01.01.1970 03:20 (МСК)"  # from the cache: the time it was downloaded
-    online._cache.clear()
-    assert online.answer("pgl", fetcher=fake({}), clock=lambda: 1300.0) == \
-        "PGL: данные сейчас недоступны (cybersport.ru и bo3.gg не отвечают)."
-
-
-
 def test_swiss_grid_places_matches_by_record_and_draws_a_png():
     from replyai import bracket
     games = [("A", "B", 2, 0), ("C", "D", 2, 1), ("A", "C", 2, 1), ("B", "D", 0, 2), ("A", "D", 2, 0)]
@@ -439,16 +372,6 @@ def test_swiss_grid_places_matches_by_record_and_draws_a_png():
     pools, zones = bracket.swiss(matches)
     assert [len(pools[p]) for p in ((0, 0), (1, 0), (0, 1), (2, 0), (1, 1))] == [2, 1, 1, 1, 1]
     assert pools[(1, 1)][0]["team1"] == "C" and zones["3:0"] == ["A"]
-    online._cache.clear()
-    url = (f"{online.BO3_API}/matches?scope=widget-matches&page[offset]=0&page[limit]=100&sort=start_date"
-           f"&filter[matches.discipline_id][eq]=1&filter[matches.tournament_id][eq]={online.PGL_TOURNAMENT_ID}&with=teams")
-    body = json.dumps({"results": [
-        {"team1": {"name": "FUT"}, "team2": {"name": "TYLOO"}, "team1_score": 2, "team2_score": 0, "status": "finished"},
-        {"team1": None, "team2": {"name": "TBD"}, "status": "upcoming"}]})
-    assert online.is_image_command("pgl сетка") and online.is_command("ПГЛ сетка")
-    assert online.image("pgl сетка", fetcher=fake({url: body}), clock=lambda: NOW_GRID)[:8] == b"\x89PNG\r\n\x1a\n"
-    online._cache.clear()
-    assert "недоступны" in online.image("pgl сетка", fetcher=fake({}), clock=lambda: NOW_GRID)
 
 
 NOW_GRID = 1792833900.0
@@ -459,39 +382,151 @@ def bo3_row(one, two, a, b, status="finished", start="2026-10-24T10:40:00.000+00
             "start_date": start, "slug": slug, "bo_type": 3}
 
 
-def swiss_to_playoff():
-    """Eight teams reach three wins (two 3:0, three 3:1, three 3:2 are faked by direct wins)."""
+def real_swiss():
+    """A 16-team Swiss stage: equal records meet, the lower number wins; (rows, the 8 teams with three wins)."""
+    from collections import defaultdict
+    teams = [f"T{i}" for i in range(16)]
+    record = {t: (0, 0) for t in teams}
     rows = []
-    for team in "ABCDEFGH":
-        rows += [bo3_row(team, f"x{team}{i}", 1, 0) for i in range(3)]
-    return rows
+    for _ in range(5):
+        groups = defaultdict(list)
+        for t in teams:
+            if 3 not in record[t]:
+                groups[record[t]].append(t)
+        for group in groups.values():
+            for a, b in zip(group[::2], group[1::2]):
+                rows.append(bo3_row(a, b, 2, 0))
+                record[a], record[b] = (record[a][0] + 1, record[a][1]), (record[b][0], record[b][1] + 1)
+    return rows, [t for t in teams if record[t][0] == 3]
+
+
+TID = 5113
+CS_LIST = json.dumps({"results": [
+    {"id": 6216, "name": "Fiesta Series 3", "tier": "c", "tier_rank": 4, "prize": 1000},
+    {"id": TID, "name": "Intel Extreme Masters Beijing 2026", "slug": "intel-extreme-masters-beijing-2026",
+     "tier": "s", "tier_rank": 1, "prize": 1250000}]})
+D2_LIST = json.dumps({"results": [
+    {"id": 6200, "name": "EPL Masters III", "tier": "b", "tier_rank": 3, "prize": 5},
+    {"id": 6245, "name": "Esports Pro Circuit Season 3", "tier": "b", "tier_rank": 3, "prize": 10}]})
+
+
+def tourney_pages(rows=(), game="cs2", tid=TID, **extra):
+    pages = {online.TOURNEYS.format(game=1): CS_LIST, online.TOURNEYS.format(game=4): D2_LIST,
+             online.TOURNEY_MATCHES.format(game=online.GAMES[game][0], tid=tid): json.dumps({"results": list(rows)})}
+    pages.update(extra)
+    return pages
 
 
 def test_new_commands_are_recognised():
-    for text in ("pgl плей-офф", "ПГЛ playoff", "pgl vitality", "онлайн график", "стим игры"):
+    for text in ("турик", "Турики", "турик кс2 IEM", "турик д2 EPL Masters III сетка", "онлайн график", "стим игры"):
         assert online.is_command(text), text
-    assert online.is_image_command("pgl плейофф") and online.is_image_command("онлайн график")
-    assert not online.is_image_command("pgl vitality")
-    assert [online.digest_kind(t) for t in ("стим игры", "pgl")] == ["steam", None]
+    assert online.is_image_command("турик cs2 IEM сетка") and online.is_image_command("онлайн график")
+    assert not online.is_image_command("турик кс2 IEM") and not online.is_command("турик IEM")
+    assert not online.is_command("pgl")  # renamed
+    assert [online.digest_kind(t) for t in ("стим игры", "турик")] == ["steam", None]
     assert not online.is_command("куда вложить кс") and not online.is_command("куда вложить гта")
-    assert online.caption("онлайн график") == "Онлайн за сутки" and online.caption("pgl плей-офф").endswith("плей-офф")
+    assert online.caption("онлайн график") == "Онлайн за сутки"
+    assert online.caption('турик кс2 "IEM Beijing" сетка') == "IEM Beijing — сетка"
+    assert [online.game_of(w) for w in ("кс2", "CS", "д2", "dota", "Дота2")] == ["cs2", "cs2", "dota2", "dota2", "dota2"]
 
 
-def test_playoff_waits_then_draws():
+def test_turik_lists_current_tournaments_with_copyable_commands():
+    online._cache.clear()
+    now = online.datetime(2026, 11, 2, 17, 0, tzinfo=online.MSK).timestamp()
+    answer = online.answer("турик", fetcher=fake(tourney_pages()), clock=lambda: now)
+    assert answer.split("\n\n") == [
+        "🏆 На 02.11.2026 проводятся турниры по:\nCS2 — Intel Extreme Masters Beijing 2026\n"
+        "Dota2 — Esports Pro Circuit Season 3\nDota2 — EPL Masters III",  # no S/A tier: the best ones
+        "Подробнее о турнире (нажмите, чтобы скопировать):\n"
+        "CS2 — <code>турик кс2 Intel Extreme Masters Beijing 2026</code>\n"
+        "Dota2 — <code>турик д2 Esports Pro Circuit Season 3</code>\nDota2 — <code>турик д2 EPL Masters III</code>",
+        "Сетка — добавьте в конце «сетка»."]
+    online._cache.clear()
+    pages = tourney_pages()
+    pages.pop(online.TOURNEYS.format(game=4))
+    assert "Dota2 — bo3.gg сейчас не отвечает" in online.answer("турик", fetcher=fake(pages), clock=lambda: now)
+    assert online.addressed("/turik") == "турик"
+
+
+def test_turik_one_shows_the_matches_and_says_when_it_is_not_running():
+    online._cache.clear()
+    now = online.datetime(2026, 10, 27, 20, 30, tzinfo=online.MSK).timestamp()
+    rows = [bo3_row("G2", "DENDELE", 0, 0, "upcoming", "2026-10-27T17:00:00.000+00:00"),
+            bo3_row("Mongolz", "MOUZ", 0, 2, start="2026-10-27T08:00:00.000+00:00"),
+            bo3_row("Vitality", "FUT", 1, 1, "current", "2026-10-27T14:00:00.000+00:00", slug="v-f"),
+            bo3_row("A", "B", 2, 0, start="2026-10-26T08:00:00.000+00:00"),  # yesterday: not shown
+            bo3_row("C", "D", 0, 0, "upcoming", "2026-10-30T08:00:00.000+00:00")]  # in 3 days: not shown
+    games = json.dumps({"games": [{"number": 3, "status": "current", "map_name": "de_inferno"}]})
+    pages = tourney_pages(rows, **{f"{online.BO3_API}/matches/v-f?scope=show-match&with=games,teams": games})
+    assert online.answer('турик кс2 "beijing"', fetcher=fake(pages), clock=lambda: now).split("\n\n") == [
+        "🏆 <b>Intel Extreme Masters Beijing 2026</b> (CS2)",
+        "Источник: bo3.gg\nОбновлено: 27.10.2026 20:30 (МСК)",
+        "Сыграно сегодня:\n11:00 Mongolz 0-2 MOUZ",
+        "Онлайн:\n17:00 Vitality 1-1 FUT\nКарта 3: Inferno, идёт",
+        "Ожидаются игры:\n20:00 G2 - DENDELE",
+        "Сетка: <code>турик кс2 Intel Extreme Masters Beijing 2026 сетка</code>"]
+    assert online.answer("турик д2 The International", fetcher=fake(pages), clock=lambda: now).split("\n\n") == [
+        "Турнир «The International» по Dota2 сейчас не идёт.",
+        "Сейчас идут:\n<code>турик д2 Esports Pro Circuit Season 3</code>\n<code>турик д2 EPL Masters III</code>"]
+    online._cache.clear()
+    assert "не отвечает" in online.answer("турик кс2 beijing", fetcher=fake({}), clock=lambda: now)
+
+
+def test_dota_games_have_no_maps():
+    online._cache.clear()
+    games = json.dumps({"games": [
+        {"number": 1, "status": "finished", "map_name": None, "winner_clan_name": "Team Spirit"},
+        {"number": 2, "status": "current", "map_name": None}]})
+    assert online.match_maps({"slug": "s-t"}, fetcher=fake(
+        {f"{online.BO3_API}/matches/s-t?scope=show-match&with=games,teams": games}), clock=lambda: 1.0) == [
+        "Игра 1: победа Team Spirit", "Игра 2, идёт"]
+
+
+def test_grid_by_day_for_any_format():
     from replyai import bracket
     online._cache.clear()
-    rows = swiss_to_playoff()
-    text = online.image("pgl плей-офф", fetcher=fake({online.BO3_MATCHES: json.dumps({"results": rows})}),
-                        clock=lambda: 1000.0)
-    assert text.startswith("Плей-офф PGL ещё не начался.\nВышли в плей-офф: A, B, C, D, E, F, G, H")
-    rows += [bo3_row("A", "B", 2, 1), bo3_row("C", "D", 0, 2), bo3_row("A", "D", 0, 0, "upcoming")]
-    games, advanced = bracket.playoff(online.bo3_rows(fake({online.BO3_MATCHES: json.dumps({"results": rows})}),
-                                                      lambda: 2000.0))
-    assert [(g["team1"], g["team2"]) for g in games] == [("A", "B"), ("C", "D"), ("A", "D")] and len(advanced) == 8
+    rows = [bo3_row("FUT", "TYLOO", 2, 0, start="2026-11-02T08:00:00.000+00:00"),
+            bo3_row("G2", "NAVI", 1, 0, "current", "2026-11-02T11:00:00.000+00:00"),
+            bo3_row("MOUZ", "Spirit", 0, 0, "upcoming", "2026-11-03T11:00:00.000+00:00")]
+    assert not bracket.is_swiss(online.bo3_rows("cs2", TID, fake(tourney_pages(rows)), lambda: 1.0))
+    drawn = []
+    real = bracket.render_days
+    bracket.render_days = lambda matches, title, subtitle, today: drawn.append((matches, title, today)) or b"PNG"
+    try:
+        assert online.image("турик кс2 Beijing сетка", fetcher=fake(tourney_pages(rows)), clock=lambda: NOW_GRID) == b"PNG"
+    finally:
+        bracket.render_days = real
+    matches, title, today = drawn[0]
+    assert title == "Intel Extreme Masters Beijing 2026" and [m["when"].hour for m in matches] == [11, 14, 14]
+    now = online.datetime(2026, 11, 2, 15, 0, tzinfo=online.MSK)
+    timed = [dict(m, when=m["when"]) for m in matches] * 5  # more than fit in a column
+    assert bracket.render_days(timed, title, "x", now)[:8] == b"\x89PNG\r\n\x1a\n"
+    assert bracket.render_days([], title, "x", now)[:4] == b"\x89PNG"
     online._cache.clear()
-    png = online.image("pgl плей-офф", fetcher=fake({online.BO3_MATCHES: json.dumps({"results": rows})}),
-                       clock=lambda: 3000.0)
-    assert png[:8] == b"\x89PNG\r\n\x1a\n"
+    assert "не отвечает" in online.image("турик кс2 Beijing сетка", fetcher=fake({}), clock=lambda: NOW_GRID)
+
+
+def test_swiss_event_draws_its_grid_then_the_playoff():
+    from replyai import bracket
+    online._cache.clear()
+    rows, top = real_swiss()
+    assert len(top) == 8 and bracket.is_swiss(online.bo3_rows("cs2", TID, fake(tourney_pages(rows)), lambda: 1.0))
+    real = bracket.render, bracket.render_playoff
+    bracket.render = lambda matches, title, subtitle: b"swiss " + title.encode()
+    bracket.render_playoff = lambda games, title, subtitle: b"playoff " + title.encode()
+    try:
+        online._cache.clear()
+        assert online.image("турик кс2 beijing сетка", fetcher=fake(tourney_pages(rows)), clock=lambda: 2.0) == \
+            "swiss Intel Extreme Masters Beijing 2026 — групповой этап".encode()
+        rows += [bo3_row(top[0], top[1], 2, 1), bo3_row(top[2], top[3], 0, 0, "upcoming")]
+        online._cache.clear()
+        assert online.image("турик кс2 beijing сетка", fetcher=fake(tourney_pages(rows)), clock=lambda: 3.0) == \
+            "playoff Intel Extreme Masters Beijing 2026 — плей-офф".encode()
+    finally:
+        bracket.render, bracket.render_playoff = real
+    games, advanced = bracket.playoff(online.bo3_rows("cs2", TID, fake(tourney_pages(rows)), lambda: 4.0))
+    assert len(games) == 2 and len(advanced) == 8
+    assert bracket.render_playoff(games, "t", "s")[:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_playoff_final_is_between_the_semifinal_winners():
@@ -500,40 +535,15 @@ def test_playoff_final_is_between_the_semifinal_winners():
     rows = [bo3_row("FUT", "Nemiga", 0, 2), bo3_row("Vitality", "NaVi", 2, 1), bo3_row("Aurora", "MOUZ", 0, 2),
             bo3_row("BetBoom", "FURIA", 0, 2), bo3_row("Nemiga", "Vitality", 2, 0), bo3_row("MOUZ", "FURIA", 1, 2),
             bo3_row("Vitality", "MOUZ", 0, 0, "upcoming")]  # a stray match of two losers
-    boxes = bracket.rounds(online.bo3_rows(fake({online.BO3_MATCHES: json.dumps({"results": rows})}), lambda: 1.0))
+    boxes = bracket.rounds(online.bo3_rows("cs2", TID, fake(tourney_pages(rows)), lambda: 1.0))
     assert [(b["team1"], b["team2"]) for b in boxes[4:]] == [("Nemiga", "Vitality"), ("MOUZ", "FURIA"),
                                                              ("Nemiga", "FURIA")]
     assert not boxes[6].get("done")
     # quarterfinals played out of bracket order are regrouped by their semifinals
     online._cache.clear()
-    swapped = bracket.rounds([{**m} for m in online.bo3_rows(fake({online.BO3_MATCHES: json.dumps(
-        {"results": [rows[0], rows[2], rows[1], rows[3], rows[4]]})}), lambda: 2.0)])
+    swapped = bracket.rounds([{**m} for m in online.bo3_rows("cs2", TID, fake(tourney_pages(
+        [rows[0], rows[2], rows[1], rows[3], rows[4]])), lambda: 2.0)])
     assert [b["team2"] for b in swapped[:2]] == ["Nemiga", "NaVi"] and swapped[5]["team1"] == "MOUZ"
-
-
-def test_pgl_team_shows_last_live_and_next_match():
-    online._cache.clear()
-    rows = [bo3_row("Team Vitality", "MOUZ", 2, 1, slug="v-m"), bo3_row("G2", "Vitality", 2, 0),
-            bo3_row("Vitality", "Spirit", 0, 0, "upcoming", "2026-10-26T13:00:00.000+00:00")]
-    games = json.dumps({"games": [
-        {"number": 2, "status": "finished", "map_name": "de_mirage", "winner_clan_score": 13, "loser_clan_score": 7,
-         "winner_clan_name": "Vitality"},
-        {"number": 1, "status": "finished", "map_name": "de_nuke", "winner_clan_score": 13, "loser_clan_score": 9,
-         "winner_clan_name": "Vitality"}]})
-    pages = {online.BO3_MATCHES: json.dumps({"results": rows}),
-             f"{online.BO3_API}/matches/v-m?scope=show-match&with=games,teams": games}
-    answer = online.answer("pgl vitality", fetcher=fake(pages), clock=lambda: 1000.0)
-    assert answer.split("\n\n")[1:] == [
-        "Team Vitality: побед 1, поражений 1",
-        "Последний матч:\n24.10 13:40 G2 2-0 Vitality",
-        "Следующий матч:\n26.10 16:00 Vitality - Spirit"]
-    assert "Карта" not in answer  # the last match has no slug: no maps
-    rows.pop(1)
-    online._cache.clear()
-    assert "Карта 1: Nuke 13:9 (Vitality)\nКарта 2: Mirage 13:7 (Vitality)" in online.answer(
-        "pgl vitality", fetcher=fake(dict(pages, **{online.BO3_MATCHES: json.dumps({"results": rows})})),
-        clock=lambda: 1100.0)
-    assert "не найдена" in online.answer("pgl navi", fetcher=fake(pages), clock=lambda: 1100.0)
 
 
 def test_online_samples_and_graph():
@@ -593,21 +603,3 @@ def test_reminder_a_year_ahead_and_too_far():
         assert online.reminder(f"напомни через {minutes} минут x", now) == \
             (None, "Напоминание можно поставить не дальше чем на год."), minutes
     assert online.when(now + 400 * 86400).count(".") == 2  # another year: the year is shown
-
-
-def test_pgl_falls_back_to_bo3_when_cybersport_fails():
-    online._cache.clear()
-    now = online.datetime(2026, 10, 27, 20, 30, tzinfo=online.MSK).timestamp()
-    rows = [bo3_row("Mongolz", "MOUZ", 0, 2, start="2026-10-27T08:00:00.000+00:00"),
-            bo3_row("Vitality", "FUT", 1, 1, "current", "2026-10-27T14:00:00.000+00:00", slug="v-f"),
-            bo3_row("G2", "DENDELE", 0, 0, "upcoming", "2026-10-27T17:00:00.000+00:00"),
-            bo3_row("A", "B", 2, 0, start="2026-10-26T08:00:00.000+00:00"),  # yesterday: not shown
-            bo3_row("C", "D", 0, 0, "upcoming", "2026-10-30T08:00:00.000+00:00")]  # in 3 days: not shown
-    games = json.dumps({"games": [{"number": 3, "status": "current", "map_name": "de_inferno"}]})
-    pages = {online.PGL_URL: "<html>captcha</html>", online.BO3_MATCHES: json.dumps({"results": rows}),
-             f"{online.BO3_API}/matches/v-f?scope=show-match&with=games,teams": games}
-    assert online.answer("pgl", fetcher=fake(pages), clock=lambda: now).split("\n\n") == [
-        "Источник: bo3.gg\nОбновлено: 27.10.2026 20:30 (МСК)",
-        "Сыграно сегодня:\n11:00 Mongolz 0-2 MOUZ",
-        "Онлайн:\n17:00 Vitality 1-1 FUT\nКарта 3: Inferno, идёт",
-        "Ожидаются игры:\n20:00 G2 - DENDELE"]
