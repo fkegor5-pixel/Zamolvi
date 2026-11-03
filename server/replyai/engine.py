@@ -15,13 +15,13 @@ from telethon.sessions import StringSession
 from .ai import AiClient, AiError, PREFIX, validate, purpose as ai_purpose
 from .diagnostics import Diagnostics
 from .qr import QrLogin
-from .formatting import render, MODES, with_links
+from .formatting import render, render_command, MODES
 from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style, online, custom
 from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.5.2"
+SERVER_VERSION = "3.6.0"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -47,6 +47,10 @@ class PersistentSession(StringSession):
 
 # «mute» / «unmute» — the whole message, any case
 MUTE = re.compile(r"^/?(un)?mute[.!\s]*$", re.IGNORECASE)
+
+def players_word(n):
+    return online.plural(n, 'игрок', 'игрока', 'игроков')
+
 
 class Engine:
     def __init__(self, store, ai=None, client_factory=TelegramClient, clock=time.time, voice=None):
@@ -1022,7 +1026,7 @@ class Engine:
             self.change_job(job, state="delivering")
             try:
                 if online.is_command(job['text']):  # command answers carry their own markup and links
-                    message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS)
+                    message, entities = render_command(answer, PREFIX)
                 else:
                     message, entities = render(answer, s["ai"].get("formatting", "auto"), PREFIX)
                 await self.client(functions.messages.SendMessageRequest(
@@ -1099,14 +1103,14 @@ class Engine:
             s['reminders'].append({'chat': chat, 'due': due, 'text': note, 'owner': owner, 'bot': bot})
             return True
         if not self.store.update(edit):
-            return f'Не больше {online.MAX_REMINDERS} напоминаний в одном чате.'
-        return 'Напомню ' + online.when(due) + '.'
+            return f'⚠️ Не больше {online.MAX_REMINDERS} напоминаний в одном чате.'
+        return f'⏰ Напомню <b>{online.when(due)}</b>.'
 
     async def add_watch(self, server):
         """«жди <сервер>»: the owner gets a message once the server has players; the answer to the command."""
         found = await asyncio.to_thread(online.players, server)
         if found and found[1] > 0:
-            return f'На {found[0]} уже {found[1]} игроков.'
+            return f'🟢 На <b>{online.esc(found[0])}</b> уже <b>{found[1]}</b> {players_word(found[1])}.'
         def edit(s):
             rest = [w for w in s['watch'] if w['server'].lower() != server.lower()]
             if len(rest) >= online.MAX_WATCHES:
@@ -1114,10 +1118,10 @@ class Engine:
             s['watch'] = rest + [{'server': found[0] if found else server, 'since': self.clock()}]
             return True
         if not self.store.update(edit):
-            return f'Не больше {online.MAX_WATCHES} серверов одновременно.'
+            return f'⚠️ Не больше {online.MAX_WATCHES} серверов одновременно.'
         where = 'в бот' if self.bot.client else 'в «Избранное»'
-        return (f'Слежу за {found[0] if found else server}: проверяю раз в минуту и напишу {where}, '
-                'как только появится онлайн.')
+        return (f'👀 Слежу за <b>{online.esc(found[0] if found else server)}</b>: проверяю раз в минуту '
+                f'и напишу {where}, как только появится онлайн.')
 
     async def check_watches(self):
         """Every minute: a watched server with players → one message to the owner, then the watch ends."""
@@ -1129,19 +1133,13 @@ class Engine:
             found = await asyncio.to_thread(online.players, w['server'])
             if not found or found[1] <= 0:
                 continue
-            note = f'🟢 {found[0]} запустили! Онлайн: {found[1]} игроков.'
+            note = (f'🟢 <b>{online.esc(found[0])} запустили!</b>\n'
+                    f'Онлайн: <b>{found[1]}</b> {players_word(found[1])}')
             # the own bot first: a message in «Избранное» from yourself makes no sound
             sent = bool(self.bot.owner_id) and await self.bot.safe_send(self.bot.owner_id, note)
-            if not sent:
-                try:
-                    async with self.telegram_lock:
-                        await self.client(functions.messages.SendMessageRequest(
-                            peer=types.InputPeerSelf(), message=PREFIX + note, random_id=secrets.randbits(63),
-                            no_webpage=True))
-                except (errors.RPCError, OSError, asyncio.TimeoutError) as exc:
-                    self.log('Сообщение о сервере не отправлено: ' + type(exc).__name__)
-                    continue  # try again next minute
-            self.log(note)
+            if not sent and not await self.note_to_self(note, 'Сообщение о сервере не отправлено'):
+                continue  # try again next minute
+            self.log(f'{found[0]} запустили: онлайн {found[1]}.')
             self.store.update(lambda s: s.update(watch=[x for x in s['watch'] if x['server'] != w['server']]))
 
     async def sample_online(self):
@@ -1174,7 +1172,7 @@ class Engine:
                     posts.append({'channel': channel, 'id': m.id, 'date': date.timestamp(), 'text': text})
         extra = await asyncio.to_thread(online.steam_specials) if kind == 'steam' else []
         if not posts and not extra:
-            return 'Не удалось прочитать каналы. Попробуйте позже.'
+            return '⚠️ Не удалось прочитать каналы. Попробуйте позже.'
         s = self.store.read()
         complete = getattr(self.ai, 'complete', None)
         try:
@@ -1185,7 +1183,7 @@ class Engine:
                 summary = await complete(s['ai'], task, online.digest_request(posts, extra), 1200)
         except (AiError, UserError) as exc:
             self.log('Сводка по каналам не сделана: ' + str(exc))
-            return 'Нейросеть сейчас недоступна, попробуйте позже.'
+            return '⚠️ Нейросеть сейчас недоступна, попробуйте позже.'
         answer = online.digest_answer(kind, summary, now)
         self.digests[kind] = (now, answer)
         return answer
@@ -1203,15 +1201,16 @@ class Engine:
         self.store.update(lambda x: x.update(reminders=[r for r in x.get('reminders', []) if r not in due]))
         for r in due:
             if r.get('bot'):
-                await self.bot.safe_send(int(r['chat']), '⏰ Напоминание: ' + r['text'])
+                await self.bot.safe_send(int(r['chat']), '⏰ <b>Напоминание</b>\n' + online.esc(r['text']))
                 continue
             if r['chat'] not in s['selected'] and not r.get('owner'):
                 continue
             try:
                 async with self.telegram_lock:
                     peer = await self.client.get_input_entity(int(r['chat']))
+                    message, entities = render_command('⏰ <b>Напоминание</b>\n' + online.esc(r['text']), PREFIX)
                     await self.client(functions.messages.SendMessageRequest(
-                        peer=peer, message=PREFIX + 'Напоминание: ' + r['text'], random_id=secrets.randbits(63),
+                        peer=peer, message=message, entities=entities, random_id=secrets.randbits(63),
                         no_webpage=True))
             except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
                 self.log('Напоминание не отправлено: ' + type(exc).__name__)
@@ -1239,7 +1238,7 @@ class Engine:
             else:
                 answer = (self.add_reminder(chat, *plan, owner=True) if plan
                           else await self.command_answer(text))
-            message, entities = with_links(*render(answer, "auto", PREFIX, limit=4000), online.COMMAND_WORDS)
+            message, entities = render_command(answer, PREFIX)
             async with self.telegram_lock:
                 await self.client(functions.messages.SendMessageRequest(
                     peer=await event.get_input_chat(), message=message, entities=entities, random_id=secrets.randbits(63),
@@ -1259,9 +1258,10 @@ class Engine:
                     await self.client.send_file(peer, picture, caption=PREFIX + online.caption(text),
                                                 reply_to=reply_to)
                 else:
+                    message, entities = render_command(result, PREFIX)
                     await self.client(functions.messages.SendMessageRequest(
-                        peer=peer, message=PREFIX + result, random_id=secrets.randbits(63), no_webpage=True,
-                        reply_to=types.InputReplyToMessage(reply_to_msg_id=reply_to)))
+                        peer=peer, message=message, entities=entities, random_id=secrets.randbits(63),
+                        no_webpage=True, reply_to=types.InputReplyToMessage(reply_to_msg_id=reply_to)))
         except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
             self.log('Картинка не отправлена: ' + type(exc).__name__)
 
@@ -1284,15 +1284,24 @@ class Engine:
         # the command itself disappears too: the contact never sees «mute»
         await self.delete_for_all([event.id], 'Команда mute не удалена')
         name = getattr(await event.get_chat(), 'first_name', None) or chat
-        note = (f'🔇 Мут: {name}. Его новые сообщения удаляются у всех. Снять — напишите в его чат «unmute».' if on
-                else f'🔊 Мут снят: {name}.')
-        self.log(note)
+        self.log(f'Мут: {name}.' if on else f'Мут снят: {name}.')
+        await self.note_to_self(
+            f'🔇 <b>Мут: {online.esc(name)}</b>\nЕго новые сообщения удаляются у всех.\n'
+            f'Снять — напишите в его чат <code>unmute</code>' if on else f'🔊 <b>Мут снят: {online.esc(name)}</b>',
+            'Ответ в «Избранное» не отправлен')
+
+    async def note_to_self(self, note, failure):
+        """A styled message (command HTML) to the owner's «Избранное»; False when it was not sent."""
+        message, entities = render_command(note, PREFIX)
         try:
             async with self.telegram_lock:
                 await self.client(functions.messages.SendMessageRequest(
-                    peer=types.InputPeerSelf(), message=PREFIX + note, random_id=secrets.randbits(63), no_webpage=True))
+                    peer=types.InputPeerSelf(), message=message, entities=entities, random_id=secrets.randbits(63),
+                    no_webpage=True))
+            return True
         except (errors.RPCError, OSError, asyncio.TimeoutError) as exc:
-            self.log('Ответ в «Избранное» не отправлен: ' + type(exc).__name__)
+            self.log(f'{failure}: ' + type(exc).__name__)
+            return False
 
     async def owner_switch(self, event, on):
         """«бот вкл» / «бот выкл» written by the owner in «Избранное» (Saved Messages) only."""
@@ -1303,16 +1312,12 @@ class Engine:
                 self.enable()
             else:
                 self.disable()
-            note = 'Автоответчик включён.' if on else 'Автоответчик выключен.'
+            note = '✅ <b>Автоответчик включён</b>' if on else '⏸ <b>Автоответчик выключен</b>'
+            plain = 'Автоответчик включён.' if on else 'Автоответчик выключен.'
         except UserError as exc:
-            note = str(exc)
-        self.log('Из «Избранного»: ' + note)
-        try:
-            async with self.telegram_lock:
-                await self.client(functions.messages.SendMessageRequest(
-                    peer=types.InputPeerSelf(), message=PREFIX + note, random_id=secrets.randbits(63), no_webpage=True))
-        except (errors.RPCError, OSError, asyncio.TimeoutError) as exc:
-            self.log('Ответ в «Избранное» не отправлен: ' + type(exc).__name__)
+            note, plain = '⚠️ ' + online.esc(exc), str(exc)
+        self.log('Из «Избранного»: ' + plain)
+        await self.note_to_self(note, 'Ответ в «Избранное» не отправлен')
 
     async def process_memory(self):
         if self.clock() < self.memory_next:
