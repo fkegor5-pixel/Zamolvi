@@ -1,10 +1,10 @@
 """Render AI text as Telegram entities; the visible AI label is always plain text."""
-from html import escape
+from html import escape, unescape
 import re
 
 from telethon.extensions import html, markdown
 from telethon.tl.types import (MessageEntityBold, MessageEntityItalic, MessageEntityUnderline,
-                              MessageEntityStrike, MessageEntityCode, MessageEntityPre)
+                              MessageEntityStrike, MessageEntityCode, MessageEntityPre, MessageEntityBlockquote)
 
 MODES = {"auto", "plain", "bold", "underline", "mono"}
 AUTO_INSTRUCTION = (
@@ -43,6 +43,27 @@ def _parse(raw):
     return markdown.parse(raw, delimiters=_DELIMITERS, url_re=_NO_LINKS)
 
 
+_QUOTE = re.compile(r"<blockquote(\s+expandable)?>", re.I)
+
+
+def render_command(answer, prefix="", limit=4000):
+    """A command answer the server wrote itself (trusted HTML, external values escaped by the caller):
+    b, i, u, s, code, pre and blockquote; «<blockquote expandable>» is a quote folded to a few lines."""
+    raw = answer[:limit]
+    folded = [bool(m.group(1)) for m in _QUOTE.finditer(raw)]
+    try:
+        text, entities = html.parse(_QUOTE.sub("<blockquote>", raw))
+    except (ValueError, TypeError, IndexError):
+        text, entities = unescape(_ALL_TAGS.sub("", raw)), []
+    quotes = sorted((e for e in entities if isinstance(e, MessageEntityBlockquote)), key=lambda e: e.offset)
+    for quote, fold in zip(quotes, folded):
+        quote.collapsed = fold or None
+    shift = utf16_length(prefix)
+    for entity in entities:
+        entity.offset += shift
+    return prefix + text, sorted(entities, key=lambda e: (e.offset, -e.length))
+
+
 def render(answer, mode="auto", prefix="", limit=1600):
     raw = answer.encode("utf-8", errors="replace").decode()[:limit]
     if mode == "plain" or mode not in MODES:
@@ -69,17 +90,6 @@ def render(answer, mode="auto", prefix="", limit=1600):
         entity.offset += shift
     return prefix + text, sorted(entities, key=lambda e: (e.offset, -e.length))
 
-
-def with_links(text, entities, words):
-    """Command words at line starts («онлайн — …») become monospace: in Telegram a tap copies them."""
-    found, pos = [], 0
-    for line in text.split("\n"):
-        word = next((w for w in sorted(words, key=len, reverse=True) if line.startswith(w + " — ")), None)
-        if word:
-            offset, length = utf16_length(text[:pos]), utf16_length(word)
-            found.append(MessageEntityCode(offset, length))
-        pos += len(line) + 1
-    return text, sorted(entities + found, key=lambda e: (e.offset, -e.length))
 
 
 def preview(answer, mode):

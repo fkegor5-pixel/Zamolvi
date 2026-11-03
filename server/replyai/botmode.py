@@ -12,7 +12,7 @@ from telethon import Button, TelegramClient, errors, events, functions, types
 from telethon.sessions import StringSession
 
 from . import online
-from .formatting import render
+from .formatting import render_command
 
 NAME = "Zamolvi Bot"
 USERNAMES = ("zamolvi_helper_bot",) + tuple(f"zamolvi_helper{i}_bot" for i in range(2, 6))
@@ -34,7 +34,7 @@ MENU = (  # (button, command); the emoji is the section
     ("🧰 Новости", "новости"), ("🧰 Получить деньги", "получить деньги"),
 )
 MENU_TEXT = ("🤖 <b>Zamolvi Bot</b>\n"
-             "Нажмите кнопку или напишите команду текстом:\n"
+             "<i>Нажмите кнопку или напишите команду текстом — команды ниже копируются нажатием:</i>\n"
              "<code>погода Москва</code>\n<code>онлайн Phoenix</code>\n<code>турик кс2 IEM</code>\n"
              "<code>рандом 10-20</code>\n<code>напомни через 30 минут позвонить</code>")
 OPEN = {"/start", "/menu", "/help", "меню", "команды", "помощь"}
@@ -184,6 +184,7 @@ class OwnBot:
         credentials = e.store.read()["telegram"]
         client = TelegramClient(StringSession(saved.get("session") or ""), credentials["api_id"],
                                 credentials["api_hash"])
+        client.parse_mode = "html"  # every text of the bot is HTML; names of people go through online.esc
         try:
             await client.start(bot_token=saved["token"])
             self.owner_id = (await e.client.get_me()).id
@@ -233,12 +234,12 @@ class OwnBot:
     async def request_access(self, event):
         user_id = event.sender_id
         if user_id in self.asked:
-            await event.respond("Запрос уже у владельца. Дождитесь ответа.")
+            await event.respond("⏳ Запрос уже у владельца. Дождитесь ответа.")
             return
         self.asked.add(user_id)
         who = name_of(await event.get_sender())
         try:
-            await self.client.send_message(self.owner_id, f"🔐 {who} просит доступ к боту.", buttons=[[
+            await self.client.send_message(self.owner_id, f"🔐 <b>{online.esc(who)}</b> просит доступ к боту.", buttons=[[
                 Button.inline("✅ Разрешить", data=f"allow:{user_id}".encode()),
                 Button.inline("❌ Отклонить", data=f"deny:{user_id}".encode())]])
             await event.respond("🔒 Это личный бот. Запрос на доступ отправлен владельцу.")
@@ -254,19 +255,19 @@ class OwnBot:
             except FAILURES:
                 who = str(user_id)
             self.engine.store.update(lambda s: s["bot"].setdefault("allowed", {}).update({str(user_id): who}))
-            await event.edit(f"✅ Доступ открыт: {who}")
+            await event.edit(f"✅ Доступ открыт: <b>{online.esc(who)}</b>")
             await self.safe_send(user_id, "✅ Владелец открыл вам доступ.", buttons=keyboard())
         elif action == "deny":
             await event.edit("❌ Запрос отклонён.")
         else:
             self.engine.store.update(lambda s: s["bot"].setdefault("allowed", {}).pop(str(user_id), None))
-            await event.edit("Доступ закрыт.")
+            await event.edit("🚫 Доступ закрыт.")
         self.asked.discard(user_id)
 
     async def users(self, chat):
         people = self.state().get("allowed", {})
         if not people:
-            await self.client.send_message(chat, "Доступ есть только у вас. Новые запросы придут сюда с кнопками.")
+            await self.client.send_message(chat, "🔒 Доступ есть только у вас. Новые запросы придут сюда с кнопками.")
             return
         await self.client.send_message(chat, "👥 У кого есть доступ (нажмите, чтобы убрать):", buttons=[
             [Button.inline("➖ " + who, data=f"drop:{user_id}".encode())] for user_id, who in people.items()])
@@ -305,7 +306,7 @@ class OwnBot:
         if unit and not text.startswith("/") and word not in OPEN:
             found = REMIND_ANSWER.match(text)
             if not found:
-                await event.respond(f"Напишите число и текст, например: {UNITS[unit][1]}", buttons=back())
+                await event.respond(f"✍️ Напишите число и текст, например: <code>{UNITS[unit][1]}</code>", buttons=back())
                 return
             del self.waiting[event.chat_id]
             await self.run(event.chat_id, f"напомни через {found.group(1)} {UNITS[unit][0]} {found.group(2)}")
@@ -320,7 +321,7 @@ class OwnBot:
         body = online.addressed(text)
         body = text if body is None else body
         if not online.is_command(body):
-            await event.respond("Не знаю такой команды. Нажмите /menu", buttons=back())
+            await event.respond("🤷 Не знаю такой команды. Нажмите /menu", buttons=back())
             return
         if self.ready(event.chat_id):
             await self.run(event.chat_id, body)
@@ -389,7 +390,7 @@ class OwnBot:
                 answer = e.add_reminder(str(chat), *online.reminder(body, e.clock()), owner=True, bot=True)
             else:
                 answer = await asyncio.to_thread(online.answer, body)
-            text, entities = render(answer, "auto", "", limit=4000)
+            text, entities = render_command(answer)
             new.append(await self.client.send_message(chat, text, formatting_entities=entities, buttons=back(),
                                                       link_preview=bool(online.MONEY_COMMAND.match(body))))
         except FAILURES as exc:

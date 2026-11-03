@@ -145,7 +145,7 @@ COOLDOWN = 10          # seconds between commands of one chat
 MAX_REMINDERS = 5      # per chat
 MAX_AHEAD = 366 * 86400  # a birthday a year ahead fits
 UNIT = {"м": 60, "ч": 3600, "д": 86400}
-# «/online» typed by hand works too; the help shows the Russian words in monospace (see formatting.with_links)
+# «/online» typed by hand works too; the help shows the Russian words in <code>: a tap copies them
 SLASH = {"/help": "команды", "/commands": "команды", "/online": "онлайн", "/top": "топ онлайн",
          "/graph": "онлайн график", "/hours": "часы в кс", "/ingame": "кто в игре",
          "/faceit": "фейсит", "/inventory": "инвентарь", "/level": "уровень стим", "/steam_games": "стим игры",
@@ -153,42 +153,63 @@ SLASH = {"/help": "команды", "/commands": "команды", "/online": "�
          "/demob": "дембель", "/rates": "курс", "/coin": "монетка", "/random": "рандом",
          "/news": "новости", "/money": "получить деньги"}
 HELP = ("🤖 <b>Команды бота</b>\n"
-        "Нажмите на команду — она скопируется, останется вставить и отправить. "
-        "Можно писать с «бот» или без.\n\n"
+        "<i>Нажмите на команду — она скопируется. Можно писать с «бот» или без.</i>\n\n"
         "🎮 <b>Arizona RP</b>\n"
-        "онлайн — Excellent, Space, Wednesday, Vice City\n"
-        "топ онлайн — 5 самых заполненных серверов\n"
-        "онлайн график — график онлайна за сутки\n"
-        "<code>онлайн Phoenix</code> — онлайн сервера\n\n"
+        "<code>онлайн</code> — Excellent, Space, Wednesday, Vice City\n"
+        "<code>топ онлайн</code> — 5 самых заполненных серверов\n"
+        "<code>онлайн график</code> — онлайн за сутки\n"
+        "<code>онлайн Phoenix</code> — онлайн одного сервера\n"
+        "<code>жди Space</code> — сообщу, когда сервер запустят\n\n"
         "🔫 <b>CS2 и Steam</b>\n"
-        "часы в кс — часы в CS2\n"
-        "кто в игре — кто сейчас в игре\n"
-        "фейсит — уровень и Elo FACEIT\n"
-        "инвентарь — стоимость инвентарей\n"
-        "уровень стим — уровень Steam\n"
-        "стим игры — скидки и раздачи\n\n"
+        "<code>часы в кс</code> — часы в CS2\n"
+        "<code>кто в игре</code> — кто сейчас в игре\n"
+        "<code>фейсит</code> — уровень и Elo FACEIT\n"
+        "<code>инвентарь</code> — стоимость инвентарей\n"
+        "<code>уровень стим</code> — уровень Steam\n"
+        "<code>стим игры</code> — скидки и раздачи\n\n"
         "🏆 <b>Турниры CS2 и Dota 2</b>\n"
-        "турик — какие турниры идут сейчас\n"
+        "<code>турик</code> — какие турниры идут сейчас\n"
         "<code>турик кс2 название</code> — матчи турнира\n"
         "<code>турик д2 название сетка</code> — сетка турнира\n\n"
         "🧰 <b>Разное</b>\n"
-        "дембель — сколько до дембеля\n"
-        "курс — доллар и евро по ЦБ\n"
-        "монетка — орёл или решка\n"
-        "новости — шуточные новости\n"
-        "получить деньги — видео-инструкция\n"
-        "рандом — число от 1 до 100\n"
-        "<code>погода Москва</code>\n"
+        "<code>дембель</code> — сколько до дембеля\n"
+        "<code>курс</code> — доллар и евро по ЦБ\n"
+        "<code>погода Москва</code> — погода сейчас и завтра\n"
+        "<code>монетка</code> — орёл или решка\n"
+        "<code>рандом</code> — число от 1 до 100\n"
+        "<code>новости</code> — шуточные новости\n"
+        "<code>получить деньги</code> — видео-инструкция\n"
         "<code>напомни через 30 минут позвонить</code>\n"
-        "<code>напомни в 18:30 позвонить</code>\n"
-        "<code>жди Space</code> — сообщу, когда на сервере появится онлайн")
-COMMAND_WORDS = sorted(set(SLASH.values()))  # monospace in the answers, see formatting.with_links
+        "<code>напомни в 18:30 позвонить</code>")
+COMMAND_WORDS = sorted(set(SLASH.values()))  # every one is <code> in HELP: a tap copies it
 COUNT = re.compile(r"(\d[\d ]*)\s*/\s*\d+")
 TAGS = re.compile(r"<(script|style)\b.*?</\1>|<[^>]+>", re.IGNORECASE | re.DOTALL)
 
 _cache = {}  # url -> (time, plain text of the page)
 _last_command = {}  # chat -> time of its last command
 _rng = random.SystemRandom()
+SKY_ICON = {"ясно": "☀️", "в основном ясно": "🌤", "переменная облачность": "⛅", "пасмурно": "☁️", "туман": "🌫",
+            "морось": "🌦", "дождь": "🌧", "снег": "🌨", "ливень": "🌧", "снегопад": "❄️", "гроза": "⛈"}
+GAME_ICON = {"cs2": "🔫", "dota2": "🐉"}
+FOLD = 8  # a list longer than this is a folded quote: Telegram shows its first lines and «показать больше»
+
+
+# Command answers are Telegram HTML (formatting.render_command): every value from a site goes through esc().
+def esc(value):
+    return html.escape(str(value), quote=False)
+
+
+def stamp(clock, source=""):
+    """The last line: «🕒 03.11 19:45 МСК · bo3.gg» in italics."""
+    return f"<i>🕒 {datetime.fromtimestamp(clock(), MSK):%d.%m %H:%M} МСК{' · ' + source if source else ''}</i>"
+
+
+def quote(lines):
+    return ("<blockquote expandable>" if len(lines) > FOLD else "<blockquote>") + "\n".join(lines) + "</blockquote>"
+
+
+def warn(text):
+    return "⚠️ " + text
 
 
 def addressed(text):
@@ -205,14 +226,14 @@ def addressed(text):
 
 def bot_link(username):
     """The end of «команды» in a chat once the owner has his own bot."""
-    return f"🤖 С кнопками — в боте @{username}\nhttps://t.me/{username}"
+    return f"🤖 <b>С кнопками</b> — в боте @{username}\nhttps://t.me/{username}"
 
 
 def news(rng=_rng):
     """The answer to «новости»: three absurd headlines with an alarming tone, marked as a joke."""
     who, did = rng.sample(NEWS_WHO, 3), rng.sample(NEWS_DID, 3)
-    lines = [f"🚨 {w} {d}. {rng.choice(NEWS_TAIL)}" for w, d in zip(who, did)]
-    return "📰 <b>СРОЧНЫЕ НОВОСТИ</b>\n\n" + "\n\n".join(lines) + "\n\n😄 Это шутка, все новости выдуманы."
+    lines = [f"🚨 <b>{w}</b> {d}. <i>{rng.choice(NEWS_TAIL)}</i>" for w, d in zip(who, did)]
+    return "📰 <b>СРОЧНЫЕ НОВОСТИ</b>\n\n" + "\n\n".join(lines) + "\n\n<i>😄 Это шутка, все новости выдуманы.</i>"
 
 
 def without_bot(text):
@@ -251,7 +272,7 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
     """The fixed answer to a command (reminders are handled by the engine, see reminder())."""
     text, fetcher, rng = (text or "").strip(), fetcher or fetch, rng or _rng
     if WATCH.match(text):  # the engine handles it for the owner
-        return "Эта команда только для владельца."
+        return "🔒 Эта команда только для владельца."
     if DEMOB_COMMAND.match(text):
         return demob(clock)
     if HELP_COMMAND.match(text):
@@ -271,13 +292,13 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
     if LEVEL_COMMAND.match(text):
         return steam_levels(fetcher, clock)
     if FLAG_COMMAND.match(text):
-        return "Россия, Путин, Победа"
+        return "🇷🇺 <b>Россия, Путин, Победа</b>"
     if NEWS_COMMAND.match(text):
         return news(rng)
     if MONEY_COMMAND.match(text):
-        return f"💰 Как получить деньги — всё в этом видео:\n{MONEY_VIDEO}"
+        return f"💰 <b>Как получить деньги</b>\nВсё в этом видео 👇\n{MONEY_VIDEO}"
     if COIN_COMMAND.match(text):
-        return "Выпало: " + rng.choice(("Орёл", "Решка"))
+        return "🪙 Выпало: <b>" + rng.choice(("Орёл", "Решка")) + "</b>"
     for pattern, handler in ((SERVER_COMMAND, lambda m: server_online(m.group(1), fetcher, clock)),
                              (WEATHER_COMMAND, lambda m: weather(m.group(1), fetcher, clock)),
                              (RANDOM_COMMAND, lambda m: random_number(m, rng)),
@@ -387,8 +408,9 @@ def report(fetcher=fetch, clock=time.time):
     queue = {}
     for name, _, _, q in rows(fetcher, clock) or []:  # the same cached page counts() just read
         queue.setdefault(name.lower(), q)
-    return "\n".join(f"{name} - {'нет данных' if n is None else server_note(name, n, queue.get(name.lower()))}"
-                     for name, n in found)
+    lines = [f"⚪ {esc(name)} — <i>нет данных</i>" if n is None else
+             f"{'🟢' if n else '🔴'} {esc(name)} — {server_note(name, n, queue.get(name.lower()))}" for name, n in found]
+    return "🎮 <b>Онлайн серверов</b>\n" + quote(lines) + "\n" + stamp(clock)
 
 
 def watch_target(text):
@@ -460,8 +482,8 @@ def cs_hours(fetcher=fetch, clock=time.time, key=None):
         if value is None:
             text = page(url, fetcher, clock)
             value = hours(text) if text else None
-        lines.append(f"{name} - {value + ' ч.' if value else 'нет данных'}")
-    return "\n".join(lines)
+        lines.append(f"👤 {esc(name)} — " + (f"<b>{value} ч.</b>" if value else "<i>нет данных</i>"))
+    return "🔫 <b>Часы в CS2</b>\n" + quote(lines)
 
 
 def demob(clock=time.time):
@@ -469,14 +491,14 @@ def demob(clock=time.time):
     now = clock()
     left = int(DEMOB_AT.timestamp() - now)
     if left <= 0:
-        return "Дембель уже наступил!"
+        return "🎉 <b>Дембель уже наступил!</b>"
     done = min(1.0, max(0.0, (now - DEMOB_FROM.timestamp()) / (DEMOB_AT.timestamp() - DEMOB_FROM.timestamp())))
     cells = round(done * 10)
     days, left = divmod(left, 86400)
     hours, left = divmod(left, 3600)
     minutes = left // 60
-    return (f"Дней: {days}. Часов: {hours}. Минут: {minutes}\n"
-            + f"Отслужено: {done * 100:.1f}% ".replace(".", ",") + "█" * cells + "░" * (10 - cells))
+    return (f"🪖 <b>До дембеля</b>\n<b>{days}</b> дн. <b>{hours}</b> ч. <b>{minutes}</b> мин.\n"
+            f"<code>{'█' * cells}{'░' * (10 - cells)}</code> " + f"отслужено <b>{done * 100:.1f}%</b>".replace(".", ","))
 
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
@@ -501,7 +523,7 @@ def in_game(fetcher=fetch, clock=time.time, key=None):
     """The answer to «кто в игре»: Steam status of every account."""
     key = steam_key(key)
     if not key:
-        return "Нужен ключ Steam на сервере (STEAM_API_KEY)."
+        return "⚙️ Нужен ключ Steam на сервере (<code>STEAM_API_KEY</code>)."
     ids = {name: steam_id(name, key, fetcher, clock) for name, _ in STEAM}
     known = [i for i in ids.values() if i]
     found = get_json(f"{STEAM_API}/ISteamUser/GetPlayerSummaries/v2/?key={key}&steamids={','.join(known)}",
@@ -514,12 +536,13 @@ def in_game(fetcher=fetch, clock=time.time, key=None):
     for name, _ in STEAM:
         p = players.get(ids[name])
         if not p:
-            lines.append(f"{name} - нет данных")
+            lines.append(f"⚪ {esc(name)} — <i>нет данных</i>")
         elif p.get("gameextrainfo"):
-            lines.append(f"{name} - в игре: {p['gameextrainfo']}")
+            lines.append(f"🟢 {esc(name)} — играет в <b>{esc(p['gameextrainfo'])}</b>")
         else:
-            lines.append(f"{name} - {PERSONA.get(p.get('personastate', 0), 'в сети')}")
-    return "\n".join(lines)
+            state = p.get("personastate", 0)
+            lines.append(f"{'⚫' if state == 0 else '🔵'} {esc(name)} — {PERSONA.get(state, 'в сети')}")
+    return "🎮 <b>Кто сейчас в игре</b>\n" + quote(lines)
 
 
 def rows(fetcher=fetch, clock=time.time):
@@ -541,7 +564,9 @@ def rows(fetcher=fetch, clock=time.time):
 
 
 def queue_note(q):
-    return "" if q is None else f", очередь {q}"
+    if q is None:
+        return ""
+    return f" · ⏳ очередь <b>{q}</b>" if q else " · без очереди"
 
 
 def plural(n, one, few, many):
@@ -552,32 +577,41 @@ def plural(n, one, few, many):
 
 def space_line(online, queue):
     """The owner's wording for Space: «999 дayнoв не дают поиграть 182 игрокам» (spelled as he asked)."""
-    return (f"{online} {plural(online, 'дayн', 'дayнa', 'дayнoв')} не дают поиграть "
-            f"{queue} {'игроку' if queue % 10 == 1 and queue % 100 != 11 else 'игрокам'}")
+    return (f"<b>{online}</b> {plural(online, 'дayн', 'дayнa', 'дayнoв')} не дают поиграть "
+            f"<b>{queue}</b> {'игроку' if queue % 10 == 1 and queue % 100 != 11 else 'игрокам'}")
 
 
 def server_note(name, online, queue):
-    """«999, очередь 182», for Space the owner's line when the queue is known."""
-    return space_line(online, queue) if name.lower() == "space" and queue is not None else f"{online}{queue_note(queue)}"
+    """«<b>999</b> · ⏳ очередь <b>182</b>», for Space the owner's line when the queue is known."""
+    if name.lower() == "space" and queue is not None:
+        return space_line(online, queue)
+    return f"<b>{online}</b>{queue_note(queue)}"
 
 
 def top_online(fetcher=fetch, clock=time.time):
     found = rows(fetcher, clock)
     if not found:
-        return "Онлайн серверов сейчас недоступен."
+        return warn("Онлайн серверов сейчас недоступен.")
     best = sorted(found, key=lambda r: -r[1])[:5]
-    return "\n".join(f"{i}. {name} - {online} / {slots}{queue_note(q)}" for i, (name, online, slots, q) in enumerate(best, 1))
+    places = ("🥇", "🥈", "🥉", "4️⃣", "5️⃣")
+    lines = [f"{places[i]} <b>{esc(name)}</b> — {online} / {slots}{queue_note(q)}"
+             for i, (name, online, slots, q) in enumerate(best)]
+    return "🏆 <b>Топ-5 серверов по онлайну</b>\n" + quote(lines) + "\n" + stamp(clock)
 
 
 def server_online(name, fetcher=fetch, clock=time.time):
     found = rows(fetcher, clock)
     if found is None:
-        return "Онлайн серверов сейчас недоступен."
+        return warn("Онлайн серверов сейчас недоступен.")
     same = [r for r in found if r[0].casefold() == name.strip().casefold()][:1]  # Arizona first, like «онлайн»
     if not same:
-        return f"Сервер «{name.strip()}» не найден."
-    return "\n".join(f"{n} - {space_line(online, q)}" if n.lower() == "space" and q is not None
-                     else f"{n} - {online} / {slots}{queue_note(q)}" for n, online, slots, q in same)
+        return f"🔍 Сервер «{esc(name.strip())}» не найден."
+    n, online, slots, q = same[0]
+    if n.lower() == "space" and q is not None:
+        body = space_line(online, q)
+    else:
+        body = f"Онлайн: <b>{online}</b> / {slots}" + ("" if q is None else f"\nОчередь: <b>{q}</b>")
+    return f"{'🟢' if online else '🔴'} <b>{esc(n)}</b>\n{body}\n{stamp(clock)}"
 
 
 def rates(fetcher=fetch, clock=time.time):
@@ -586,9 +620,10 @@ def rates(fetcher=fetch, clock=time.time):
     try:
         usd, eur, day = data["Valute"]["USD"]["Value"], data["Valute"]["EUR"]["Value"], data["Date"]
     except (TypeError, KeyError):
-        return "Курс сейчас недоступен."
+        return warn("Курс сейчас недоступен.")
     rub = lambda v: f"{v:.2f}".replace(".", ",")
-    return f"Курс ЦБ на {day[8:10]}.{day[5:7]}: доллар {rub(usd)} ₽, евро {rub(eur)} ₽"
+    return (f"💱 <b>Курс ЦБ на {day[8:10]}.{day[5:7]}</b>\n"
+            f"🇺🇸 Доллар — <b>{rub(usd)} ₽</b>\n🇪🇺 Евро — <b>{rub(eur)} ₽</b>")
 
 
 def degrees(t):
@@ -607,17 +642,18 @@ def weather(city, fetcher=fetch, clock=time.time):
     try:
         place = geo["results"][0]
     except (TypeError, KeyError, IndexError):
-        return f"Город «{city}» не найден."
+        return f"🔍 Город «{esc(city)}» не найден."
     data = get_json(f"{FORECAST}&latitude={place['latitude']}&longitude={place['longitude']}", fetcher, clock)
     try:
         now, day = data["current"], data["daily"]
-        return (f"{place['name']}: сейчас {degrees(now['temperature_2m'])}, ощущается "
-                f"{degrees(now['apparent_temperature'])}, {sky(now['weather_code'])}, "
-                f"ветер {round(now['wind_speed_10m'])} м/с\n"
-                f"Завтра: от {degrees(day['temperature_2m_min'][1])} до {degrees(day['temperature_2m_max'][1])}, "
-                f"{sky(day['weather_code'][1])}")
+        sky_now, sky_tomorrow = sky(now['weather_code']), sky(day['weather_code'][1])
+        return (f"{SKY_ICON.get(sky_now, '🌡')} <b>Погода: {esc(place['name'])}</b>\n"
+                f"Сейчас <b>{degrees(now['temperature_2m'])}</b>, ощущается {degrees(now['apparent_temperature'])}\n"
+                f"{sky_now} · 💨 ветер {round(now['wind_speed_10m'])} м/с\n"
+                f"<b>Завтра:</b> от {degrees(day['temperature_2m_min'][1])} до {degrees(day['temperature_2m_max'][1])}, "
+                f"{SKY_ICON.get(sky_tomorrow, '')} {sky_tomorrow}".rstrip())
     except (TypeError, KeyError, IndexError):
-        return "Погода сейчас недоступна."
+        return warn("Погода сейчас недоступна.")
 
 
 def random_number(match, rng=_rng):
@@ -625,21 +661,21 @@ def random_number(match, rng=_rng):
     if match.group(1):
         low, high = (1, int(match.group(1))) if not match.group(2) else (int(match.group(1)), int(match.group(2)))
     low, high = min(low, high), max(low, high)
-    return f"Выпало: {rng.randint(low, high)}"
+    return f"🎲 Выпало: <b>{rng.randint(low, high)}</b> <i>(от {low} до {high})</i>"
 
 
 def faceit(nick, fetcher=fetch, clock=time.time, key=None):
     """The answer to «фейсит <ник>»: level and Elo in CS2."""
     key = (os.environ.get(FACEIT_ENV, "") if key is None else key).strip()
     if not key:
-        return "FACEIT не настроен: нужен ключ FACEIT_API_KEY на сервере."
+        return "⚙️ FACEIT не настроен: нужен ключ <code>FACEIT_API_KEY</code> на сервере."
     get = (lambda url: fetch(url, {"Authorization": "Bearer " + key})) if fetcher is fetch else fetcher
     data = get_json(FACEIT_API + urllib.parse.quote(nick), get, clock)
     try:
         cs = data["games"]["cs2"]
-        return f"{data['nickname']}: уровень {cs['skill_level']}, Elo {cs['faceit_elo']}"
+        return f"🎯 <b>FACEIT: {esc(data['nickname'])}</b>\nУровень <b>{cs['skill_level']}</b> · Elo <b>{cs['faceit_elo']}</b>"
     except (TypeError, KeyError):
-        return f"Игрок «{nick}» не найден на FACEIT или у него нет CS2."
+        return f"🔍 Игрок «{esc(nick)}» не найден на FACEIT или у него нет CS2."
 
 
 def reminder(text, now):
@@ -649,7 +685,7 @@ def reminder(text, now):
     if m:
         seconds = int(m.group(1)) * UNIT[m.group(2)[0].lower()]
         if seconds <= 0:
-            return None, "Укажите время больше нуля: напомни через 30 минут …"
+            return None, "⚠️ Укажите время больше нуля: <code>напомни через 30 минут …</code>"
         due, note = now + seconds, m.group(3)
     else:
         m = REMIND_AT.match(text)
@@ -657,13 +693,13 @@ def reminder(text, now):
             return None
         hour, minute = int(m.group(1)), int(m.group(2))
         if hour > 23 or minute > 59:
-            return None, "Время пишется так: напомни в 18:30 …"
+            return None, "⚠️ Время пишется так: <code>напомни в 18:30 …</code>"
         target = datetime.fromtimestamp(now, MSK).replace(hour=hour, minute=minute, second=0, microsecond=0)
         if target.timestamp() <= now:
             target += timedelta(days=1)
         due, note = target.timestamp(), m.group(3)
     if due - now > MAX_AHEAD:
-        return None, "Напоминание можно поставить не дальше чем на год."
+        return None, "⚠️ Напоминание можно поставить не дальше чем на год."
     return due, note.strip()[:200]
 
 
@@ -678,20 +714,20 @@ def faceit_line(data):
         cs = data["games"]["cs2"]
         level, elo = cs["skill_level"], cs["faceit_elo"]
     except (TypeError, KeyError):
-        return "нет аккаунта FACEIT или данные недоступны"
-    return f"{data.get('nickname', '?')}: " + (f"уровень {level}, Elo {elo}" if level else "нет уровня")
+        return "<i>нет аккаунта FACEIT или данные недоступны</i>"
+    return f"{esc(data.get('nickname', '?'))}: " + (f"уровень <b>{level}</b>, Elo <b>{elo}</b>" if level else "<i>нет уровня</i>")
 
 
 def faceit_accounts(fetcher=fetch, clock=time.time, wok=None, key=None):
     """The answer to «фейсит»: FACEIT level and Elo of every Steam account, through WOK API."""
     wok, key = wok_key(wok), steam_key(key)
     if not wok or not key:
-        return "FACEIT не настроен: нужны ключи WOK_API_KEY и STEAM_API_KEY на сервере."
+        return "⚙️ FACEIT не настроен: нужны ключи <code>WOK_API_KEY</code> и <code>STEAM_API_KEY</code> на сервере."
     lines = []
     for name, steamid in our_ids(key, fetcher, clock):
         data = wok_get(WOK_FACEIT[len(WOK_BASE):] + steamid, wok, fetcher, clock, WOK_CACHE_SECONDS) if steamid else None
-        lines.append(f"{name} - {faceit_line(data)}")
-    return "\n".join(lines)
+        lines.append(f"👤 {esc(name)} — {faceit_line(data)}")
+    return "🎯 <b>FACEIT</b>\n" + quote(lines)
 
 
 def wok_key(wok=None):
@@ -717,33 +753,34 @@ def inventories(fetcher=fetch, clock=time.time, wok=None, key=None):
     """The answer to «инвентарь»: value of every CS2 inventory in rubles (WOK API)."""
     wok, key = wok_key(wok), steam_key(key)
     if not wok or not key:
-        return "Инвентарь не настроен: нужны ключи WOK_API_KEY и STEAM_API_KEY на сервере."
+        return "⚙️ Инвентарь не настроен: нужны ключи <code>WOK_API_KEY</code> и <code>STEAM_API_KEY</code> на сервере."
     lines = []
     for name, steamid in our_ids(key, fetcher, clock):
         data = wok_get(f"/v1/inventory?steam_id={steamid}&game=cs2&top=0&currency=RUB", wok, fetcher, clock,
                        WOK_INVENTORY_CACHE) if steamid else None
         status = data.get("status") if isinstance(data, dict) else None
         if status == "ok" and isinstance(data.get("total"), (int, float)):
-            lines.append(f"{name} - {rubles(data['total'])} ({data.get('items_total', '?')} предм.)")
+            lines.append(f"👤 {esc(name)} — <b>{rubles(data['total'])}</b> · {esc(data.get('items_total', '?'))} предм.")
         else:
-            lines.append(f"{name} - " + {"private": "инвентарь скрыт", "empty": "пусто"}.get(status, "нет данных"))
-    return "\n".join(lines)
+            lines.append(f"👤 {esc(name)} — " + {"private": "🔒 инвентарь скрыт", "empty": "пусто"}.get(
+                status, "<i>нет данных</i>"))
+    return "🎒 <b>Инвентари CS2</b>\n" + quote(lines)
 
 
 def steam_levels(fetcher=fetch, clock=time.time, key=None):
     """The answer to «уровень стим»: Steam level of every account (official Steam API)."""
     key = steam_key(key)
     if not key:
-        return "Нужен ключ Steam на сервере (STEAM_API_KEY)."
+        return "⚙️ Нужен ключ Steam на сервере (<code>STEAM_API_KEY</code>)."
     lines = []
     for name, steamid in our_ids(key, fetcher, clock):
         data = get_json(f"{STEAM_API}/IPlayerService/GetSteamLevel/v1/?key={key}&steamid={steamid}",
                         fetcher, clock) if steamid else None
         try:
-            lines.append(f"{name} - {data['response']['player_level']} ур.")
+            lines.append(f"👤 {esc(name)} — <b>{data['response']['player_level']}</b> ур.")
         except (TypeError, KeyError):
-            lines.append(f"{name} - скрыт или нет данных")
-    return "\n".join(lines)
+            lines.append(f"👤 {esc(name)} — <i>скрыт или нет данных</i>")
+    return "⭐ <b>Уровень Steam</b>\n" + quote(lines)
 
 
 def is_image_command(text):
@@ -771,13 +808,13 @@ def image(text, fetcher=fetch, clock=time.time, samples=()):
 def online_graph(samples, clock=time.time):
     from . import chart
     if len([x for x in samples if clock() - x[0] <= 86400]) < 2:
-        return "График появится через 10–15 минут: бот только начал записывать онлайн."
+        return "📈 График появится через 10–15 минут: бот только начал записывать онлайн."
     try:
         return chart.render(samples, [name for name, _ in (("Excellent", 0),) + SITES], clock(), MSK,
                             "Онлайн за сутки", f"Обновлено {datetime.fromtimestamp(clock(), MSK):%d.%m.%Y %H:%M} (МСК)"
                             " · Excellent: exsellentrp.com, Arizona: arzdata.com")
     except ImportError:
-        return "Для картинки на сервере нужна библиотека Pillow."
+        return warn("Для картинки на сервере нужна библиотека Pillow.")
 
 
 def bo3_rows(game, tid, fetcher=fetch, clock=time.time):
@@ -796,7 +833,7 @@ def bo3_rows(game, tid, fetcher=fetch, clock=time.time):
 
 
 def updated(clock, source):
-    return f"Источник: {source}\nОбновлено: {datetime.fromtimestamp(clock(), MSK):%d.%m.%Y %H:%M} (МСК)"
+    return stamp(clock, source)
 
 
 def moment(value):
@@ -811,23 +848,24 @@ def map_name(value):
 
 
 def match_maps(match, fetcher=fetch, clock=time.time):
-    """Lines «Карта N: Mirage 13:7 (MOUZ)» of a played or live match."""
+    """Lines «🗺 Карта 1: Nuke 13:9 · Vitality» of a played or live match (HTML)."""
     data = get_json(f"{BO3_API}/matches/{match.get('slug')}?scope=show-match&with=games,teams", fetcher, clock)
     games = sorted((data or {}).get("games") or [], key=lambda g: g.get("number") or 0) if isinstance(data, dict) else []
     lines = []
     for g in games:
         if not g.get("map_name"):  # Dota 2: a game, no map and no rounds
-            head = f"Игра {g.get('number')}"
+            head = f"🎮 Игра {g.get('number')}"
             if g.get("status") == "finished":
-                lines.append(f"{head}: победа {g.get('winner_clan_name')}")
+                lines.append(f"{head}: победа {esc(g.get('winner_clan_name'))}")
             elif g.get("status") == "current":
-                lines.append(head + ", идёт")
+                lines.append(head + ", <i>идёт</i>")
             continue
-        head = f"Карта {g.get('number')}: {map_name(g.get('map_name'))}"
+        head = f"🗺 Карта {g.get('number')}: {esc(map_name(g.get('map_name')))}"
         if g.get("status") == "finished":
-            lines.append(f"{head} {g.get('winner_clan_score')}:{g.get('loser_clan_score')} ({g.get('winner_clan_name')})")
+            lines.append(f"{head} <b>{g.get('winner_clan_score')}:{g.get('loser_clan_score')}</b>"
+                         f" · {esc(g.get('winner_clan_name'))}")
         elif g.get("status") == "current":
-            lines.append(head + ", идёт")
+            lines.append(head + ", <i>идёт</i>")
     return lines
 
 
@@ -868,35 +906,40 @@ def digest_request(posts, extra=()):
 
 def digest_answer(kind, summary, now):
     sources = ", ".join("@" + c for c in DIGESTS[kind][0]) + (", магазин Steam" if kind == "steam" else "")
-    return updated(lambda: now, sources) + "\n\n" + summary.strip()[:3000]
+    lines = [esc(line) for line in summary.strip()[:3000].splitlines() if line.strip()]
+    return "🛒 <b>Скидки и раздачи Steam</b>\n" + quote(lines) + "\n" + stamp(lambda: now, sources)
 
 
 def matches_view(rows, fetcher=fetch, clock=time.time):
-    """Today's results, live matches with maps, the next day's matches ."""
+    """Today's results, live matches with maps, the next day's matches (HTML)."""
     now = datetime.fromtimestamp(clock(), MSK)
 
     def head(m):
         when = moment(m["start"])
         return "" if when is None else (f"{when:%H:%M} " if when.date() == now.date() else f"{when:%d.%m %H:%M} ")
 
+    def team(m, side):
+        name = esc(m[f"team{side}"])
+        a, b = m["score1"] or 0, m["score2"] or 0
+        won = m["done"] and (a > b if side == 1 else b > a)
+        return f"<b>{name}</b>" if won else name
+
     def score(m):
-        return f"{m['team1']} {m['score1'] or 0}-{m['score2'] or 0} {m['team2']}"
+        return f"{head(m)}{team(m, 1)} <b>{m['score1'] or 0}:{m['score2'] or 0}</b> {team(m, 2)}"
 
     played = [m for m in rows if m["done"] and (moment(m["start"]) or now).date() == now.date()]
     live = [m for m in rows if m["status"] == "current"]
     upcoming = [m for m in rows if m["status"] == "upcoming"
                 and (moment(m["start"]) or now) <= now + timedelta(days=1)]
-    lines = [updated(clock, "bo3.gg"), "", "Сыграно сегодня:"]
-    lines += [head(m) + score(m) for m in played] or ["пока ничего"]
-    lines += ["", "Онлайн:"]
+    now_lines = []
     for m in live:
-        lines.append(head(m) + score(m))
-        lines += match_maps(m, fetcher, clock)
-    if not live:
-        lines.append("сейчас матчей нет")
-    lines += ["", "Ожидаются игры:"]
-    lines += [head(m) + f"{m['team1']} - {m['team2']}" for m in upcoming] or ["нет"]
-    return "\n".join(lines)
+        now_lines.append(score(m))
+        now_lines += ["   " + line for line in match_maps(m, fetcher, clock)]
+    return "\n".join([
+        "✅ <b>Сыграно сегодня</b>", quote([score(m) for m in played]) if played else "<i>пока ничего</i>",
+        "🔴 <b>Сейчас идёт</b>", quote(now_lines) if live else "<i>сейчас матчей нет</i>",
+        "🕒 <b>Ожидаются</b>", quote([f"{head(m)}{esc(m['team1'])} — {esc(m['team2'])}" for m in upcoming])
+        if upcoming else "<i>нет</i>"])
 
 
 def game_of(word):
@@ -927,19 +970,21 @@ def command_of(game, t, grid=False):
 def turik(fetcher=fetch, clock=time.time):
     """The answer to «турик»: the current CS2 and Dota 2 tournaments and the commands to see one."""
     now = datetime.fromtimestamp(clock(), MSK)
-    lines, more = [f"🏆 На {now:%d.%m.%Y} проводятся турниры по:"], []
+    lines, more = [], []
     for game, (_, label, _) in GAMES.items():
         found = tournaments(game, fetcher, clock)
         if found is None:
-            lines.append(f"{label} — bo3.gg сейчас не отвечает")
+            lines.append(f"{GAME_ICON[game]} <b>{label}</b> — <i>bo3.gg сейчас не отвечает</i>")
             continue
         top = featured(found)
-        lines += [f"{label} — {html.escape(t['name'])}" for t in top] or [f"{label} — сейчас турниров нет"]
+        lines += [f"{GAME_ICON[game]} <b>{label}</b> — {esc(t['name'])}" for t in top] or [
+            f"{GAME_ICON[game]} <b>{label}</b> — <i>сейчас турниров нет</i>"]
         more += [f"{label} — {command_of(game, t)}" for t in top]
+    text = f"🏆 <b>Турниры на {now:%d.%m.%Y}</b>\n" + quote(lines)
     if more:
-        lines += ["", "Подробнее о турнире (нажмите, чтобы скопировать):"] + more
-        lines += ["", "Сетка — добавьте в конце «сетка»."]
-    return "\n".join(lines)
+        text += ("\n📋 <b>Подробнее о турнире</b> <i>(нажмите, чтобы скопировать)</i>\n" + "\n".join(more)
+                 + "\n\n<i>📊 Сетка — добавьте в конце «сетка»</i>")
+    return text + "\n" + stamp(clock, "bo3.gg")
 
 
 def find_tournament(game, query, fetcher=fetch, clock=time.time):
@@ -956,10 +1001,10 @@ def find_tournament(game, query, fetcher=fetch, clock=time.time):
 def not_found(game, query, found):
     label = GAMES[game][1]
     if found is None:
-        return "bo3.gg сейчас не отвечает, попробуйте позже."
-    lines = [f"Турнир «{html.escape(clean_name(query))}» по {label} сейчас не идёт."]
+        return warn("bo3.gg сейчас не отвечает, попробуйте позже.")
+    lines = [f"🔍 Турнир «{esc(clean_name(query))}» по {label} сейчас не идёт."]
     if found:
-        lines += ["", "Сейчас идут:"] + [command_of(game, t) for t in featured(found)]
+        lines += ["", "📋 <b>Сейчас идут</b> <i>(нажмите, чтобы скопировать)</i>"] + [command_of(game, t) for t in featured(found)]
     return "\n".join(lines)
 
 
@@ -970,9 +1015,9 @@ def turik_one(game, query, fetcher=fetch, clock=time.time):
         return not_found(game, query, found)
     rows = bo3_rows(game, t["id"], fetcher, clock)
     if rows is None:
-        return "bo3.gg сейчас не отвечает, попробуйте позже."
-    return (f"🏆 <b>{html.escape(t['name'])}</b> ({GAMES[game][1]})\n\n" + html.escape(matches_view(rows, fetcher, clock))
-            + f"\n\nСетка: {command_of(game, t, grid=True)}")
+        return warn("bo3.gg сейчас не отвечает, попробуйте позже.")
+    return (f"{GAME_ICON[game]} <b>{esc(t['name'])}</b> · {GAMES[game][1]}\n\n" + matches_view(rows, fetcher, clock)
+            + f"\n\n📊 Сетка: {command_of(game, t, grid=True)}\n" + stamp(clock, "bo3.gg"))
 
 
 def turik_grid(game, query, fetcher=fetch, clock=time.time):
@@ -984,9 +1029,9 @@ def turik_grid(game, query, fetcher=fetch, clock=time.time):
         return not_found(game, query, found)
     rows = bo3_rows(game, t["id"], fetcher, clock)
     if rows is None:
-        return "bo3.gg сейчас не отвечает, попробуйте позже."
+        return warn("bo3.gg сейчас не отвечает, попробуйте позже.")
     if not rows:
-        return f"У турнира «{html.escape(t['name'])}» пока нет матчей с известными командами."
+        return f"🕒 У турнира «{esc(t['name'])}» пока нет матчей с известными командами."
     subtitle = f"Обновлено {datetime.fromtimestamp(clock(), MSK):%d.%m %H:%M} (МСК) · данные bo3.gg"
     try:
         if bracket.is_swiss(rows):
@@ -996,4 +1041,4 @@ def turik_grid(game, query, fetcher=fetch, clock=time.time):
         return bracket.render_days([dict(m, when=moment(m["start"])) for m in rows], t["name"], subtitle,
                                    datetime.fromtimestamp(clock(), MSK))
     except ImportError:
-        return "Для картинки на сервере нужна библиотека Pillow."
+        return warn("Для картинки на сервере нужна библиотека Pillow.")

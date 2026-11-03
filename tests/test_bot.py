@@ -130,12 +130,12 @@ async def test_stranger_asks_owner_lets_in_then_commands_work(env, commands_on):
     await bot.on_message(stranger)
     assert "личный бот" in stranger.answers[0]
     owner_chat, request, kw = bot.client.sent[-1]
-    assert owner_chat == 1 and "Аня @anya просит доступ" in request
+    assert owner_chat == 1 and "<b>Аня @anya</b> просит доступ" in request
     await bot.on_button(button(2, b"allow:2"))  # not the owner: nothing changes
     assert not bot.allowed(2)
     press = button(1, b"allow:2")
     await bot.on_button(press)
-    assert bot.allowed(2) and press.edits == ["✅ Доступ открыт: Аня @anya"]
+    assert bot.allowed(2) and press.edits == ["✅ Доступ открыт: <b>Аня @anya</b>"]
     original = online.answer
     online.answer = lambda text: "Excellent - 99"
     try:
@@ -167,10 +167,10 @@ async def test_bot_reminder_is_sent_by_the_bot(env, commands_on):
     bot.client, bot.owner_id = BotClient(), 1
     env.store.update(lambda s: s.update(bot={"token": TOKEN, "allowed": {}}))
     await bot.on_message(message(1, "напомни через 2 минуты позвонить"))
-    assert bot.client.sent[-1][1].startswith("Напомню")
+    assert bot.client.sent[-1][1].startswith("⏰ Напомню")
     env.clock[0] += 121
     await env.engine.send_reminders()  # the auto-reply is off: the bot still reminds
-    assert bot.client.sent[-1][:2] == (1, "⏰ Напоминание: позвонить")
+    assert bot.client.sent[-1][:2] == (1, "⏰ <b>Напоминание</b>\nпозвонить")
 
 
 @pytest.mark.asyncio
@@ -178,7 +178,7 @@ async def test_help_in_a_chat_lists_the_commands_and_links_the_bot(env, commands
     assert await env.engine.command_answer("команды") == online.HELP  # no bot yet
     env.store.update(lambda s: s.update(bot={"token": TOKEN, "username": "zamolvi_helper_bot"}))
     assert await env.engine.command_answer("Команды") == online.HELP + \
-        "\n\n🤖 С кнопками — в боте @zamolvi_helper_bot\nhttps://t.me/zamolvi_helper_bot"
+        "\n\n🤖 <b>С кнопками</b> — в боте @zamolvi_helper_bot\nhttps://t.me/zamolvi_helper_bot"
 
 
 @pytest.mark.asyncio
@@ -232,9 +232,9 @@ async def test_remind_with_buttons(env, commands_on):
     assert bot.client.sent[-1][1].endswith("Например: 2 забрать посылку")
     wrong = message(1, "забрать посылку")
     await bot.on_message(wrong)
-    assert wrong.answers == ["Напишите число и текст, например: 2 забрать посылку"]
+    assert wrong.answers == ["✍️ Напишите число и текст, например: <code>2 забрать посылку</code>"]
     await bot.on_message(message(1, "2 забрать посылку"))
-    assert bot.client.sent[-1][1].startswith("Напомню") and bot.waiting == {}
+    assert bot.client.sent[-1][1].startswith("⏰ Напомню") and bot.waiting == {}
     reminder = env.store.read()["reminders"][-1]
     assert reminder["text"] == "забрать посылку" and reminder["due"] == env.clock[0] + 7200 and reminder["bot"]
 
@@ -251,7 +251,7 @@ async def test_bot_reminder_waits_while_the_bot_is_down(env, commands_on):
     assert len(env.store.read()["reminders"]) == 1  # kept, not lost
     bot.client = running
     await env.engine.send_reminders()
-    assert running.sent[-1][:2] == (1, "⏰ Напоминание: позвонить") and env.store.read()["reminders"] == []
+    assert running.sent[-1][:2] == (1, "⏰ <b>Напоминание</b>\nпозвонить") and env.store.read()["reminders"] == []
 
 
 @pytest.mark.asyncio

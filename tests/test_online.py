@@ -2,6 +2,7 @@
 import os
 
 from replyai import online
+from replyai.formatting import render_command
 
 os.environ[online.COMMANDS_ENV] = "1"  # the owner's server: commands on
 
@@ -10,6 +11,11 @@ PAGE_SPACE = ("<html><script>var space = 1;</script><body>Arizona (Staging) 0 / 
               "<table><tr><td>Space</td><td>840 / 1000</td></tr></table></body></html>")
 PAGE_WED = "<p>Wednesday 12 / 500</p>"
 EXC_JSON = '{"mode":"live","online":true,"players":99,"max_players":1000,"hostname":"Exsellent Role Play"}'
+
+
+def shown(answer):
+    """What Telegram shows: the answer's HTML parsed into text (the entities style it)."""
+    return render_command(answer)[0]
 
 
 def fake(pages):
@@ -50,7 +56,9 @@ def test_report_lists_each_server():
     result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.SITES[0][1]: PAGE_SPACE, online.SITES[1][1]: PAGE_WED,
                                                online.SITES[2][1]: PAGE_VC}),
                            clock=lambda: 1000.0)
-    assert result == "Excellent - 99\nSpace - 840\nWednesday - 12\nVice City - 423"
+    assert shown(result) == ("🎮 Онлайн серверов\n🟢 Excellent — 99\n🟢 Space — 840\n🟢 Wednesday — 12\n"
+                             "🟢 Vice City — 423\n🕒 01.01 03:16 МСК")
+    assert result.startswith("🎮 <b>Онлайн серверов</b>\n<blockquote>🟢 Excellent — <b>99</b>")
 
 
 def test_report_takes_both_servers_from_the_full_list():
@@ -61,11 +69,14 @@ def test_report_takes_both_servers_from_the_full_list():
         {"name": "Vice City", "online": 423, "maxPlayers": 750, "queue": 0, "status": "online", "category": "vice-city"},
         {"name": "Space", "online": 5, "maxPlayers": 100, "queue": 0, "status": "online", "category": "mobile"}])
     result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.DODGER: servers}), clock=lambda: 1500.0)
-    assert result == ("Excellent - 99\nSpace - 999 дayнoв не дают поиграть 182 игрокам\nWednesday - 279, очередь 0\n"
-                      "Vice City - 423, очередь 0")
-    assert online.answer("онлайн space", fetcher=fake({online.DODGER: servers}), clock=lambda: 1500.0) == \
-        "Space - 999 дayнoв не дают поиграть 182 игрокам"
-    assert [online.space_line(n, q) for n, q in ((1, 21), (22, 11), (1000, 2))] == [
+    assert shown(result).splitlines()[1:5] == [
+        "🟢 Excellent — 99", "🟢 Space — 999 дayнoв не дают поиграть 182 игрокам", "🟢 Wednesday — 279 · без очереди",
+        "🟢 Vice City — 423 · без очереди"]
+    assert shown(online.answer("онлайн space", fetcher=fake({online.DODGER: servers}), clock=lambda: 1500.0)) == \
+        "🟢 Space\n999 дayнoв не дают поиграть 182 игрокам\n🕒 01.01 03:25 МСК"
+    assert shown(online.answer("онлайн wednesday", fetcher=fake({online.DODGER: servers}), clock=lambda: 1500.0)) == \
+        "🟢 Wednesday\nОнлайн: 279 / 1000\nОчередь: 0\n🕒 01.01 03:25 МСК"
+    assert [shown(online.space_line(n, q)) for n, q in ((1, 21), (22, 11), (1000, 2))] == [
         "1 дayн не дают поиграть 21 игроку", "22 дayнa не дают поиграть 11 игрокам",
         "1000 дayнoв не дают поиграть 2 игрокам"]
     online._cache.clear()
@@ -75,15 +86,16 @@ def test_report_takes_both_servers_from_the_full_list():
     online._cache.clear()
     page = ROWS_PAGE + "<div>24</div><div>Wednesday</div><div>279 / 1000</div><div>28%</div><div>Свободен</div><b>0</b>"
     result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.ARZ_ALL: page}), clock=lambda: 1700.0)
-    assert result == "Excellent - 99\nSpace - 854\nWednesday - 279\nVice City - 423"  # arzdata: no queue
+    assert shown(result).splitlines()[1:5] == [  # arzdata: no queue
+        "🟢 Excellent — 99", "🟢 Space — 854", "🟢 Wednesday — 279", "🟢 Vice City — 423"]
 
 
 def test_report_says_no_data_when_site_fails():
     online._cache.clear()
     def broken(url):
         raise OSError("timeout")
-    assert online.report(fetcher=broken, clock=lambda: 2000.0) == ("Excellent - нет данных\nSpace - нет данных\nWednesday - нет данных\n"
-                                                                   "Vice City - нет данных")
+    assert shown(online.report(fetcher=broken, clock=lambda: 2000.0)).splitlines()[1:5] == [
+        "⚪ Excellent — нет данных", "⚪ Space — нет данных", "⚪ Wednesday — нет данных", "⚪ Vice City — нет данных"]
 
 
 def test_context_empty_without_space_question_and_no_fetch():
@@ -121,7 +133,7 @@ def test_context_gives_the_count_to_the_model():
 def test_excellent_with_broken_json_says_no_data():
     online._cache.clear()
     pages = {online.EXCELLENT: "<html>maintenance</html>", online.SITES[0][1]: PAGE_SPACE, online.SITES[1][1]: PAGE_WED}
-    assert online.report(fetcher=fake(pages), clock=lambda: 3000.0).splitlines()[0] == "Excellent - нет данных"
+    assert shown(online.report(fetcher=fake(pages), clock=lambda: 3000.0)).splitlines()[1] == "⚪ Excellent — нет данных"
 
 
 # real order from the profile: hours, last launch, then the game name; the previous game comes first
@@ -136,20 +148,20 @@ def test_hours_command_passes_the_gate_and_reads_each_profile():
     assert online.is_command("часы в кс!")
     online._cache.clear()
     pages = {online.STEAM[0][1]: STEAM_RU, online.STEAM[1][1]: STEAM_EN}
-    assert online.cs_hours(fetcher=fake(pages), clock=lambda: 4000.0, key="") == \
-        "sethome43 - 5 864 ч.\nneurax716 - 1,234.5 ч.\nnecroa716 - нет данных"
+    assert shown(online.cs_hours(fetcher=fake(pages), clock=lambda: 4000.0, key="")) == \
+        "🔫 Часы в CS2\n👤 sethome43 — 5 864 ч.\n👤 neurax716 — 1,234.5 ч.\n👤 necroa716 — нет данных"
 
 
 def test_hours_missing_when_cs2_is_not_on_the_profile():
     online._cache.clear()
     pages = {online.STEAM[0][1]: "<div>Dota 2 10 hrs on record</div>", online.STEAM[1][1]: STEAM_RU}
-    assert online.cs_hours(fetcher=fake(pages), clock=lambda: 4100.0, key="").splitlines()[0] == "sethome43 - нет данных"
+    assert shown(online.cs_hours(fetcher=fake(pages), clock=lambda: 4100.0, key="")).splitlines()[1] == "👤 sethome43 — нет данных"
 
 
 def test_online_command_still_lists_servers():
     online._cache.clear()
     pages = {online.EXCELLENT: EXC_JSON, online.SITES[0][1]: PAGE_SPACE, online.SITES[1][1]: PAGE_WED}
-    assert online.answer("онлайн", fetcher=fake(pages), clock=lambda: 4200.0).startswith("Excellent - 99")
+    assert online.answer("онлайн", fetcher=fake(pages), clock=lambda: 4200.0).startswith("🎮 <b>Онлайн серверов</b>\n<blockquote>🟢 Excellent — <b>99</b>")
 
 
 def api_pages(key, name, steamid, games):
@@ -167,8 +179,8 @@ def test_api_gives_total_hours_for_every_account():
     pages.update(api_pages("K", "sethome43", "1", [{"appid": 730, "playtime_forever": 351840}]))
     pages.update(api_pages("K", "neurax716", "2", [{"appid": 730, "playtime_forever": 59}]))
     pages.update(api_pages("K", "necroa716", "3", [{"appid": 730, "playtime_forever": 125 * 60}]))
-    assert online.cs_hours(fetcher=fake(pages), clock=lambda: 5000.0, key="K") == \
-        "sethome43 - 5 864 ч.\nneurax716 - 0 ч.\nnecroa716 - 125 ч."
+    assert shown(online.cs_hours(fetcher=fake(pages), clock=lambda: 5000.0, key="K")).splitlines()[1:] == \
+        ["👤 sethome43 — 5 864 ч.", "👤 neurax716 — 0 ч.", "👤 necroa716 — 125 ч."]
 
 
 def test_api_hidden_games_fall_back_to_the_profile_page():
@@ -177,17 +189,17 @@ def test_api_hidden_games_fall_back_to_the_profile_page():
     for i, (name, _) in enumerate(online.STEAM):
         pages.update(api_pages("K", name, str(i), []))  # games hidden: the API returns no games
     pages[online.STEAM[0][1]] = STEAM_RU
-    assert online.cs_hours(fetcher=fake(pages), clock=lambda: 6000.0, key="K").splitlines() == \
-        ["sethome43 - 5 864 ч.", "neurax716 - нет данных", "necroa716 - нет данных"]
+    assert shown(online.cs_hours(fetcher=fake(pages), clock=lambda: 6000.0, key="K")).splitlines()[1:] == \
+        ["👤 sethome43 — 5 864 ч.", "👤 neurax716 — нет данных", "👤 necroa716 — нет данных"]
 
 
 def test_demob_counts_down_and_passes_the_gate():
     assert online.addressed("Дембель") == "Дембель"
     end = online.DEMOB_AT.timestamp()
     left = 2 * 7 * 86400 + 3 * 86400 + 4 * 3600 + 5 * 60 + 6
-    assert online.answer("дембель", clock=lambda: end - left).splitlines()[0] == \
-        "Дней: 17. Часов: 4. Минут: 5"  # 2 weeks and 3 days are 17 days
-    assert online.answer("дембель!", clock=lambda: end + 1) == "Дембель уже наступил!"
+    assert shown(online.answer("дембель", clock=lambda: end - left)).splitlines()[:2] == \
+        ["🪖 До дембеля", "17 дн. 4 ч. 5 мин."]  # 2 weeks and 3 days are 17 days
+    assert shown(online.answer("дембель!", clock=lambda: end + 1)) == "🎉 Дембель уже наступил!"
 
 
 def test_commands_are_off_without_the_owner_setting():
@@ -214,14 +226,12 @@ ROWS_PAGE = ("<h2>Arizona RP</h2> Arizona (Staging) 0 / 2000 0% · очеред�
 
 
 def test_help_lists_the_commands():
-    assert "\nонлайн — " in online.answer("команды") and online.answer("Помощь") == online.HELP
+    assert "\n<code>онлайн</code> — " in online.answer("команды") and online.answer("Помощь") == online.HELP
     assert online.addressed("/turik") == "турик" and online.addressed("/Online@x") == "онлайн"
     for word in online.COMMAND_WORDS:
         assert online.is_command(word), word
-    from replyai.formatting import render, with_links
-
-    message, entities = with_links(*render(online.HELP, "auto", "[AI] "), online.COMMAND_WORDS)
-    assert "<b>" not in message
+    message, entities = render_command(online.HELP, "[AI] ")
+    assert "<b>" not in message and message.startswith("[AI] 🤖 Команды бота\n")
     code = {message.encode("utf-16-le")[2 * e.offset:2 * (e.offset + e.length)].decode("utf-16-le")
             for e in entities if type(e).__name__ == "MessageEntityCode"}
     assert set(online.COMMAND_WORDS) - {"команды"} <= code  # every command is monospace: a tap copies it
@@ -232,11 +242,14 @@ def test_help_lists_the_commands():
 def test_server_by_name_and_top_from_the_full_list():
     online._cache.clear()
     get = fake({online.ARZ_ALL: ROWS_PAGE})
-    assert online.answer("онлайн space", fetcher=get, clock=lambda: 100.0) == "Space - 854 / 1000"
-    assert online.answer("онлайн Saint-Rose", fetcher=get, clock=lambda: 100.0) == "Saint-Rose - 180 / 1000"
-    assert "не найден" in online.answer("онлайн Нигде", fetcher=get, clock=lambda: 100.0)
-    assert online.answer("топ онлайн", fetcher=get, clock=lambda: 100.0).splitlines() == [
-        "1. Space - 854 / 1000", "2. Vice City - 423 / 750", "3. Phoenix - 331 / 1000", "4. Saint-Rose - 180 / 1000"]
+    assert shown(online.answer("онлайн space", fetcher=get, clock=lambda: 100.0)) == \
+        "🟢 Space\nОнлайн: 854 / 1000\n🕒 01.01 03:01 МСК"  # arzdata: no queue, so not the owner's line
+    assert shown(online.answer("онлайн Saint-Rose", fetcher=get, clock=lambda: 100.0)).splitlines()[1] == \
+        "Онлайн: 180 / 1000"
+    assert shown(online.answer("онлайн Нигде", fetcher=get, clock=lambda: 100.0)) == "🔍 Сервер «Нигде» не найден."
+    assert shown(online.answer("топ онлайн", fetcher=get, clock=lambda: 100.0)).splitlines() == [
+        "🏆 Топ-5 серверов по онлайну", "🥇 Space — 854 / 1000", "🥈 Vice City — 423 / 750", "🥉 Phoenix — 331 / 1000",
+        "4️⃣ Saint-Rose — 180 / 1000", "🕒 01.01 03:01 МСК"]
 
 
 def test_who_is_in_game():
@@ -248,18 +261,19 @@ def test_who_is_in_game():
     pages[f"{online.STEAM_API}/ISteamUser/GetPlayerSummaries/v2/?key=K&steamids=0,1,2"] = json.dumps({"response": {
         "players": [{"steamid": "0", "personastate": 1, "gameextrainfo": "Counter-Strike 2"},
                     {"steamid": "1", "personastate": 0}]}})
-    assert online.in_game(fetcher=fake(pages), clock=lambda: 200.0, key="K").splitlines() == [
-        "sethome43 - в игре: Counter-Strike 2", "neurax716 - не в сети", "necroa716 - нет данных"]
+    assert shown(online.in_game(fetcher=fake(pages), clock=lambda: 200.0, key="K")).splitlines() == [
+        "🎮 Кто сейчас в игре", "🟢 sethome43 — играет в Counter-Strike 2", "⚫ neurax716 — не в сети",
+        "⚪ necroa716 — нет данных"]
     assert "ключ Steam" in online.in_game(key="")
 
 
 def test_rates_of_the_central_bank():
     online._cache.clear()
     body = json.dumps({"Date": "2026-10-24T11:30:00+03:00", "Valute": {"USD": {"Value": 81.2345}, "EUR": {"Value": 94.1}}})
-    assert online.answer("курс", fetcher=fake({online.CBR: body}), clock=lambda: 300.0) == \
-        "Курс ЦБ на 24.10: доллар 81,23 ₽, евро 94,10 ₽"
+    assert shown(online.answer("курс", fetcher=fake({online.CBR: body}), clock=lambda: 300.0)) == \
+        "💱 Курс ЦБ на 24.10\n🇺🇸 Доллар — 81,23 ₽\n🇪🇺 Евро — 94,10 ₽"
     online._cache.clear()
-    assert online.answer("курс", fetcher=fake({}), clock=lambda: 301.0) == "Курс сейчас недоступен."
+    assert online.answer("курс", fetcher=fake({}), clock=lambda: 301.0) == "⚠️ Курс сейчас недоступен."
 
 
 def test_weather_now_and_tomorrow():
@@ -269,25 +283,26 @@ def test_weather_now_and_tomorrow():
              f"{online.FORECAST}&latitude=55.75&longitude=37.62": json.dumps({
                  "current": {"temperature_2m": 4.6, "apparent_temperature": 0.2, "weather_code": 3, "wind_speed_10m": 3.4},
                  "daily": {"temperature_2m_min": [1, -2.4], "temperature_2m_max": [6, 3.5], "weather_code": [3, 71]}})}
-    assert online.answer("погода Москва", fetcher=fake(pages), clock=lambda: 400.0) == \
-        "Москва: сейчас +5°, ощущается 0°, пасмурно, ветер 3 м/с\nЗавтра: от -2° до +4°, снег"
+    assert shown(online.answer("погода Москва", fetcher=fake(pages), clock=lambda: 400.0)) == \
+        "☁️ Погода: Москва\nСейчас +5°, ощущается 0°\nпасмурно · 💨 ветер 3 м/с\nЗавтра: от -2° до +4°, 🌨 снег"
     online._cache.clear()
     assert "не найден" in online.answer("погода Атлантида", fetcher=fake({}), clock=lambda: 401.0)
 
 
 def test_coin_and_random_stay_in_range():
     rng = random.Random(7)
-    assert online.answer("монетка", rng=rng) in ("Выпало: Орёл", "Выпало: Решка")
+    assert shown(online.answer("монетка", rng=rng)) in ("🪙 Выпало: Орёл", "🪙 Выпало: Решка")
     for text, low, high in (("рандом", 1, 100), ("рандом 6", 1, 6), ("рандом 20-10", 10, 20)):
         for _ in range(30):
-            assert low <= int(online.answer(text, rng=rng).split()[-1]) <= high
+            assert low <= int(shown(online.answer(text, rng=rng)).split()[2]) <= high
 
 
 def test_faceit_level_and_elo():
     online._cache.clear()
     url = online.FACEIT_API + "s1mple"
     body = json.dumps({"nickname": "s1mple", "games": {"cs2": {"skill_level": 10, "faceit_elo": 3500}}})
-    assert online.faceit("s1mple", fetcher=fake({url: body}), clock=lambda: 500.0, key="F") == "s1mple: уровень 10, Elo 3500"
+    assert online.faceit("s1mple", fetcher=fake({url: body}), clock=lambda: 500.0, key="F") .replace("<b>", "").replace("</b>", "") == \
+        "🎯 FACEIT: s1mple\nУровень 10 · Elo 3500"
     assert "не найден" in online.faceit("nobody", fetcher=fake({}), clock=lambda: 501.0, key="F")
     assert "FACEIT_API_KEY" in online.faceit("s1mple", key="")
 
@@ -342,8 +357,8 @@ def test_faceit_of_our_accounts_through_wok():
     get = fake(pages)
     counting = lambda url: calls.append(url) or get(url)
     answer = online.faceit_accounts(fetcher=counting, clock=lambda: 700.0, wok="wok_x", key="K")
-    assert answer.splitlines() == ["sethome43 - Stytamimamo: нет уровня", "neurax716 - neur: уровень 8, Elo 1840",
-                                   "necroa716 - нет аккаунта FACEIT или данные недоступны"]
+    assert shown(answer).splitlines()[1:] == ["👤 sethome43 — Stytamimamo: нет уровня", "👤 neurax716 — neur: уровень 8, Elo 1840",
+                                   "👤 necroa716 — нет аккаунта FACEIT или данные недоступны"]
     wok_calls = len([c for c in calls if c.startswith(online.WOK_FACEIT)])
     online.faceit_accounts(fetcher=counting, clock=lambda: 700.0 + 300, wok="wok_x", key="K")
     assert len([c for c in calls if c.startswith(online.WOK_FACEIT)]) == wok_calls + 1  # found ones cached 10 min
@@ -363,8 +378,9 @@ def test_inventories_in_rubles_with_private_and_missing():
     inv = online.WOK_BASE + "/v1/inventory?steam_id={}&game=cs2&top=0&currency=RUB"
     pages = resolved({inv.format("76561198000000000"): json.dumps({"status": "ok", "total": 12345.6, "items_total": 234}),
                       inv.format("76561198000000001"): json.dumps({"status": "private", "total": 0})})
-    assert online.inventories(fetcher=fake(pages), clock=lambda: 800.0, wok="wok_x", key="K").splitlines() == \
-        ["sethome43 - 12 346 ₽ (234 предм.)", "neurax716 - инвентарь скрыт", "necroa716 - нет данных"]
+    assert shown(online.inventories(fetcher=fake(pages), clock=lambda: 800.0, wok="wok_x", key="K")).splitlines() == \
+        ["🎒 Инвентари CS2", "👤 sethome43 — 12 346 ₽ · 234 предм.", "👤 neurax716 — 🔒 инвентарь скрыт",
+         "👤 necroa716 — нет данных"]
     assert "WOK_API_KEY" in online.inventories(wok="", key="K")
 
 
@@ -374,8 +390,9 @@ def test_levels_from_the_official_steam_api_and_removed_commands():
         f"{online.STEAM_API}/IPlayerService/GetSteamLevel/v1/?key=K&steamid=76561198000000000":
             json.dumps({"response": {"player_level": 25}}),
         f"{online.STEAM_API}/IPlayerService/GetSteamLevel/v1/?key=K&steamid=76561198000000001": json.dumps({"response": {}})})
-    assert online.steam_levels(fetcher=fake(pages), clock=lambda: 1000.0, key="K").splitlines() == [
-        "sethome43 - 25 ур.", "neurax716 - скрыт или нет данных", "necroa716 - скрыт или нет данных"]
+    assert shown(online.steam_levels(fetcher=fake(pages), clock=lambda: 1000.0, key="K")).splitlines() == [
+        "⭐ Уровень Steam", "👤 sethome43 — 25 ур.", "👤 neurax716 — скрыт или нет данных",
+        "👤 necroa716 — скрыт или нет данных"]
     assert not online.is_command("баны") and not online.is_command("цена AK-47 | Redline (Field-Tested)")
 
 
@@ -450,17 +467,17 @@ def test_turik_lists_current_tournaments_with_copyable_commands():
     online._cache.clear()
     now = online.datetime(2026, 11, 2, 17, 0, tzinfo=online.MSK).timestamp()
     answer = online.answer("турик", fetcher=fake(tourney_pages()), clock=lambda: now)
-    assert answer.split("\n\n") == [
-        "🏆 На 02.11.2026 проводятся турниры по:\nCS2 — Intel Extreme Masters Beijing 2026\n"
-        "Dota2 — Esports Pro Circuit Season 3\nDota2 — EPL Masters III",  # no S/A tier: the best ones
-        "Подробнее о турнире (нажмите, чтобы скопировать):\n"
-        "CS2 — <code>турик кс2 Intel Extreme Masters Beijing 2026</code>\n"
-        "Dota2 — <code>турик д2 Esports Pro Circuit Season 3</code>\nDota2 — <code>турик д2 EPL Masters III</code>",
-        "Сетка — добавьте в конце «сетка»."]
+    assert shown(answer).splitlines() == [
+        "🏆 Турниры на 02.11.2026", "🔫 CS2 — Intel Extreme Masters Beijing 2026",
+        "🐉 Dota2 — Esports Pro Circuit Season 3", "🐉 Dota2 — EPL Masters III",  # no S/A tier: the best ones
+        "📋 Подробнее о турнире (нажмите, чтобы скопировать)", "CS2 — турик кс2 Intel Extreme Masters Beijing 2026",
+        "Dota2 — турик д2 Esports Pro Circuit Season 3", "Dota2 — турик д2 EPL Masters III", "",
+        "📊 Сетка — добавьте в конце «сетка»", "🕒 02.11 17:00 МСК · bo3.gg"]
+    assert "CS2 — <code>турик кс2 Intel Extreme Masters Beijing 2026</code>" in answer  # a tap copies it
     online._cache.clear()
     pages = tourney_pages()
     pages.pop(online.TOURNEYS.format(game=4))
-    assert "Dota2 — bo3.gg сейчас не отвечает" in online.answer("турик", fetcher=fake(pages), clock=lambda: now)
+    assert "🐉 Dota2 — bo3.gg сейчас не отвечает" in shown(online.answer("турик", fetcher=fake(pages), clock=lambda: now))
     assert online.addressed("/turik") == "турик"
 
 
@@ -474,16 +491,18 @@ def test_turik_one_shows_the_matches_and_says_when_it_is_not_running():
             bo3_row("C", "D", 0, 0, "upcoming", "2026-10-30T08:00:00.000+00:00")]  # in 3 days: not shown
     games = json.dumps({"games": [{"number": 3, "status": "current", "map_name": "de_inferno"}]})
     pages = tourney_pages(rows, **{f"{online.BO3_API}/matches/v-f?scope=show-match&with=games,teams": games})
-    assert online.answer('турик кс2 "beijing"', fetcher=fake(pages), clock=lambda: now).split("\n\n") == [
-        "🏆 <b>Intel Extreme Masters Beijing 2026</b> (CS2)",
-        "Источник: bo3.gg\nОбновлено: 27.10.2026 20:30 (МСК)",
-        "Сыграно сегодня:\n11:00 Mongolz 0-2 MOUZ",
-        "Онлайн:\n17:00 Vitality 1-1 FUT\nКарта 3: Inferno, идёт",
-        "Ожидаются игры:\n20:00 G2 - DENDELE",
-        "Сетка: <code>турик кс2 Intel Extreme Masters Beijing 2026 сетка</code>"]
-    assert online.answer("турик д2 The International", fetcher=fake(pages), clock=lambda: now).split("\n\n") == [
-        "Турнир «The International» по Dota2 сейчас не идёт.",
-        "Сейчас идут:\n<code>турик д2 Esports Pro Circuit Season 3</code>\n<code>турик д2 EPL Masters III</code>"]
+    answer = online.answer('турик кс2 "beijing"', fetcher=fake(pages), clock=lambda: now)
+    assert shown(answer).splitlines() == [
+        "🔫 Intel Extreme Masters Beijing 2026 · CS2", "",
+        "✅ Сыграно сегодня", "11:00 Mongolz 0:2 MOUZ",
+        "🔴 Сейчас идёт", "17:00 Vitality 1:1 FUT", "   🗺 Карта 3: Inferno, идёт",
+        "🕒 Ожидаются", "20:00 G2 — DENDELE", "",
+        "📊 Сетка: турик кс2 Intel Extreme Masters Beijing 2026 сетка", "🕒 27.10 20:30 МСК · bo3.gg"]
+    assert "Mongolz <b>0:2</b> <b>MOUZ</b>" in answer  # the winner in bold
+    assert shown(online.answer("турик д2 The International", fetcher=fake(pages), clock=lambda: now)).splitlines() == [
+        "🔍 Турнир «The International» по Dota2 сейчас не идёт.", "",
+        "📋 Сейчас идут (нажмите, чтобы скопировать)",
+        "турик д2 Esports Pro Circuit Season 3", "турик д2 EPL Masters III"]
     online._cache.clear()
     assert "не отвечает" in online.answer("турик кс2 beijing", fetcher=fake({}), clock=lambda: now)
 
@@ -495,7 +514,7 @@ def test_dota_games_have_no_maps():
         {"number": 2, "status": "current", "map_name": None}]})
     assert online.match_maps({"slug": "s-t"}, fetcher=fake(
         {f"{online.BO3_API}/matches/s-t?scope=show-match&with=games,teams": games}), clock=lambda: 1.0) == [
-        "Игра 1: победа Team Spirit", "Игра 2, идёт"]
+        "🎮 Игра 1: победа Team Spirit", "🎮 Игра 2, <i>идёт</i>"]
 
 
 def test_grid_by_day_for_any_format():
@@ -565,7 +584,7 @@ def test_playoff_final_is_between_the_semifinal_winners():
 def test_online_samples_and_graph():
     samples = []
     online.keep_sample(samples, 0.0, [("Excellent", 90), ("Space", 800), ("Wednesday", None)])
-    assert online.image("онлайн график", samples=samples, clock=lambda: 10.0).startswith("График появится")
+    assert online.image("онлайн график", samples=samples, clock=lambda: 10.0).startswith("📈 График появится")
     for i in range(1, 100):
         online.keep_sample(samples, i * 300.0, [("Excellent", 90 + i), ("Space", 800 + i), ("Wednesday", 10)])
     online.keep_sample(samples, 30 * 3600.0, [("Excellent", 1), ("Space", 2), ("Wednesday", 3)])
@@ -586,8 +605,8 @@ def test_steam_specials_and_digest_texts():
     request = online.digest_request(posts, ["Battlefield V — -90% — 399 RUB"])
     assert request.index("https://t.me/skesti/9") < request.index("https://t.me/skesti/5")
     assert request.endswith("СКИДКИ В МАГАЗИНЕ STEAM СЕЙЧАС:\n\nBattlefield V — -90% — 399 RUB")
-    assert online.digest_answer("steam", " игры ", 0.0) == \
-        "Источник: @skesti, магазин Steam\nОбновлено: 01.01.1970 03:00 (МСК)\n\nигры"
+    assert shown(online.digest_answer("steam", " игры <б> ", 0.0)) == \
+        "🛒 Скидки и раздачи Steam\nигры <б>\n🕒 01.01 03:00 МСК · @skesti, магазин Steam"  # the model's text is escaped
 
 
 def test_digest_prompt_asks_for_russian_short_lines():
@@ -598,7 +617,7 @@ def test_digest_prompt_asks_for_russian_short_lines():
 def test_news_are_absurd_and_marked_as_a_joke_and_money_links_the_video():
     assert online.is_command("Новости") and online.is_command("получить деньги")
     news = online.answer("новости", rng=random.Random(1))
-    assert news.startswith("📰 <b>СРОЧНЫЕ НОВОСТИ</b>") and news.endswith("😄 Это шутка, все новости выдуманы.")
+    assert news.startswith("📰 <b>СРОЧНЫЕ НОВОСТИ</b>") and shown(news).endswith("😄 Это шутка, все новости выдуманы.")
     assert news.count("🚨") == 3
     assert online.answer("получить деньги").endswith(online.MONEY_VIDEO)
     assert online.addressed("/news") == "новости" and online.addressed("/money") == "получить деньги"
@@ -606,7 +625,7 @@ def test_news_are_absurd_and_marked_as_a_joke_and_money_links_the_video():
 
 def test_flag_command():
     assert online.is_command("🇷🇺") and online.addressed("🇷🇺") == "🇷🇺"
-    assert online.answer("🇷🇺") == "Россия, Путин, Победа"
+    assert shown(online.answer("🇷🇺")) == "🇷🇺 Россия, Путин, Победа"
     assert not online.is_command("🇷🇺 привет")
 
 
@@ -617,5 +636,16 @@ def test_reminder_a_year_ahead_and_too_far():
     assert due == now + 522720 * 60 and note == "поздравить с др"
     for minutes in ("600000", "999999999", "999999999999999"):  # more than a year: a clear answer, never a crash
         assert online.reminder(f"напомни через {minutes} минут x", now) == \
-            (None, "Напоминание можно поставить не дальше чем на год."), minutes
+            (None, "⚠️ Напоминание можно поставить не дальше чем на год."), minutes
     assert online.when(now + 400 * 86400).count(".") == 2  # another year: the year is shown
+
+
+def test_command_html_folds_long_lists_escapes_values_and_shifts_by_the_prefix():
+    long = online.quote([str(i) for i in range(online.FOLD + 1)])
+    assert long.startswith("<blockquote expandable>") and online.quote(["a"]).startswith("<blockquote>")
+    text, entities = render_command("🎮 <b>x</b>\n" + long + "\n" + online.quote(["y"]), "[AI] ")
+    quotes = [e for e in entities if type(e).__name__ == "MessageEntityBlockquote"]
+    assert [bool(q.collapsed) for q in quotes] == [True, False]  # Telegram folds only the long one
+    bold = next(e for e in entities if type(e).__name__ == "MessageEntityBold")
+    assert text.encode("utf-16-le")[2 * bold.offset:2 * (bold.offset + bold.length)].decode("utf-16-le") == "x"
+    assert online.esc("<b>&") == "&lt;b&gt;&amp;" and shown(online.esc("<b> & </b>")) == "<b> & </b>"
