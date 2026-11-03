@@ -61,7 +61,13 @@ def test_report_takes_both_servers_from_the_full_list():
         {"name": "Vice City", "online": 423, "maxPlayers": 750, "queue": 0, "status": "online", "category": "vice-city"},
         {"name": "Space", "online": 5, "maxPlayers": 100, "queue": 0, "status": "online", "category": "mobile"}])
     result = online.report(fetcher=fake({online.EXCELLENT: EXC_JSON, online.DODGER: servers}), clock=lambda: 1500.0)
-    assert result == "Excellent - 99\nSpace - 999, очередь 182\nWednesday - 279, очередь 0\nVice City - 423, очередь 0"
+    assert result == ("Excellent - 99\nSpace - 999 дayнoв не дают поиграть 182 игрокам\nWednesday - 279, очередь 0\n"
+                      "Vice City - 423, очередь 0")
+    assert online.answer("онлайн space", fetcher=fake({online.DODGER: servers}), clock=lambda: 1500.0) == \
+        "Space - 999 дayнoв не дают поиграть 182 игрокам"
+    assert [online.space_line(n, q) for n, q in ((1, 21), (22, 11), (1000, 2))] == [
+        "1 дayн не дают поиграть 21 игроку", "22 дayнa не дают поиграть 11 игрокам",
+        "1000 дayнoв не дают поиграть 2 игрокам"]
     online._cache.clear()
     down = servers.replace('"online": 279, "maxPlayers": 1000, "queue": 0, "status": "online"',
                            '"online": 279, "maxPlayers": 1000, "queue": 0, "status": "offline"')

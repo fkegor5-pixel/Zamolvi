@@ -382,12 +382,12 @@ def counts(fetcher=fetch, clock=time.time):
 
 
 def report(fetcher=fetch, clock=time.time):
-    """The answer to «онлайн»: one line per server, with the queue arzdata shows (Excellent has none)."""
+    """The answer to «онлайн»: one line per server, with the queue (Excellent has none)."""
     found = counts(fetcher, clock)
     queue = {}
     for name, _, _, q in rows(fetcher, clock) or []:  # the same cached page counts() just read
         queue.setdefault(name.lower(), q)
-    return "\n".join(f"{name} - {'нет данных' if n is None else str(n) + queue_note(queue.get(name.lower()))}"
+    return "\n".join(f"{name} - {'нет данных' if n is None else server_note(name, n, queue.get(name.lower()))}"
                      for name, n in found)
 
 
@@ -544,6 +544,23 @@ def queue_note(q):
     return "" if q is None else f", очередь {q}"
 
 
+def plural(n, one, few, many):
+    if n % 10 == 1 and n % 100 != 11:
+        return one
+    return few if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else many
+
+
+def space_line(online, queue):
+    """The owner's wording for Space: «999 дayнoв не дают поиграть 182 игрокам» (spelled as he asked)."""
+    return (f"{online} {plural(online, 'дayн', 'дayнa', 'дayнoв')} не дают поиграть "
+            f"{queue} {'игроку' if queue % 10 == 1 and queue % 100 != 11 else 'игрокам'}")
+
+
+def server_note(name, online, queue):
+    """«999, очередь 182», for Space the owner's line when the queue is known."""
+    return space_line(online, queue) if name.lower() == "space" and queue is not None else f"{online}{queue_note(queue)}"
+
+
 def top_online(fetcher=fetch, clock=time.time):
     found = rows(fetcher, clock)
     if not found:
@@ -556,10 +573,11 @@ def server_online(name, fetcher=fetch, clock=time.time):
     found = rows(fetcher, clock)
     if found is None:
         return "Онлайн серверов сейчас недоступен."
-    same = [r for r in found if r[0].casefold() == name.strip().casefold()]
+    same = [r for r in found if r[0].casefold() == name.strip().casefold()][:1]  # Arizona first, like «онлайн»
     if not same:
-        return f"Сервер «{name.strip()}» не найден на arzdata.com."
-    return "\n".join(f"{n} - {online} / {slots}{queue_note(q)}" for n, online, slots, q in same)
+        return f"Сервер «{name.strip()}» не найден."
+    return "\n".join(f"{n} - {space_line(online, q)}" if n.lower() == "space" and q is not None
+                     else f"{n} - {online} / {slots}{queue_note(q)}" for n, online, slots, q in same)
 
 
 def rates(fetcher=fetch, clock=time.time):
