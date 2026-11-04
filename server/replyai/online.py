@@ -29,16 +29,15 @@ BOT = re.compile(r"^\s*бот\b[\s,:.!-]*", re.IGNORECASE)   # the owner's bot a
 COMMAND = re.compile(r"^онлайн[.!?\s]*$", re.IGNORECASE)
 DEMOB_COMMAND = re.compile(r"^дембель[.!?\s]*$", re.IGNORECASE)
 MSK = timezone(timedelta(hours=3))
-DEMOB_FROM = datetime(2025, 11, 15, tzinfo=MSK)  # начало службы, для процента
-DEMOB_AT = datetime(2026, 11, 15, tzinfo=MSK)  # 15.11.2026 00:00 по Москве
+# personal values live in /etc/replyai/server.env on the owner's server, never in the code or the APK
+DEMOB_ENV = "ZAMOLVI_DEMOB"  # «начало,конец» службы: 2025-11-15,2026-11-15 (полночь по Москве)
+STEAM_ENV = "ZAMOLVI_STEAM"  # имена профилей Steam через запятую
+NO_STEAM = "⚙️ Аккаунты Steam не настроены: добавьте <code>ZAMOLVI_STEAM</code> в настройки сервера."
 HOURS_COMMAND = re.compile(r"^часы\s+в\s+кс[.!?\s]*$", re.IGNORECASE)
 # a whole number like «5 864», «5,864» or «1 234,5», so the «31» of «0 из 31 5 864» stays apart
 HOURS = re.compile(r"(\d{1,3}(?:[ \u00a0,]\d{3})*(?:[.,]\d+)?)\s*(?:ч\.\s*всего|hrs on record)", re.IGNORECASE)
 CS2 = "Counter-Strike 2"
 # shortcut: Steam shows the hours only under «Недавняя активность», i.e. if CS2 was played in the last 2 weeks
-STEAM = (("sethome43", "https://steamcommunity.com/id/sethome43/?l=russian"),
-         ("neurax716", "https://steamcommunity.com/id/neurax716/?l=russian"),
-         ("necroa716", "https://steamcommunity.com/id/necroa716/?l=russian"))
 # With this key (on the server only) the total CS2 time comes from the official Steam Web API, without
 # the 2-week limit of the profile page. https://steamcommunity.com/dev/apikey
 STEAM_KEY_ENV = "STEAM_API_KEY"
@@ -476,8 +475,10 @@ def api_hours(name, key, fetcher=fetch, clock=time.time):
 def cs_hours(fetcher=fetch, clock=time.time, key=None):
     """The answer to «часы в кс»: one line per Steam profile."""
     key = steam_key(key)
+    if not steam():
+        return NO_STEAM
     lines = []
-    for name, url in STEAM:
+    for name, url in steam():
         value = api_hours(name, key, fetcher, clock) if key else None
         if value is None:
             text = page(url, fetcher, clock)
@@ -486,8 +487,28 @@ def cs_hours(fetcher=fetch, clock=time.time, key=None):
     return "🔫 <b>Часы в CS2</b>\n" + quote(lines)
 
 
+def steam():
+    """(name, profile page) of every Steam account in ZAMOLVI_STEAM."""
+    names = [n.strip() for n in os.environ.get(STEAM_ENV, "").split(",") if n.strip()]
+    return [(n, f"https://steamcommunity.com/id/{urllib.parse.quote(n)}/?l=russian") for n in names]
+
+
+def demob_dates():
+    """(start, end) of the service from ZAMOLVI_DEMOB; None when it is not set or wrong."""
+    try:
+        start, end = (datetime.fromisoformat(x.strip()).replace(tzinfo=MSK)
+                      for x in os.environ.get(DEMOB_ENV, "").split(","))
+    except ValueError:
+        return None
+    return start, end
+
+
 def demob(clock=time.time):
-    """The answer to «дембель»: time left until DEMOB_AT."""
+    """The answer to «дембель»: time left until the end of the service."""
+    dates = demob_dates()
+    if not dates:
+        return "⚙️ Дембель не настроен: добавьте <code>ZAMOLVI_DEMOB</code> в настройки сервера."
+    DEMOB_FROM, DEMOB_AT = dates
     now = clock()
     left = int(DEMOB_AT.timestamp() - now)
     if left <= 0:
@@ -524,7 +545,9 @@ def in_game(fetcher=fetch, clock=time.time, key=None):
     key = steam_key(key)
     if not key:
         return "⚙️ Нужен ключ Steam на сервере (<code>STEAM_API_KEY</code>)."
-    ids = {name: steam_id(name, key, fetcher, clock) for name, _ in STEAM}
+    if not steam():
+        return NO_STEAM
+    ids = {name: steam_id(name, key, fetcher, clock) for name, _ in steam()}
     known = [i for i in ids.values() if i]
     found = get_json(f"{STEAM_API}/ISteamUser/GetPlayerSummaries/v2/?key={key}&steamids={','.join(known)}",
                      fetcher, clock) if known else None
@@ -533,7 +556,7 @@ def in_game(fetcher=fetch, clock=time.time, key=None):
     except (TypeError, KeyError):
         players = {}
     lines = []
-    for name, _ in STEAM:
+    for name, _ in steam():
         p = players.get(ids[name])
         if not p:
             lines.append(f"⚪ {esc(name)} — <i>нет данных</i>")
@@ -723,6 +746,8 @@ def faceit_accounts(fetcher=fetch, clock=time.time, wok=None, key=None):
     wok, key = wok_key(wok), steam_key(key)
     if not wok or not key:
         return "⚙️ FACEIT не настроен: нужны ключи <code>WOK_API_KEY</code> и <code>STEAM_API_KEY</code> на сервере."
+    if not steam():
+        return NO_STEAM
     lines = []
     for name, steamid in our_ids(key, fetcher, clock):
         data = wok_get(WOK_FACEIT[len(WOK_BASE):] + steamid, wok, fetcher, clock, WOK_CACHE_SECONDS) if steamid else None
@@ -742,7 +767,7 @@ def wok_get(path, wok, fetcher=fetch, clock=time.time, ttl=WOK_CACHE_SECONDS):
 
 def our_ids(key, fetcher=fetch, clock=time.time):
     """(name, SteamID64 or None) of every account."""
-    return [(name, steam_id(name, key, fetcher, clock)) for name, _ in STEAM]
+    return [(name, steam_id(name, key, fetcher, clock)) for name, _ in steam()]
 
 
 def rubles(value):
@@ -754,6 +779,8 @@ def inventories(fetcher=fetch, clock=time.time, wok=None, key=None):
     wok, key = wok_key(wok), steam_key(key)
     if not wok or not key:
         return "⚙️ Инвентарь не настроен: нужны ключи <code>WOK_API_KEY</code> и <code>STEAM_API_KEY</code> на сервере."
+    if not steam():
+        return NO_STEAM
     lines = []
     for name, steamid in our_ids(key, fetcher, clock):
         data = wok_get(f"/v1/inventory?steam_id={steamid}&game=cs2&top=0&currency=RUB", wok, fetcher, clock,
@@ -772,6 +799,8 @@ def steam_levels(fetcher=fetch, clock=time.time, key=None):
     key = steam_key(key)
     if not key:
         return "⚙️ Нужен ключ Steam на сервере (<code>STEAM_API_KEY</code>)."
+    if not steam():
+        return NO_STEAM
     lines = []
     for name, steamid in our_ids(key, fetcher, clock):
         data = get_json(f"{STEAM_API}/IPlayerService/GetSteamLevel/v1/?key={key}&steamid={steamid}",

@@ -5,6 +5,8 @@ from replyai import online
 from replyai.formatting import render_command
 
 os.environ[online.COMMANDS_ENV] = "1"  # the owner's server: commands on
+os.environ[online.STEAM_ENV] = "alpha_one, bravo_two,charlie_3"  # made-up profiles
+os.environ[online.DEMOB_ENV] = "2025-01-10,2026-01-10"
 
 
 PAGE_SPACE = ("<html><script>var space = 1;</script><body>Arizona (Staging) 0 / 2000 "
@@ -147,15 +149,15 @@ def test_hours_command_passes_the_gate_and_reads_each_profile():
     assert online.addressed("Часы в кс") == "Часы в кс"
     assert online.is_command("часы в кс!")
     online._cache.clear()
-    pages = {online.STEAM[0][1]: STEAM_RU, online.STEAM[1][1]: STEAM_EN}
+    pages = {online.steam()[0][1]: STEAM_RU, online.steam()[1][1]: STEAM_EN}
     assert shown(online.cs_hours(fetcher=fake(pages), clock=lambda: 4000.0, key="")) == \
-        "🔫 Часы в CS2\n👤 sethome43 — 5 864 ч.\n👤 neurax716 — 1,234.5 ч.\n👤 necroa716 — нет данных"
+        "🔫 Часы в CS2\n👤 alpha_one — 5 864 ч.\n👤 bravo_two — 1,234.5 ч.\n👤 charlie_3 — нет данных"
 
 
 def test_hours_missing_when_cs2_is_not_on_the_profile():
     online._cache.clear()
-    pages = {online.STEAM[0][1]: "<div>Dota 2 10 hrs on record</div>", online.STEAM[1][1]: STEAM_RU}
-    assert shown(online.cs_hours(fetcher=fake(pages), clock=lambda: 4100.0, key="")).splitlines()[1] == "👤 sethome43 — нет данных"
+    pages = {online.steam()[0][1]: "<div>Dota 2 10 hrs on record</div>", online.steam()[1][1]: STEAM_RU}
+    assert shown(online.cs_hours(fetcher=fake(pages), clock=lambda: 4100.0, key="")).splitlines()[1] == "👤 alpha_one — нет данных"
 
 
 def test_online_command_still_lists_servers():
@@ -176,26 +178,26 @@ def api_pages(key, name, steamid, games):
 def test_api_gives_total_hours_for_every_account():
     online._cache.clear()
     pages = {}
-    pages.update(api_pages("K", "sethome43", "1", [{"appid": 730, "playtime_forever": 351840}]))
-    pages.update(api_pages("K", "neurax716", "2", [{"appid": 730, "playtime_forever": 59}]))
-    pages.update(api_pages("K", "necroa716", "3", [{"appid": 730, "playtime_forever": 125 * 60}]))
+    pages.update(api_pages("K", "alpha_one", "1", [{"appid": 730, "playtime_forever": 351840}]))
+    pages.update(api_pages("K", "bravo_two", "2", [{"appid": 730, "playtime_forever": 59}]))
+    pages.update(api_pages("K", "charlie_3", "3", [{"appid": 730, "playtime_forever": 125 * 60}]))
     assert shown(online.cs_hours(fetcher=fake(pages), clock=lambda: 5000.0, key="K")).splitlines()[1:] == \
-        ["👤 sethome43 — 5 864 ч.", "👤 neurax716 — 0 ч.", "👤 necroa716 — 125 ч."]
+        ["👤 alpha_one — 5 864 ч.", "👤 bravo_two — 0 ч.", "👤 charlie_3 — 125 ч."]
 
 
 def test_api_hidden_games_fall_back_to_the_profile_page():
     online._cache.clear()
     pages = {}
-    for i, (name, _) in enumerate(online.STEAM):
+    for i, (name, _) in enumerate(online.steam()):
         pages.update(api_pages("K", name, str(i), []))  # games hidden: the API returns no games
-    pages[online.STEAM[0][1]] = STEAM_RU
+    pages[online.steam()[0][1]] = STEAM_RU
     assert shown(online.cs_hours(fetcher=fake(pages), clock=lambda: 6000.0, key="K")).splitlines()[1:] == \
-        ["👤 sethome43 — 5 864 ч.", "👤 neurax716 — нет данных", "👤 necroa716 — нет данных"]
+        ["👤 alpha_one — 5 864 ч.", "👤 bravo_two — нет данных", "👤 charlie_3 — нет данных"]
 
 
 def test_demob_counts_down_and_passes_the_gate():
     assert online.addressed("Дембель") == "Дембель"
-    end = online.DEMOB_AT.timestamp()
+    end = online.demob_dates()[1].timestamp()
     left = 2 * 7 * 86400 + 3 * 86400 + 4 * 3600 + 5 * 60 + 6
     assert shown(online.answer("дембель", clock=lambda: end - left)).splitlines()[:2] == \
         ["🪖 До дембеля", "17 дн. 4 ч. 5 мин."]  # 2 weeks and 3 days are 17 days
@@ -255,15 +257,15 @@ def test_server_by_name_and_top_from_the_full_list():
 def test_who_is_in_game():
     online._cache.clear()
     pages = {}
-    for i, (name, _) in enumerate(online.STEAM):
+    for i, (name, _) in enumerate(online.steam()):
         pages[f"{online.STEAM_API}/ISteamUser/ResolveVanityURL/v1/?key=K&vanityurl={name}"] = \
             json.dumps({"response": {"steamid": str(i), "success": 1}})
     pages[f"{online.STEAM_API}/ISteamUser/GetPlayerSummaries/v2/?key=K&steamids=0,1,2"] = json.dumps({"response": {
         "players": [{"steamid": "0", "personastate": 1, "gameextrainfo": "Counter-Strike 2"},
                     {"steamid": "1", "personastate": 0}]}})
     assert shown(online.in_game(fetcher=fake(pages), clock=lambda: 200.0, key="K")).splitlines() == [
-        "🎮 Кто сейчас в игре", "🟢 sethome43 — играет в Counter-Strike 2", "⚫ neurax716 — не в сети",
-        "⚪ necroa716 — нет данных"]
+        "🎮 Кто сейчас в игре", "🟢 alpha_one — играет в Counter-Strike 2", "⚫ bravo_two — не в сети",
+        "⚪ charlie_3 — нет данных"]
     assert "ключ Steam" in online.in_game(key="")
 
 
@@ -346,19 +348,19 @@ def test_faceit_of_our_accounts_through_wok():
     online._cache.clear()
     assert online.is_command("фейсит")
     pages = {}
-    for i, (name, _) in enumerate(online.STEAM):
+    for i, (name, _) in enumerate(online.steam()):
         pages[f"{online.STEAM_API}/ISteamUser/ResolveVanityURL/v1/?key=K&vanityurl={name}"] = \
             json.dumps({"response": {"steamid": f"7656119800000000{i}", "success": 1}})
     pages[online.WOK_FACEIT + "76561198000000000"] = json.dumps(
-        {"nickname": "Stytamimamo", "games": {"cs2": {"faceit_elo": 0, "skill_level": 0}}})
+        {"nickname": "NickOne", "games": {"cs2": {"faceit_elo": 0, "skill_level": 0}}})
     pages[online.WOK_FACEIT + "76561198000000001"] = json.dumps(
-        {"nickname": "neur", "games": {"cs2": {"faceit_elo": 1840, "skill_level": 8}}})
+        {"nickname": "nicktwo", "games": {"cs2": {"faceit_elo": 1840, "skill_level": 8}}})
     calls = []
     get = fake(pages)
     counting = lambda url: calls.append(url) or get(url)
     answer = online.faceit_accounts(fetcher=counting, clock=lambda: 700.0, wok="wok_x", key="K")
-    assert shown(answer).splitlines()[1:] == ["👤 sethome43 — Stytamimamo: нет уровня", "👤 neurax716 — neur: уровень 8, Elo 1840",
-                                   "👤 necroa716 — нет аккаунта FACEIT или данные недоступны"]
+    assert shown(answer).splitlines()[1:] == ["👤 alpha_one — NickOne: нет уровня", "👤 bravo_two — nicktwo: уровень 8, Elo 1840",
+                                   "👤 charlie_3 — нет аккаунта FACEIT или данные недоступны"]
     wok_calls = len([c for c in calls if c.startswith(online.WOK_FACEIT)])
     online.faceit_accounts(fetcher=counting, clock=lambda: 700.0 + 300, wok="wok_x", key="K")
     assert len([c for c in calls if c.startswith(online.WOK_FACEIT)]) == wok_calls + 1  # found ones cached 10 min
@@ -367,7 +369,7 @@ def test_faceit_of_our_accounts_through_wok():
 
 
 def resolved(pages, key="K"):
-    for i, (name, _) in enumerate(online.STEAM):
+    for i, (name, _) in enumerate(online.steam()):
         pages[f"{online.STEAM_API}/ISteamUser/ResolveVanityURL/v1/?key={key}&vanityurl={name}"] = \
             json.dumps({"response": {"steamid": f"7656119800000000{i}", "success": 1}})
     return pages
@@ -379,8 +381,8 @@ def test_inventories_in_rubles_with_private_and_missing():
     pages = resolved({inv.format("76561198000000000"): json.dumps({"status": "ok", "total": 12345.6, "items_total": 234}),
                       inv.format("76561198000000001"): json.dumps({"status": "private", "total": 0})})
     assert shown(online.inventories(fetcher=fake(pages), clock=lambda: 800.0, wok="wok_x", key="K")).splitlines() == \
-        ["🎒 Инвентари CS2", "👤 sethome43 — 12 346 ₽ · 234 предм.", "👤 neurax716 — 🔒 инвентарь скрыт",
-         "👤 necroa716 — нет данных"]
+        ["🎒 Инвентари CS2", "👤 alpha_one — 12 346 ₽ · 234 предм.", "👤 bravo_two — 🔒 инвентарь скрыт",
+         "👤 charlie_3 — нет данных"]
     assert "WOK_API_KEY" in online.inventories(wok="", key="K")
 
 
@@ -391,8 +393,8 @@ def test_levels_from_the_official_steam_api_and_removed_commands():
             json.dumps({"response": {"player_level": 25}}),
         f"{online.STEAM_API}/IPlayerService/GetSteamLevel/v1/?key=K&steamid=76561198000000001": json.dumps({"response": {}})})
     assert shown(online.steam_levels(fetcher=fake(pages), clock=lambda: 1000.0, key="K")).splitlines() == [
-        "⭐ Уровень Steam", "👤 sethome43 — 25 ур.", "👤 neurax716 — скрыт или нет данных",
-        "👤 necroa716 — скрыт или нет данных"]
+        "⭐ Уровень Steam", "👤 alpha_one — 25 ур.", "👤 bravo_two — скрыт или нет данных",
+        "👤 charlie_3 — скрыт или нет данных"]
     assert not online.is_command("баны") and not online.is_command("цена AK-47 | Redline (Field-Tested)")
 
 
@@ -649,3 +651,15 @@ def test_command_html_folds_long_lists_escapes_values_and_shifts_by_the_prefix()
     bold = next(e for e in entities if type(e).__name__ == "MessageEntityBold")
     assert text.encode("utf-16-le")[2 * bold.offset:2 * (bold.offset + bold.length)].decode("utf-16-le") == "x"
     assert online.esc("<b>&") == "&lt;b&gt;&amp;" and shown(online.esc("<b> & </b>")) == "<b> & </b>"
+
+
+def test_personal_settings_come_from_the_server_env():
+    saved = os.environ.pop(online.STEAM_ENV), os.environ.pop(online.DEMOB_ENV)
+    try:
+        assert "ZAMOLVI_STEAM" in online.cs_hours(key="") and "ZAMOLVI_STEAM" in online.steam_levels(key="K")
+        assert "ZAMOLVI_DEMOB" in online.answer("дембель")
+        os.environ[online.DEMOB_ENV] = "вчера"
+        assert "ZAMOLVI_DEMOB" in online.answer("дембель")  # a wrong value is not a crash
+    finally:
+        os.environ[online.STEAM_ENV], os.environ[online.DEMOB_ENV] = saved
+    assert online.steam()[1] == ("bravo_two", "https://steamcommunity.com/id/bravo_two/?l=russian")
