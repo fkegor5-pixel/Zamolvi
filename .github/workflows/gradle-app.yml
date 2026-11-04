@@ -12,6 +12,10 @@ on:
         description: "Mark the release as a pre-release"
         required: false
         default: "true"
+      store:
+        description: "Store screenshots: Russian, dark, a big screen (true/false)"
+        required: false
+        default: "false"
 permissions:
   contents: write
 jobs:
@@ -79,7 +83,8 @@ jobs:
           arch: x86_64
           target: google_apis
           disable-animations: true
-          script: python3 build-tools/smoke.py $(ls Zamolvi-*.apk) shots
+          profile: ${{ inputs.store == 'true' && 'pixel_7' || '' }}
+          script: python3 build-tools/smoke.py $(ls Zamolvi-*.apk) shots ${{ inputs.store == 'true' && '--store' || '' }}
       - name: Report
         if: always()
         run: |
@@ -88,5 +93,5 @@ jobs:
           git config user.name "zamolvi-bot"; git config user.email "actions@users.noreply.github.com"
           git fetch -q origin ci-shots && git checkout -q -B ci-shots origin/ci-shots || git checkout -q --orphan ci-shots
           git rm -rq --cached . > /dev/null 2>&1 || true
-          dest="runs/${GITHUB_SHA::8}"; mkdir -p "$dest"; cp -r shots/* "$dest/" 2>/dev/null || true
+          dest="runs/${GITHUB_SHA::8}${{ inputs.store == 'true' && '-store' || '' }}"; mkdir -p "$dest"; cp -r shots/* "$dest/" 2>/dev/null || true
           git add runs && git commit -qm "Smoke ${GITHUB_SHA::8}" && git push -q origin ci-shots || true

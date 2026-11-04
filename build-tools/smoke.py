@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Emulator smoke test: opens the app, every menu group and every entry; keeps screenshots and crashes.
 
-Usage: smoke.py <apk> <out dir>. Needs adb with one running emulator.
+Usage: smoke.py <apk> <out dir> [--store]. Needs adb with one running emulator.
+--store: screenshots for the store page — Russian, dark theme, no network (no ad banner), a clean status bar.
 """
 import re
 import subprocess
@@ -95,10 +96,25 @@ def open_group(name):
     return nodes()
 
 
-def main(apk, out):
+STORE_SETUP = (
+    "cmd uimode night yes",
+    f"cmd locale set-app-locales {PKG} --locales ru-RU",
+    "svc wifi disable", "svc data disable",  # no network: the ad banner stays empty
+    "settings put global sysui_demo_allowed 1",
+    "am broadcast -a com.android.systemui.demo -e command enter",
+    "am broadcast -a com.android.systemui.demo -e command clock -e hhmm 1200",
+    "am broadcast -a com.android.systemui.demo -e command battery -e level 100 -e plugged false",
+    "am broadcast -a com.android.systemui.demo -e command network -e wifi show -e level 4",
+    "am broadcast -a com.android.systemui.demo -e command notifications -e visible false",
+)
+
+
+def main(apk, out, store=False):
     out.mkdir(parents=True, exist_ok=True)
     print(adb("install", "-r", apk))
     adb("shell", "pm", "grant", PKG, "android.permission.POST_NOTIFICATIONS")
+    for command in STORE_SETUP if store else ():
+        adb("shell", *command.split())
     adb("logcat", "-c")
     home()
     shot(out, "00-home")
@@ -138,4 +154,4 @@ def main(apk, out):
 
 
 if __name__ == "__main__":
-    main(sys.argv[1], Path(sys.argv[2]))
+    main(sys.argv[1], Path(sys.argv[2]), "--store" in sys.argv[3:])
