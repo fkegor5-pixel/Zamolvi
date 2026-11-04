@@ -19,7 +19,7 @@ import java.util.WeakHashMap;
  */
 public final class Brand {
     public static final String NAME = "Zamolvi";
-    public static final String VERSION = "4.0";
+    public static final String VERSION = BuildConfig.VERSION_NAME;  // build.gradle is the only place with the version
     public static final String AUTHOR = "@stytam";
     public static final String VERSION_LABEL = NAME + " " + VERSION + " · " + AUTHOR;
     static final String FORMER = "Reply AI";
