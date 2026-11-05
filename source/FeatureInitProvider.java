@@ -16,6 +16,7 @@ public final class FeatureInitProvider extends ContentProvider {
         android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
         app.registerActivityLifecycleCallbacks(new Application.ActivityLifecycleCallbacks() {
             @Override public void onActivityCreated(Activity a, Bundle state) {
+                Ui.theme(a); // inside super.onCreate, before the screen builds its views
                 // After onCreate: the screen has set its content and window features by then.
                 main.post(() -> { if (!a.isFinishing() && !a.isDestroyed()) Brand.attach(a); });
                 if (AdBanner.wanted(a)) main.post(() -> { if (!a.isFinishing() && !a.isDestroyed()) AdBanner.attach(a); });

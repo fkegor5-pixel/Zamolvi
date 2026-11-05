@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- «Язык · Language» on the home header: a globe, tinted in code. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M3,12a9,9 0,1 0,18 0a9,9 0,1 0,-18 0zM12,3c2.4,2.6 3.6,5.6 3.6,9s-1.2,6.4 -3.6,9c-2.4,-2.6 -3.6,-5.6 -3.6,-9s1.2,-6.4 3.6,-9zM3.6,9h16.8M3.6,15h16.8"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="1.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"/>
+</vector>

@@ -46,13 +46,14 @@ public final class ThemeManager {
 
         private Palette(boolean z) {
             this.dark = z;
-            this.ink = Color.parseColor(z ? "#E8EEF7" : "#182A3E");
-            this.muted = Color.parseColor(z ? "#A0AEC0" : "#607386");
-            this.accent = Color.parseColor(z ? "#63BFFF" : "#2196D2");
-            this.background = Color.parseColor(z ? "#101820" : "#F2F6FB");
-            this.card = Color.parseColor(z ? "#1B2633" : "#FFFFFF");
-            this.soft = Color.parseColor(z ? "#253A4D" : "#E5F2FB");
-            this.border = Color.parseColor(z ? "#344252" : "#E1E9F3");
+            // Neutral gray surfaces and one accent: the teal of the app icon (lighter on dark for contrast).
+            this.ink = Color.parseColor(z ? "#E8EBEE" : "#15191D");
+            this.muted = Color.parseColor(z ? "#9BA3AC" : "#5D6670");
+            this.accent = Color.parseColor(z ? "#5CCFC3" : "#0B7A75");
+            this.background = Color.parseColor(z ? "#0E1113" : "#F4F5F6");
+            this.card = Color.parseColor(z ? "#171B1F" : "#FFFFFF");
+            this.soft = Color.parseColor(z ? "#1B2A29" : "#E5F1F0");
+            this.border = Color.parseColor(z ? "#262C32" : "#E1E4E8");
         }
     }
 }

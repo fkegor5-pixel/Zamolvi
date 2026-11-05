@@ -42,7 +42,7 @@ public final class HomeFeatures {
             {"replyai.update.navigation.v1", "16. Обновление", "Версия приложения и выпуски на GitHub"},
             {"replyai.notification.navigation.v1", "17. Ответы из уведомлений", "Без сервера, с телефона: WhatsApp, VK, Viber, SMS"},
             {"replyai.style.navigation.v1", "18. Стиль общения", "Тон ответов: деловой, добрый, дерзкий…"},
-            {"replyai.commands.navigation.v1", "20. ⚡ Свои команды", "Слово, где искать и как ответить — отвечает нейросеть"},
+            {"replyai.commands.navigation.v1", "20. Свои команды", "Слово, где искать и как ответить — отвечает нейросеть"},
     };
     private static final Class<?>[] SCREENS = {DeletedMessagesActivity.class, MemoryActivity.class,
             MediaActivity.class, ApprovalActivity.class, StatsActivity.class, CheckupActivity.class,
@@ -405,7 +405,19 @@ public final class HomeFeatures {
 
     /** «Ответы · 4   ▾» — already translated, so the branding pass leaves it alone. */
     private static void label(Activity a, Button head, int group, int count, boolean open) {
-        head.setText(I18n.t(a, GROUPS[group][0]) + " · " + count + (open ? "   ▾" : "   ▸"));
+        String name = I18n.t(a, GROUPS[group][0]).toString();
+        if (Ui.colorful) {
+            head.setText(name + " · " + count + (open ? "   ▾" : "   ▸"));
+            return;
+        }
+        // The calm look: the name, a gray count and a chevron at the right edge that turns down when open.
+        SpannableString text = new SpannableString(name + "   " + count);
+        text.setSpan(new ForegroundColorSpan(ThemeManager.colors(a).muted), name.length(), text.length(), 33);
+        text.setSpan(new StyleSpan(android.graphics.Typeface.BOLD), 0, name.length(), 33);
+        head.setTypeface(android.graphics.Typeface.DEFAULT); // only the name is bold, not the count
+        head.setText(text);
+        int chevron = a.getResources().getIdentifier(open ? "ic_expand" : "ic_chevron", "drawable", a.getPackageName());
+        head.setCompoundDrawablesWithIntrinsicBounds(0, 0, chevron, 0);
     }
 
     private static Button head(Activity a, int group) {
@@ -421,10 +433,10 @@ public final class HomeFeatures {
         head.setMinHeight(dp(a, 56));
         head.setPadding(dp(a, 18), dp(a, 10), dp(a, 14), dp(a, 10));
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Ui.mix(colors.card, accent, 0.18f));
+        bg.setColor(Ui.colorful ? Ui.mix(colors.card, accent, 0.18f) : colors.card);
         bg.setCornerRadius(dp(a, 18));
-        bg.setStroke(dp(a, 2), Ui.alpha(accent, 0xC0));
-        head.setBackground(new RippleDrawable(ColorStateList.valueOf(Ui.alpha(accent, 0x44)), bg, null));
+        bg.setStroke(dp(a, Ui.colorful ? 2 : 1), Ui.colorful ? Ui.alpha(accent, 0xC0) : colors.border);
+        head.setBackground(new RippleDrawable(ColorStateList.valueOf(Ui.colorful ? Ui.alpha(accent, 0x44) : colors.soft), bg, null));
         head.setStateListAnimator(null);
         Ui.press(head);
         return head;

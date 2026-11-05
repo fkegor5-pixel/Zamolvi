@@ -3,27 +3,27 @@
     <style name="AppTheme" parent="@style/AppThemeBase">
     </style>
     <style name="AppThemeBase" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">#f2f6fb</item>
+        <item name="android:windowBackground">#f4f5f6</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#2196d2</item>
-        <item name="android:statusBarColor">#f2f6fb</item>
-        <item name="android:navigationBarColor">#f2f6fb</item>
+        <item name="android:colorAccent">#0b7a75</item>
+        <item name="android:statusBarColor">#f4f5f6</item>
+        <item name="android:navigationBarColor">#f4f5f6</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
     </style>
     <style name="AppThemeDark" parent="@style/AppThemeDarkBase">
     </style>
     <style name="AppThemeDarkBase" parent="@android:style/Theme.Material.NoActionBar">
-        <item name="android:colorBackground">#101820</item>
-        <item name="android:textColorPrimary">#e8eef7</item>
-        <item name="android:textColorSecondary">#a0aec0</item>
-        <item name="android:windowBackground">#101820</item>
+        <item name="android:colorBackground">#0e1113</item>
+        <item name="android:textColorPrimary">#e8ebee</item>
+        <item name="android:textColorSecondary">#9ba3ac</item>
+        <item name="android:windowBackground">#0e1113</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#63bfff</item>
-        <item name="android:statusBarColor">#101820</item>
-        <item name="android:navigationBarColor">#101820</item>
+        <item name="android:colorAccent">#5ccfc3</item>
+        <item name="android:statusBarColor">#0e1113</item>
+        <item name="android:navigationBarColor">#0e1113</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowLightNavigationBar">false</item>
     </style>
