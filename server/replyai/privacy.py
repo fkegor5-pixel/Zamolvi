@@ -18,6 +18,8 @@ def forget_account(state):
     state["memory"] = memory.initial()
     state["reminders"] = []
     state["muted"] = []
+    if "streak" in state:
+        state["streak"]["chats"] = {}  # streaks belong to the old account's chats
     state.pop("bot", None)  # the own bot belongs to the old account
     state["approval"]["chats"] = []
     if state["approval"]["mode"] == "chats":

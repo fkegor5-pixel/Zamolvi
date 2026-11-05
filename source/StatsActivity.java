@@ -229,6 +229,7 @@ public final class StatsActivity extends FeatureActivity {
             case "voice": return "Голосовые";
             case "notification": return "Ответы из уведомлений";
             case "test": return "Тест AI";
+            case "streak": return "Серийчик";
             default: return key;
         }
     }

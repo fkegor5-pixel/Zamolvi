@@ -546,7 +546,8 @@ ROUTES_29 = [("GET", "/api/memory"), ("PUT", "/api/memory"), ("POST", "/api/memo
              ("POST", "/api/approval/decide"), ("POST", "/api/stats/extended"), ("GET", "/api/pricing"),
              ("PUT", "/api/pricing"), ("GET", "/api/features"),
              ("POST", "/api/memory/import"), ("POST", "/api/memory/import/cancel"),
-             ("GET", "/api/commands"), ("PUT", "/api/commands"), ("POST", "/api/commands/preview")]
+             ("GET", "/api/commands"), ("PUT", "/api/commands"), ("POST", "/api/commands/preview"),
+             ("GET", "/api/streak"), ("PUT", "/api/streak")]
 
 
 @pytest.fixture

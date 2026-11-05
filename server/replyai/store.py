@@ -6,7 +6,7 @@ import os
 import sqlite3
 import threading
 import time
-from . import stats, voice, quiet, archive, memory, media, approval
+from . import stats, voice, quiet, archive, memory, media, approval, streak
 from pathlib import Path
 
 from cryptography.fernet import Fernet
@@ -36,6 +36,7 @@ def initial():
         "commands": [],
         "muted": [],
         "watch": [],
+        "streak": streak.initial(),
     }
 
 
@@ -66,7 +67,7 @@ class Store:
                 s['ai'].setdefault('formatting', 'auto')
                 fresh = initial()
                 for key in ('behavior', 'voice', 'voice_pause_until', 'transcripts', 'stats', 'message_archive',
-                            'memory', 'media', 'approval', 'pricing', 'style', 'commands', 'muted', 'watch'):
+                            'memory', 'media', 'approval', 'pricing', 'style', 'commands', 'muted', 'watch', 'streak'):
                     s.setdefault(key, fresh[key])
                 for key in ('memory', 'media', 'approval'):
                     for field, value in fresh[key].items():

@@ -138,6 +138,13 @@ class Forget(Input):
     chat: str = Field(default='', pattern=r'^(|[0-9]{1,20})$')
 
 
+class StreakSettings(Input):
+    enabled: bool = False
+    prompt: str = Field(default='', max_length=1000)
+    model: str = Field(default='', max_length=160)
+    photo: Optional[str] = Field(default=None, max_length=3_000_000, repr=False)  # base64; '' removes it
+
+
 class MediaSettings(Input):
     photos: bool = False
     documents: bool = False
@@ -513,6 +520,14 @@ def create_app(store=None, engine=None, token=None):
     @app.put('/api/media', dependencies=protected)
     async def put_media(data: MediaSettings):
         return engine.save_media(data.model_dump())
+
+    @app.get('/api/streak', dependencies=protected)
+    async def streak_settings():
+        return engine.streak_report()
+
+    @app.put('/api/streak', dependencies=protected)
+    async def put_streak(data: StreakSettings):
+        return engine.save_streak(data.enabled, data.prompt, data.model, data.photo)
 
     @app.get('/api/approval', dependencies=protected)
     async def approval_report():
