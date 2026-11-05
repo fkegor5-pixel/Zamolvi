@@ -30,7 +30,7 @@ public final class TipsActivity extends FeatureActivity {
 
     /** Title, then the text. Prices and limits are as of October 2026 and change: they say «примерно». */
     static final String[][] TIPS = {
-            {"🖥 Где арендовать сервер",
+            {"Где арендовать сервер",
                     "Берите сервер в Европе (Нидерланды, Германия, Финляндия), а не в России: с российских адресов "
                     + "не работают Groq и Gemini. Хватит тарифа с 1 ГБ памяти, система Debian 12 или Ubuntu 24.04.\n\n"
                     + "• Timeweb Cloud — примерно от 190 ₽/мес, есть Нидерланды, Германия, Казахстан: timeweb.cloud\n"
@@ -39,7 +39,7 @@ public final class TipsActivity extends FeatureActivity {
                     + "• VDSina — примерно от 330 ₽/мес: vdsina.com\n"
                     + "• ProfitServer — много стран: profitserver.ru\n\n"
                     + "Цены «от» по рейтингу hostinghub.ru, проверьте на сайте перед оплатой."},
-            {"🤖 Бесплатные нейросети",
+            {"Бесплатные нейросети",
                     "• Groq — около 1000 запросов в день без карты; там же бесплатно расшифровываются голосовые: console.groq.com\n"
                     + "• Google AI Studio (Gemini) — бесплатно без карты, не работает с российских адресов: aistudio.google.com\n"
                     + "• Cerebras — около 1 млн токенов в день без карты: cloud.cerebras.ai\n"
@@ -47,20 +47,20 @@ public final class TipsActivity extends FeatureActivity {
                     + "• Mistral — бесплатный тариф Experiment: console.mistral.ai\n"
                     + "• GigaChat — работает из России, есть бесплатный лимит для физлиц: developers.sber.ru\n\n"
                     + "Лимиты бесплатных тарифов меняются, смотрите их на сайте сервиса."},
-            {"💸 Как тратить меньше лимитов ИИ",
+            {"Как тратить меньше лимитов ИИ",
                     "Включите «Объединение сообщений» в разделе «Автоответчик»: пять сообщений подряд от одного "
                     + "человека уйдут одним запросом, а не пятью. Ограничьте автоответы нужными чатами в «Личных чатах»."},
-            {"🛠 Защита сервера",
+            {"Защита сервера",
                     "Вход по SSH-ключу вместо пароля, fail2ban от подбора паролей и автоматические обновления Debian "
                     + "(unattended-upgrades). Открытыми держите только порты 22, 80 и 443."},
-            {"🛡 Как не получить ограничения в Telegram",
+            {"Как не получить ограничения в Telegram",
                     "Отвечайте только выбранным чатам, не включайте автоответ всем подряд и оставьте паузу перед "
                     + "ответом. Слишком быстрые и одинаковые ответы многим людям похожи на спам."},
-            {"🔔 Ответы из уведомлений не приходят?",
+            {"Ответы из уведомлений не приходят?",
                     "Разрешите Zamolvi работать в фоне: Настройки → Приложения → Zamolvi → Батарея → «Без ограничений». "
                     + "На Xiaomi включите «Автозапуск», на TECNO/Infinix и Honor — запуск в фоне, и закрепите Zamolvi "
                     + "замком в списке недавних приложений."},
-            {"✍️ Чтобы ответы были похожи на ваши",
+            {"Чтобы ответы были похожи на ваши",
                     "В «Нейросеть и текст» напишите инструкцию от первого лица, например: «Пиши коротко, на «ты», "
                     + "без смайликов, как будто я сам отвечаю с телефона. Если не знаешь ответа — скажи, что отвечу позже»."},
     };
@@ -72,10 +72,10 @@ public final class TipsActivity extends FeatureActivity {
 
     @Override public void onCreate(Bundle saved) {
         super.onCreate(saved);
-        title("💡 Подсказки");
+        title("Подсказки");
         text("Подсказки открываются на сутки после короткой рекламы. Реклама показывается через Рекламную "
                 + "сеть Яндекса и помогает развивать Zamolvi.", 15);
-        watch = button("▶  Посмотреть рекламу и открыть", v -> load());
+        watch = button("Посмотреть рекламу и открыть", v -> load());
         status = text("", 14);
         list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
@@ -105,7 +105,8 @@ public final class TipsActivity extends FeatureActivity {
         watch.setVisibility(shown ? android.view.View.GONE : android.view.View.VISIBLE);
         for (String[] tip : TIPS) {
             LinearLayout box = card(list);
-            heading(box, (shown ? "" : "🔒 ") + tip[0]);
+            TextView head = heading(box, tip[0]);
+            if (!shown) head.setTextColor(colors.muted); // closed tips: gray titles only
             if (shown) {
                 TextView text = label(box, tip[1], 15, false);
                 Linkify.addLinks(text, Linkify.WEB_URLS);

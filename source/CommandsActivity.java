@@ -25,7 +25,7 @@ public final class CommandsActivity extends FeatureActivity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        title("⚡ Свои команды");
+        title("Свои команды");
         text("Собеседник пишет слово команды — нейросеть читает указанные вами сайты или каналы и отвечает так, "
                 + "как вы описали. Работает в выбранных чатах Telegram и в «Ответах из уведомлений». "
                 + "Нужен свой сервер и подключённая нейросеть.", 15);
@@ -47,7 +47,7 @@ public final class CommandsActivity extends FeatureActivity {
         task.setMinLines(3);
         label(editor, "Пример слов после команды (для проверки {запрос}).", 13, true);
         query = field(editor, "Например: Алматы", "", TEXT);
-        button(editor, "👁  Как будет выглядеть", v -> preview());
+        button(editor, "Как будет выглядеть", v -> preview());
         result = label(editor, "", 15, false);
         button(editor, "Сохранить", v -> save());
         button(editor, "Отмена", v -> editor.setVisibility(View.GONE));

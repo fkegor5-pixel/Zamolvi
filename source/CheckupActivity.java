@@ -238,9 +238,13 @@ public final class CheckupActivity extends FeatureActivity {
     // ------------------------------------------------------------------ rows and report
 
     private void row(LinearLayout parent, String id, String title, String state, String reason, String fix, Runnable action) {
-        String mark = "ok".equals(state) ? "✅ " : "problem".equals(state) ? "❌ " : "off".equals(state) ? "⏸ " : "⚠️ ";
+        // A colored dot instead of emoji: green works, red is broken, gray is turned off, amber needs a look.
+        int mark = "ok".equals(state) ? 0xFF34A770 : "problem".equals(state) ? 0xFFE05252
+                : "off".equals(state) ? colors.muted : 0xFFE0A030;
+        android.text.SpannableString line = new android.text.SpannableString("●  " + title);
+        line.setSpan(new android.text.style.ForegroundColorSpan(mark), 0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         LinearLayout card = card(parent);
-        heading(card, mark + title);
+        heading(card, line);
         label(card, reason, 14, false).setTextIsSelectable(true);
         boolean onPhone = parent == phone;
         if (fix != null) action(card, fix, v -> action.run(), onPhone ? ownedPhone : ownedServer);

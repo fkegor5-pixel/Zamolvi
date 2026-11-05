@@ -51,7 +51,7 @@ abstract class FeatureActivity extends Activity {
         });
         body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(20), dp(12), dp(20), dp(28));
+        body.setPadding(dp(20), dp(22), dp(20), dp(28)); // the back button and title sit as on the original screens
         scroll.addView(body);
         setContentView(scroll);
         Button back = new Button(this);
@@ -68,6 +68,14 @@ abstract class FeatureActivity extends Activity {
 
     protected int nextTone() { return Ui.accent(tone++); }
 
+    private boolean primary; // the calm look fills only the first button of a screen, the rest are tonal
+
+    private void paint(Button view, boolean main) {
+        if (Ui.colorful || (main && !primary)) Ui.filled(view, nextTone());
+        else Ui.tonal(view, Ui.accent(0), colors.soft);
+        if (main) primary = true;
+    }
+
     protected int dp(int value) { return HomeFeatures.dp(this, value); }
     protected TextView text(String value, int size) {
         TextView view = new TextView(this);
@@ -81,12 +89,13 @@ abstract class FeatureActivity extends Activity {
     protected void title(String value) {
         TextView view = text(value, 27);
         view.setTypeface(null, Typeface.BOLD);
+        view.setPadding(0, dp(18), 0, dp(9));
         Ui.gradientText(view, Ui.accent(0), Ui.accent(5));
     }
     protected Button button(String label, View.OnClickListener listener) {
         Button view = new Button(this);
         view.setText(label);
-        Ui.filled(view, nextTone());
+        paint(view, true);
         view.setOnClickListener(listener);
         body.addView(view, spaced());
         controls.add(view);
@@ -171,7 +180,7 @@ abstract class FeatureActivity extends Activity {
     protected Button action(LinearLayout parent, String value, View.OnClickListener listener, ArrayList<View> owned) {
         Button view = new Button(this);
         view.setText(value);
-        Ui.filled(view, nextTone());
+        paint(view, false);
         view.setOnClickListener(listener);
         view.setEnabled(!busy);
         parent.addView(view, new LinearLayout.LayoutParams(-1, -2));
