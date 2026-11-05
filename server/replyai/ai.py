@@ -24,6 +24,8 @@ DEFAULT_MODELS = {"groq": "openai/gpt-oss-20b", "gemini": "gemini-3.5-flash-lite
 # These are defaults only: the owner can enter any model of the provider in the app.
 DEFAULT_VISION_MODELS = {"groq": "meta-llama/llama-4-scout-17b-16e-instruct", "gemini": "", "custom": "",
                          "gigachat": "GigaChat-2-Max"}
+# Models that draw pictures («Серийчик»); Groq and GigaChat have none in the chat API.
+DEFAULT_IMAGE_MODELS = {"gemini": "gemini-2.5-flash-image", "custom": "google/gemini-3.1-flash-lite-image"}
 PREFIX = "[AI-автоответ] "
 GIGA_BASE = "https://api.giga.chat/v1"
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
@@ -92,6 +94,11 @@ def checked(config):
 def vision_model(config, media_config):
     model = (media_config or {}).get("vision_model", "").strip()
     return model or DEFAULT_VISION_MODELS.get(config["provider"]) or config["model"]
+
+
+def image_model(config, streak_config):
+    model = (streak_config or {}).get("model", "").strip()
+    return model or DEFAULT_IMAGE_MODELS.get(config["provider"], "")
 
 
 def retry_delay(value):
@@ -191,6 +198,47 @@ class AiClient:
             if not re.fullmatch(r"[A-Za-z0-9_./:-]{1,160}", model):
                 raise AiError("Укажите корректную модель для изображений.")
             return await self._vision(config, model, image, mime, task)
+        return await self._guarded(config["provider"], model, run())
+
+    async def draw(self, config, model, task, photo=None):
+        """A picture from the task, or the sample photo edited by the task: image bytes."""
+        async def run():
+            checked(config)
+            provider = config["provider"]
+            if provider not in DEFAULT_IMAGE_MODELS:
+                raise AiError("Картинки рисуют только Gemini и своё API (OpenRouter); у Groq и GigaChat этого нет.")
+            if not re.fullmatch(r"[A-Za-z0-9_./:-]{1,160}", model) or looks_like_key(model):
+                raise AiError("Укажите корректную модель для картинок.")
+            sample = base64.b64encode(photo).decode() if photo else None
+            if provider == "gemini":
+                parts = ([{"inlineData": {"mimeType": "image/jpeg", "data": sample}}] if sample else []) + [{"text": task}]
+                url = "https://generativelanguage.googleapis.com/v1beta/models/" + quote(model, safe="") + ":generateContent"
+                result = await self._post(config, self.http, url, {"x-goog-api-key": config["key"]},
+                                          {"contents": [{"role": "user", "parts": parts}],
+                                           "generationConfig": {"responseModalities": ["TEXT", "IMAGE"]}}, cap=30_000_000)
+                try:
+                    found = [p["inlineData"]["data"] for p in result["candidates"][0]["content"]["parts"] if p.get("inlineData")]
+                except (KeyError, IndexError, TypeError, AttributeError):
+                    found = []
+            else:
+                content = [{"type": "text", "text": task}]
+                if sample:
+                    content.append({"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + sample}})
+                result = await self._post(config, self.http, config["endpoint"], {"Authorization": "Bearer " + config["key"]},
+                                          {"model": model, "messages": [{"role": "user", "content": content}],
+                                           "modalities": ["image", "text"]}, cap=30_000_000)
+                self._provider_error(result)
+                try:
+                    images = result["choices"][0]["message"].get("images") or []
+                    found = [i["image_url"]["url"].split(",", 1)[1] for i in images if i["image_url"]["url"].startswith("data:image/")]
+                except (KeyError, IndexError, TypeError, AttributeError):
+                    found = []
+            if not found:
+                raise AiError(f"Модель {model} не вернула картинку. Укажите модель, которая рисует изображения.")
+            try:
+                return base64.b64decode(found[0]), usage_of(provider, result)
+            except (ValueError, TypeError):
+                raise AiError("AI API вернул повреждённую картинку.") from None
         return await self._guarded(config["provider"], model, run())
 
     async def giga_token(self, key):
@@ -317,17 +365,7 @@ class AiClient:
     async def _openai(self, config, url, headers, body, limit):
         client = self.giga_http if config["provider"] == "gigachat" else self.http
         result = await self._post(config, client, url, headers, body)
-        error = result.get("error") if isinstance(result, dict) else None
-        if error:
-            # OpenRouter and some proxies answer HTTP 200 with {"error": {...}} when the upstream model fails.
-            info = error if isinstance(error, dict) else {"message": str(error)}
-            code = info.get("code")
-            message = re.sub(r"\s+", " ", str(info.get("message") or "ошибка провайдера"))[:200]
-            if code == 429 or "rate" in message.lower():
-                raise AiError("Лимит бесплатной модели у провайдера: " + message, 60)
-            if code == 413:
-                raise AiError("Запрос слишком большой для модели: " + message, too_large=True)
-            raise AiError(f"Провайдер вернул ошибку{' ' + str(code) if code else ''}: {message}", 60)
+        self._provider_error(result)
         try:
             choice = result["choices"][0]
             message = choice["message"]
@@ -339,7 +377,21 @@ class AiClient:
                           "Выберите модель без режима рассуждений (например, openai/gpt-oss-120b на Groq).", 60)
         return self._clean(answer, limit), usage_of(config["provider"], result)
 
-    async def _post(self, config, client, url, headers, body):
+    @staticmethod
+    def _provider_error(result):
+        error = result.get("error") if isinstance(result, dict) else None
+        if error:
+            # OpenRouter and some proxies answer HTTP 200 with {"error": {...}} when the upstream model fails.
+            info = error if isinstance(error, dict) else {"message": str(error)}
+            code = info.get("code")
+            message = re.sub(r"\s+", " ", str(info.get("message") or "ошибка провайдера"))[:200]
+            if code == 429 or "rate" in message.lower():
+                raise AiError("Лимит бесплатной модели у провайдера: " + message, 60)
+            if code == 413:
+                raise AiError("Запрос слишком большой для модели: " + message, too_large=True)
+            raise AiError(f"Провайдер вернул ошибку{' ' + str(code) if code else ''}: {message}", 60)
+
+    async def _post(self, config, client, url, headers, body, cap=2_000_000):
         try:
             async with client.stream("POST", url, headers=headers, json=body) as response:
                 if self.diagnostics:
@@ -363,7 +415,7 @@ class AiClient:
                 data = bytearray()
                 async for chunk in response.aiter_bytes():
                     data.extend(chunk)
-                    if len(data) > 2_000_000:
+                    if len(data) > cap:  # pictures are bigger than text answers
                         raise AiError("AI API вернул слишком большой ответ.")
             result = json.loads(data)
             if not isinstance(result, dict):

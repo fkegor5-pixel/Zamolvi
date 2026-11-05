@@ -12,16 +12,16 @@ from contextlib import suppress
 from telethon import TelegramClient, events, errors, functions, types
 from telethon.sessions import StringSession
 
-from .ai import AiClient, AiError, PREFIX, validate, purpose as ai_purpose
+from .ai import AiClient, AiError, PREFIX, validate, purpose as ai_purpose, image_model, looks_like_key
 from .diagnostics import Diagnostics
 from .qr import QrLogin
 from .formatting import render, render_command, MODES
-from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style, online, custom
+from . import queueing, stats, quiet, archive, memory, media, approval, privacy, style, online, custom, streak
 from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.6.1"
+SERVER_VERSION = "3.7.0"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -539,6 +539,7 @@ class Engine:
                 body = online.addressed(text)
                 if body is not None and online.is_command(body):
                     await self.owner_command(event, chat, body)
+            await self.streak_message(event, chat, text)
             return
         sender = await event.get_sender()
         if not isinstance(sender, types.User) or sender.bot or sender.is_self or sender.id == 777000:
@@ -553,12 +554,14 @@ class Engine:
                 s['queue'] = [j for j in s['queue'] if j['chat'] != chat]
                 s['transcripts'] = [t for t in s['transcripts'] if t['chat'] != chat]
                 memory.forget(s, chat)
+                s['streak']['chats'].pop(chat, None)
                 privacy.restrict(s)
                 s['revision'] += 1
             self.store.update(revoke)
             self.log('Собеседник отключил автоответы командой /ai_off.')
             return
         self.remember_message(event, sender)
+        await self.streak_message(event, chat, text)
         if text.startswith(PREFIX):
             return
         body = online.addressed(text)
@@ -1264,6 +1267,119 @@ class Engine:
                         no_webpage=True, reply_to=types.InputReplyToMessage(reply_to_msg_id=reply_to)))
         except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
             self.log('Картинка не отправлена: ' + type(exc).__name__)
+
+    async def send_html(self, peer, html, reply_to=None):
+        """A styled message (command HTML) to a chat, optionally as a reply."""
+        message, entities = render_command(html, PREFIX)
+        async with self.telegram_lock:
+            await self.client(functions.messages.SendMessageRequest(
+                peer=peer, message=message, entities=entities, random_id=secrets.randbits(63), no_webpage=True,
+                reply_to=types.InputReplyToMessage(reply_to_msg_id=reply_to) if reply_to else None))
+
+    async def streak_message(self, event, chat, text):
+        """«Серийчик» in a private chat, from either side: the command, the two «да» and the daily extension."""
+        state = self.store.read()
+        config = state['streak']
+        if not config['enabled'] or text.startswith(PREFIX) or getattr(getattr(event, 'message', event), 'action', None):
+            return
+        side = 'out' if event.out else 'in'
+        now = event.date.timestamp()
+        zone = state['behavior']['quiet_zone']
+        today = streak.day(now, zone)
+        entry = config['chats'].get(chat)
+        words = text.strip()
+        try:
+            if streak.COMMAND.match(words):
+                person = await event.get_chat()
+                if getattr(person, 'is_self', False):
+                    return
+                peer = await event.get_input_chat()
+                if entry and entry['state'] == 'active':
+                    await self.send_html(peer, f'🔥 <b>Серийчик: {entry["days"]} {streak.days_word(entry["days"])} подряд</b>', event.id)
+                else:  # new, waiting for «да», or stuck while drawing (a restart): ask again
+                    name = ' '.join(filter(None, (getattr(person, 'first_name', ''), getattr(person, 'last_name', ''))))
+                    self.store.update(lambda s: streak.ask(s['streak'], chat, now, name))
+                    await self.send_html(peer, '🔥 <b>Серийчик</b>\nЧтобы его создать, вы оба должны согласиться: '
+                                               'напишите в этот чат <b>да</b>.', event.id)
+            elif entry and entry['state'] == 'pending' and streak.YES.match(words):
+                if self.store.update(lambda s: streak.agree(s['streak'], chat, side, now)):
+                    await self.streak_start(event, chat, today, zone)
+            elif entry and entry['state'] == 'active' and not (entry['seen'].get('day') == today and entry['seen'].get(side)):
+                result = self.store.update(lambda s: streak.track(s['streak'], chat, side == 'out', today))
+                if result:
+                    days = self.store.read()['streak']['chats'][chat]['days']
+                    await self.send_html(await event.get_input_chat(),
+                                         f'🔥 <b>Серийчик продлён: {days} {streak.days_word(days)} подряд</b>'
+                                         if result == 'extended' else
+                                         '🔥 <b>Серийчик начался заново</b>\nБыл день, когда кто-то из вас не написал, '
+                                         'поэтому счёт начался с 1.')
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+            self.log('Серийчик: сообщение не отправлено: ' + type(exc).__name__)
+
+    async def streak_start(self, event, chat, today, zone):
+        """Both said «да»: count the days from the history, draw the picture, send it and pin it."""
+        try:
+            peer = await event.get_input_chat()
+            counter = streak.Counter(today)
+            async for message in self.client.iter_messages(peer, limit=streak.MAX_HISTORY):
+                if getattr(message, 'action', None) or (getattr(message, 'raw_text', '') or '').startswith(PREFIX):
+                    continue  # service messages and the auto-responder are not the people writing
+                if not counter.feed(streak.day(message.date.timestamp(), zone), message.out):
+                    break
+            days = max(1, counter.finish())
+            picture = io.BytesIO(await self.streak_picture(days))
+            picture.name = 'streak.jpg'
+            caption, entities = render_command(f'🔥 <b>Серийчик: {days} {streak.days_word(days)} подряд</b>\n'
+                                               'Каждый день, когда вы оба пишете в этот чат, он продлевается.', PREFIX)
+            async with self.telegram_lock:
+                sent = await self.client.send_file(peer, picture, caption=caption, formatting_entities=entities)
+            self.store.update(lambda s: streak.activate(s['streak'], chat, days, counter.last or today, today))
+            try:
+                async with self.telegram_lock:
+                    await self.client.pin_message(peer, sent, notify=False)  # in a private chat: for both
+            except errors.RPCError as exc:
+                self.log('Серийчик: картинка не закреплена: ' + type(exc).__name__)
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+            self.store.update(lambda s: s['streak']['chats'].pop(chat, None))  # «серийчик» can be written again
+            self.log('Серийчик не создан: ' + type(exc).__name__)
+
+    async def streak_picture(self, days):
+        """The AI picture (the sample photo edited, or drawn from the text) with the day count; a plain card if AI cannot."""
+        state = self.store.read()
+        drawn = None
+        try:
+            photo = await asyncio.to_thread(streak.load_photo, self.store)
+        except Exception as exc:  # a damaged or undecryptable file: draw from the text alone
+            self.log('Серийчик: фото-образец не прочитано: ' + type(exc).__name__)
+            photo = None
+        try:
+            with ai_purpose('streak'):
+                drawn = await self.ai.draw(state['ai'], image_model(state['ai'], state['streak']),
+                                           streak.task(state['streak']['prompt'], bool(photo)), photo)
+        except AiError as exc:
+            self.feature_event('streak', 'Серийчик: картинка без нейросети. ' + str(exc))
+        return await asyncio.to_thread(streak.picture, drawn, days)
+
+    def streak_report(self):
+        s = self.store.read()
+        config = s['streak']
+        return {'enabled': config['enabled'], 'prompt': config['prompt'], 'model': config['model'],
+                'effective_model': image_model(s['ai'], config), 'provider': s['ai']['provider'],
+                'photo': (self.store.path / streak.PHOTO_FILE).is_file(),
+                'streaks': [{'name': e.get('name') or 'Собеседник', 'days': e['days']}
+                            for e in config['chats'].values() if e['state'] == 'active']}
+
+    def save_streak(self, enabled, prompt, model, photo=None):
+        model = model.strip()
+        if model and (not re.fullmatch(r'[A-Za-z0-9_./:-]{1,160}', model) or looks_like_key(model)):
+            raise UserError('Укажите идентификатор модели для картинок (не API-ключ).')
+        if photo is not None:  # None — keep, '' — remove, base64 — replace
+            try:
+                streak.save_photo(self.store, photo)
+            except ValueError as exc:
+                raise UserError(str(exc)) from None
+        self.store.update(lambda s: s['streak'].update(enabled=enabled, prompt=prompt.strip()[:1000], model=model))
+        return self.streak_report()
 
     async def delete_for_all(self, ids, failure):
         """Deletes private-chat messages for both sides («удалить у всех»)."""
