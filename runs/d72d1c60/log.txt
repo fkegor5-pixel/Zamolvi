@@ -1,0 +1,54 @@
+11-05 06:38:49.026  3816  3816 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-05 06:38:49.050  3816  3816 I AndroidRuntime: Using default boot image
+11-05 06:38:49.050  3816  3816 I AndroidRuntime: Leaving lock profiling enabled
+11-05 06:38:49.351  3816  3816 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-05 06:38:50.621  3816  3816 D AndroidRuntime: Shutting down VM
+11-05 06:38:53.235  4193  4193 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-05 06:38:53.240  4193  4193 I AndroidRuntime: Using default boot image
+11-05 06:38:53.240  4193  4193 I AndroidRuntime: Leaving lock profiling enabled
+11-05 06:38:53.368  4193  4193 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-05 06:38:54.623  4193  4193 D AndroidRuntime: Shutting down VM
+11-05 06:38:54.631  4193  4318 I AndroidRuntime: NOTE: attach of thread 'binder:4193_3' failed
+11-05 06:38:55.964  4356  4356 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-05 06:38:55.978  4356  4356 I AndroidRuntime: Using default boot image
+11-05 06:38:55.978  4356  4356 I AndroidRuntime: Leaving lock profiling enabled
+11-05 06:38:56.264  4356  4356 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-05 06:38:57.363  4356  4356 D AndroidRuntime: Shutting down VM
+11-05 06:38:58.524  4563  4563 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-05 06:38:58.541  4563  4563 I AndroidRuntime: Using default boot image
+11-05 06:38:58.541  4563  4563 I AndroidRuntime: Leaving lock profiling enabled
+11-05 06:38:58.765  4563  4563 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-05 06:39:00.050  4563  4563 D AndroidRuntime: Shutting down VM
+11-05 06:39:08.304  4899  4899 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-05 06:39:08.309  4899  4899 I AndroidRuntime: Using default boot image
+11-05 06:39:08.309  4899  4899 I AndroidRuntime: Leaving lock profiling enabled
+11-05 06:39:08.599  4899  4899 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-05 06:39:09.648  4899  4899 I AccessibilityNodeInfoDumper: Skipping invisible child: android.view.accessibility.AccessibilityNodeInfo@d244; boundsInParent: Rect(0, 0 - 280, 17); boundsInScreen: Rect(20, 625 - 300, 544); boundsInWindow: Rect(20, 625 - 300, 544); packageName: ru.replyai.android; className: android.widget.TextView; text: Zamolvi 4.2 · @stytam; error: null; maxTextLength: -1; stateDescription: null; contentDescription: null; tooltipText: null; containerTitle: null; viewIdResName: null; uniqueId: null; checkable: false; checked: false; focusable: false; focused: false; selected: false; clickable: false; longClickable: false; contextClickable: false; enabled: true; password: false; scrollable: false; importantForAccessibility: true; visible: false; actions: [AccessibilityAction: ACTION_SELECT - null, AccessibilityAction: ACTION_CLEAR_SELECTION - null, AccessibilityAction: ACTION_ACCESSIBILITY_FOCUS - null, AccessibilityAction: ACTION_NEXT_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_SET_SELECTION - null, AccessibilityAction: ACTION_SHOW_ON_SCREEN - null]; isTextSelectable: false
+11-05 06:39:09.653  4899  4899 D AndroidRuntime: Shutting down VM
+11-05 06:39:10.666  4972  4972 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-05 06:39:10.675  4972  4972 I AndroidRuntime: Using default boot image
+11-05 06:39:10.675  4972  4972 I AndroidRuntime: Leaving lock profiling enabled
+11-05 06:39:10.786  4972  4972 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-05 06:39:11.840  4972  4972 I AccessibilityNodeInfoDumper: Skipping invisible child: android.view.accessibility.AccessibilityNodeInfo@d24c; boundsInParent: Rect(0, 0 - 280, 17); boundsInScreen: Rect(20, 625 - 300, 544); boundsInWindow: Rect(20, 625 - 300, 544); packageName: ru.replyai.android; className: android.widget.TextView; text: Zamolvi 4.2 · @stytam; error: null; maxTextLength: -1; stateDescription: null; contentDescription: null; tooltipText: null; containerTitle: null; viewIdResName: null; uniqueId: null; checkable: false; checked: false; focusable: false; focused: false; selected: false; clickable: false; longClickable: false; contextClickable: false; enabled: true; password: false; scrollable: false; importantForAccessibility: true; visible: false; actions: [AccessibilityAction: ACTION_SELECT - null, AccessibilityAction: ACTION_CLEAR_SELECTION - null, AccessibilityAction: ACTION_ACCESSIBILITY_FOCUS - null, AccessibilityAction: ACTION_NEXT_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_SET_SELECTION - null, AccessibilityAction: ACTION_SHOW_ON_SCREEN - null]; isTextSelectable: false
+11-05 06:39:11.864  4972  4972 D AndroidRuntime: Shutting down VM
+11-05 06:39:12.896  5031  5031 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-05 06:39:12.905  5031  5031 I AndroidRuntime: Using default boot image
+11-05 06:39:12.905  5031  5031 I AndroidRuntime: Leaving lock profiling enabled
+11-05 06:39:13.039  5031  5031 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-05 06:39:14.150  5031  5031 I AccessibilityNodeInfoDumper: Skipping invisible child: android.view.accessibility.AccessibilityNodeInfo@d251; boundsInParent: Rect(0, 0 - 280, 17); boundsInScreen: Rect(20, 625 - 300, 544); boundsInWindow: Rect(20, 625 - 300, 544); packageName: ru.replyai.android; className: android.widget.TextView; text: Zamolvi 4.2 · @stytam; error: null; maxTextLength: -1; stateDescription: null; contentDescription: null; tooltipText: null; containerTitle: null; viewIdResName: null; uniqueId: null; checkable: false; checked: false; focusable: false; focused: false; selected: false; clickable: false; longClickable: false; contextClickable: false; enabled: true; password: false; scrollable: false; importantForAccessibility: true; visible: false; actions: [AccessibilityAction: ACTION_SELECT - null, AccessibilityAction: ACTION_CLEAR_SELECTION - null, AccessibilityAction: ACTION_ACCESSIBILITY_FOCUS - null, AccessibilityAction: ACTION_NEXT_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_PREVIOUS_AT_MOVEMENT_GRANULARITY - null, AccessibilityAction: ACTION_SET_SELECTION - null, AccessibilityAction: ACTION_SHOW_ON_SCREEN - null]; isTextSelectable: false
+11-05 06:39:14.158  5031  5031 D AndroidRuntime: Shutting down VM
+11-05 06:39:16.904  5184  5184 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-05 06:39:16.912  5184  5184 I AndroidRuntime: Using default boot image
+11-05 06:39:16.916  5184  5184 I AndroidRuntime: Leaving lock profiling enabled
+11-05 06:39:17.215  5184  5184 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-05 06:39:18.357  5184  5184 D AndroidRuntime: Shutting down VM
+11-05 06:39:19.379  5254  5254 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-05 06:39:19.385  5254  5254 I AndroidRuntime: Using default boot image
+11-05 06:39:19.385  5254  5254 I AndroidRuntime: Leaving lock profiling enabled
+11-05 06:39:19.613  5254  5254 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-05 06:39:20.688  5254  5254 D AndroidRuntime: Shutting down VM
+11-05 06:39:21.683  5334  5334 D AndroidRuntime: >>>>>> START com.android.internal.os.RuntimeInit uid 2000 <<<<<<
+11-05 06:39:21.687  5334  5334 I AndroidRuntime: Using default boot image
+11-05 06:39:21.687  5334  5334 I AndroidRuntime: Leaving lock profiling enabled
+11-05 06:39:21.861  5334  5334 D AndroidRuntime: Calling main entry com.android.commands.uiautomator.Launcher
+11-05 06:39:22.972  5334  5334 D AndroidRuntime: Shutting down VM
