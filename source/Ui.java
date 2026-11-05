@@ -77,6 +77,18 @@ final class Ui {
         press(button);
     }
 
+    /** A secondary button: accent text on a light tint of the accent, flat. */
+    static void tonal(Button button, int color, int soft) {
+        GradientDrawable fill = new GradientDrawable();
+        fill.setColor(soft);
+        fill.setCornerRadius(dp(button, 12));
+        button.setBackground(new RippleDrawable(ColorStateList.valueOf(alpha(color, 0x33)), fill, null));
+        button.setTextColor(color);
+        button.setAllCaps(false);
+        button.setMinHeight(dp(button, 48));
+        button.setStateListAnimator(null);
+    }
+
     /** The quiet «back» button: a tinted pill in the colorful look, plain accent text otherwise. */
     static void pill(Button button, int color) {
         GradientDrawable fill = new GradientDrawable();

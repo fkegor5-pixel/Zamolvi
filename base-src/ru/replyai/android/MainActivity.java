@@ -2134,6 +2134,7 @@ public final class MainActivity extends Activity {
         gradientDrawable.setColor(z ? this.TEAL : this.colors.soft);
         gradientDrawable.setCornerRadius(dp(12));
         button.setBackground(gradientDrawable);
+        button.setStateListAnimator(null); // flat: no elevation shadow under the tinted buttons
         button.setPadding(dp(14), dp(10), dp(14), dp(10));
         if (Ui.colorful) {
             if (z) Ui.filled(button, Ui.accent(this.tone++));
