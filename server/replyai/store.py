@@ -74,9 +74,15 @@ class Store:
                         s[key].setdefault(field, value)
                 for field in ('text_model', 'document_model'):  # per-type models of 2.9.6, removed
                     s['media'].pop(field, None)
-                from .ai import looks_like_key
+                from .ai import looks_like_key, hide_keys
                 if looks_like_key(s['media'].get('vision_model')):  # a key pasted as a model id
                     s['media']['vision_model'] = ''
+                if looks_like_key(s['streak'].get('model')):
+                    s['streak']['model'] = ''
+                # …and echoed by the provider into the log and «Проверка функций» before keys like «AQ.…» were known
+                s['logs'] = [hide_keys(line) for line in s.get('logs', [])]
+                for problem in s.get('feature_problems', {}).values():
+                    problem['message'] = hide_keys(problem.get('message', ''))
                 stats.ensure(s, time.time())
             self.update(migrate)
         except BaseException:
