@@ -13,7 +13,9 @@ from zoneinfo import ZoneInfo
 
 COMMAND = re.compile(r"^/?серийчик[.!?\s]*$", re.IGNORECASE)
 YES = re.compile(r"^да[.!)\s]*$", re.IGNORECASE)
+CHANGE = re.compile(r"^изменить\s+серийчик[аи]?[.!?\s]*$", re.IGNORECASE)
 ASK_SECONDS = 24 * 3600     # the two «да» count within a day after «серийчик»
+CHANGE_SECONDS = 15 * 60    # the photo or text for «изменить серийчик» comes within this time
 # shortcut: a streak longer than these messages is cut there; page by date if someone gets there
 MAX_HISTORY = 10000
 MAX_PHOTO = 2_000_000
@@ -113,12 +115,42 @@ def agree(config, chat, side, now):
     return True
 
 
-def activate(config, chat, days, last, today):
+def activate(config, chat, days, last, today, message=None):
     entry = config["chats"].get(chat)
     if entry is None:  # forgotten meanwhile (/ai_off)
         return
     config["chats"][chat] = {"state": "active", "days": days, "last": last, "name": entry.get("name", ""),
-                             "seen": {"day": today, "out": True, "in": True}}
+                             "seen": {"day": today, "out": True, "in": True}, "message": message}
+
+
+def caption(days):
+    return (f"🔥 <b>Серийчик: {days} {days_word(days)} подряд</b>\n"
+            "Каждый день, когда вы оба пишете в этот чат, он продлевается.")
+
+
+def ask_change(config, chat, side, now):
+    """«изменить серийчик»: the next photo or text of the same side becomes the picture. False without a streak."""
+    entry = config["chats"].get(chat)
+    if not entry or entry["state"] != "active":
+        return False
+    entry["change"] = {"side": side, "asked": now}
+    return True
+
+
+def take_change(config, chat, side, now):
+    """True for the awaited photo or text (once); a late one only cancels the wait."""
+    entry = config["chats"].get(chat)
+    change = (entry or {}).get("change")
+    if not change or change["side"] != side:
+        return False
+    entry.pop("change")
+    return now - change["asked"] <= CHANGE_SECONDS
+
+
+def set_message(config, chat, message):
+    entry = config["chats"].get(chat)
+    if entry:
+        entry["message"] = message
 
 
 def track(config, chat, out, today):

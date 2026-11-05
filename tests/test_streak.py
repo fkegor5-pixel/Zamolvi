@@ -265,3 +265,55 @@ def test_google_aq_keys_are_not_models_and_are_scrubbed_from_saved_logs(tmp_path
         assert fake not in state["feature_problems"]["photos"]["message"]
     finally:
         store.close()
+
+
+@pytest.mark.asyncio
+async def test_change_replaces_the_pinned_picture_with_a_text_or_a_photo(env):
+    from telethon import errors
+    calls = enable(env, drawn=png((20, 120, 200)))
+    sent = env.engine.client.sent
+    telegram = StreakTelegram(env.engine.client, [])
+    telegram.client.edit_message = AsyncMock()
+    telegram.client.unpin_message = AsyncMock()
+    telegram.client.download_media = AsyncMock(return_value=png((240, 200, 20)))
+    await env.engine.on_message(message(env, 123, "изменить серийчик", True, 1))
+    assert "Серийчика в этом чате ещё нет" in sent[-1].message
+    env.store.update(lambda s: s["streak"]["chats"].update({"123": {
+        "state": "active", "days": 6, "last": streak.day(env.clock[0], ZONE), "name": "Анна", "message": 900,
+        "seen": {"day": streak.day(env.clock[0], ZONE), "out": True, "in": True}}}))
+    await env.engine.on_message(message(env, 123, "Изменить серийчика", True, 2))
+    assert "Пришлите фото или напишите, что нарисовать" in sent[-1].message
+    await env.engine.on_message(message(env, 123, "привет", False, 3))          # the other side: not the picture
+    telegram.client.edit_message.assert_not_called()
+    await env.engine.on_message(message(env, 123, "кот в шляпе на луне", True, 4))
+    assert "кот в шляпе на луне" in calls[-1][1] and calls[-1][2] is None       # drawn from the text
+    args, kwargs = telegram.client.edit_message.call_args
+    assert args[1] == 900 and "Серийчик: 6 дней подряд" in args[2] and kwargs["file"].getvalue()[:2] == b"\xff\xd8"
+    assert "Картинка серийчика обновлена" in sent[-1].message
+    await env.engine.on_message(message(env, 123, "ещё текст", True, 5))         # once: the wait is over
+    assert telegram.client.edit_message.call_count == 1
+
+    # a photo without a caption from the contact: the photo itself, no AI; the pinned one is too old to edit
+    await env.engine.on_message(message(env, 123, "изменить серийчик", False, 6))
+    photo_message = message(env, 123, "", False, 7)
+    photo_message.message.photo = object()
+    telegram.client.edit_message.side_effect = errors.MessageEditTimeExpiredError(request=None)
+    drawn_before = len(calls)
+    await env.engine.on_message(photo_message)
+    assert len(calls) == drawn_before
+    telegram.client.download_media.assert_awaited_once()
+    telegram.client.unpin_message.assert_awaited_once()
+    telegram.client.pin_message.assert_awaited_once()
+    assert env.store.read()["streak"]["chats"]["123"]["message"] == telegram.client.send_file.return_value.id
+
+
+def test_change_waits_only_for_the_side_that_asked_and_not_forever():
+    config = streak.initial()
+    assert not streak.ask_change(config, "1", "out", 0)                          # no streak yet
+    config["chats"]["1"] = {"state": "active", "days": 2, "last": "2026-11-05", "seen": {}}
+    assert streak.ask_change(config, "1", "out", 100)
+    assert not streak.take_change(config, "1", "in", 101)
+    assert streak.take_change(config, "1", "out", 102) and "change" not in config["chats"]["1"]
+    streak.ask_change(config, "1", "in", 100)
+    assert not streak.take_change(config, "1", "in", 100 + streak.CHANGE_SECONDS + 1)
+    assert "change" not in config["chats"]["1"]
