@@ -406,12 +406,13 @@ public final class HomeFeatures {
     /** «Ответы · 4   ▾» — already translated, so the branding pass leaves it alone. */
     private static void label(Activity a, Button head, int group, int count, boolean open) {
         String name = I18n.t(a, GROUPS[group][0]).toString();
+        head.setSelected(open); // the emulator smoke test reads the open group from it
         if (Ui.colorful) {
             head.setText(name + " · " + count + (open ? "   ▾" : "   ▸"));
             return;
         }
         // The calm look: the name, a gray count and a chevron at the right edge that turns down when open.
-        SpannableString text = new SpannableString(name + "   " + count);
+        SpannableString text = new SpannableString(name + " · " + count);
         text.setSpan(new ForegroundColorSpan(ThemeManager.colors(a).muted), name.length(), text.length(), 33);
         text.setSpan(new StyleSpan(android.graphics.Typeface.BOLD), 0, name.length(), 33);
         head.setTypeface(android.graphics.Typeface.DEFAULT); // only the name is bold, not the count

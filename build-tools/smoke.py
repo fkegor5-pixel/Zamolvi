@@ -35,13 +35,24 @@ def nodes():
     if root is None:
         return []
     found = []
+    OPEN.clear()
     for n in root.iter("node"):
         b = re.findall(r"\d+", n.get("bounds", ""))
         if len(b) == 4:
             x1, y1, x2, y2 = map(int, b)
             found.append((n.get("text") or n.get("content-desc") or "", (x1 + x2) // 2, (y1 + y2) // 2,
                           n.get("clickable") == "true", n.get("package")))
+            if n.get("selected") == "true":
+                OPEN.add(found[-1][0])
     return found
+
+
+OPEN = set()  # texts of selected views in the last dump: the open menu group
+GROUP = re.compile(r".+ · \d+(\s+[▸▾])?$")  # «Ответы · 6», with «▸»/«▾» in the colorful look
+
+
+def is_open(text):
+    return text in OPEN or text.rstrip().endswith("▾")
 
 
 def tap_text(*texts):
@@ -56,7 +67,8 @@ def tap_text(*texts):
 def dismiss():
     time.sleep(1.5)  # system dialogs come a moment after the screen
     for _ in range(3):
-        if not tap_text("Do not add tile", "Don't allow", "Don\u2019t allow", "Не добавлять", "Запретить"):
+        if not tap_text("Do not add tile", "Don't allow", "Don\u2019t allow", "Не добавлять", "Запретить",
+                        "Wait"):  # «Pixel Launcher isn't responding» on a slow emulator
             return
 
 
@@ -85,7 +97,7 @@ def open_group(name):
     """Only one group is open at a time and the choice is remembered: close the open one, then open ours."""
     home()
     for text, x, y, _, _ in nodes():
-        if " · " in text and text.rstrip().endswith("▾"):
+        if GROUP.match(text) and is_open(text):
             if text.startswith(name + " · "):
                 return nodes()
             adb("shell", "input", "tap", str(x), str(y)); time.sleep(1.5)
@@ -119,7 +131,7 @@ def main(apk, out, store=False):
     home()
     shot(out, "00-home")
     (out / "ui-home.txt").write_text("\n".join(LAST_DUMP) if nodes() is not None else "")
-    heads = [t.split(" · ")[0] for t, *_ in nodes() if " · " in t and t.rstrip().endswith(("▸", "▾"))]
+    heads = [t.split(" · ")[0] for t, *_ in nodes() if GROUP.match(t)]
     count = 0
     for g, head in enumerate(heads):
         seen = open_group(head)
@@ -137,14 +149,14 @@ def main(apk, out, store=False):
             count += 1
             adb("shell", "input", "keyevent", "4")
             time.sleep(1)
-    # The classic look: switch it in «App theme», then the menu and a section again.
+    # The colorful look: switch it in «App theme», then the menu and a section again.
     open_group("App")
     if tap_prefix("App theme"):
         adb("shell", "input", "swipe", "160", "460", "160", "90", "600"); time.sleep(1)
-        tap_text("Classic"); time.sleep(3)
-        shot(out, "classic-theme")
-        home(); shot(out, "classic-home")
-        open_group("Connections"); tap_prefix("VPS connection"); time.sleep(2); shot(out, "classic-vps")
+        tap_text("Colorful"); time.sleep(3)
+        shot(out, "colorful-theme")
+        home(); shot(out, "colorful-home")
+        open_group("Connections"); tap_prefix("VPS connection"); time.sleep(2); shot(out, "colorful-vps")
     crashes = adb("logcat", "-d", "-b", "crash")
     (out / "crashes.txt").write_text(crashes)
     log = adb("logcat", "-d")
