@@ -43,7 +43,12 @@ def purpose(name, chat=None):
         _USAGE.reset(token)
 
 
-_KEY_LIKE = re.compile(r"(?<![A-Za-z0-9])(sk-|gsk_|AIza)[-_A-Za-z0-9]{12,}")
+# OpenAI/OpenRouter, Groq, Google («AIza…» and the newer «AQ.…» keys of AI Studio)
+_KEY_LIKE = re.compile(r"(?<![A-Za-z0-9])(sk-|gsk_|AIza|AQ\.)[-_A-Za-z0-9]{12,}")
+
+
+def hide_keys(text):
+    return _KEY_LIKE.sub("***", text) if isinstance(text, str) else text
 
 
 def looks_like_key(value):

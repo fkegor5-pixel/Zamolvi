@@ -243,3 +243,25 @@ def test_streak_settings_validate_model_and_keep_or_replace_the_photo(env):
         env.engine.save_streak(True, "", "sk-or-v1-abcdefghijklmnopqrstuvwxyz", None)
     with pytest.raises(UserError):
         env.engine.save_streak(True, "", "", base64.b64encode(b"x" * 100).decode())
+
+
+def test_google_aq_keys_are_not_models_and_are_scrubbed_from_saved_logs(tmp_path):
+    from cryptography.fernet import Fernet
+    from replyai import media
+    from replyai.store import Store
+    fake = "AQ." + "Xy1-" * 12                       # the shape of the newer AI Studio keys, not a real one
+    assert ai_module.looks_like_key(fake) and not ai_module.looks_like_key("gemini-2.5-flash-image")
+    with pytest.raises(UserError):
+        media.validate({"max_mb": 10, "pdf_pages": 20, "scan_pages": 3, "vision_model": fake})
+    key = Fernet.generate_key()
+    store = Store(tmp_path / "data", key)
+    store.update(lambda s: (s["media"].update(vision_model=fake), s["logs"].insert(0, f"HTTP 400 (модель {fake})"),
+                            s.setdefault("feature_problems", {}).update(photos={"at": 1, "message": f"{fake} is not valid"})))
+    store.close()
+    store = Store(tmp_path / "data", key)            # the next start cleans what an older server saved
+    try:
+        state = store.read()
+        assert state["media"]["vision_model"] == "" and fake not in str(state["logs"])
+        assert fake not in state["feature_problems"]["photos"]["message"]
+    finally:
+        store.close()
