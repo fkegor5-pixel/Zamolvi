@@ -130,8 +130,9 @@ def main(apk, out, store=False):
     adb("logcat", "-c")
     home()
     shot(out, "00-home")
-    (out / "ui-home.txt").write_text("\n".join(LAST_DUMP) if nodes() is not None else "")
-    heads = [t.split(" · ")[0] for t, *_ in nodes() if GROUP.match(t)]
+    first = nodes() or nodes()  # one dump for the file and the groups: a second one sometimes comes back empty
+    (out / "ui-home.txt").write_text("\n".join(LAST_DUMP))
+    heads = [t.split(" · ")[0] for t, *_ in first if GROUP.match(t)]
     count = 0
     for g, head in enumerate(heads):
         seen = open_group(head)
