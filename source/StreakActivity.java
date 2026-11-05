@@ -68,6 +68,7 @@ public final class StreakActivity extends FeatureActivity {
             preview.setVisibility(View.GONE);
             showPhoto();
         }, owned);
+        remove.setVisibility(View.GONE); // shown once the server says it has a sample photo
         heading(box, "Модель для картинок");
         modelNote = label(box, "", 13, true);
         model = field(box, "Модель по умолчанию", "", InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
