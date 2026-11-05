@@ -21,7 +21,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.7.1"
+SERVER_VERSION = "3.7.2"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -47,6 +47,15 @@ class PersistentSession(StringSession):
 
 # «mute» / «unmute» — the whole message, any case
 MUTE = re.compile(r"^/?(un)?mute[.!\s]*$", re.IGNORECASE)
+
+def streak_photo(message):
+    """A photo, or an image sent as a file (up to 10 MB), for «изменить серийчик»."""
+    if getattr(message, 'photo', None):
+        return True
+    document = getattr(message, 'document', None)
+    return bool(document and str(getattr(document, 'mime_type', '')).startswith('image/')
+                and (getattr(document, 'size', 0) or 0) <= 10 * 1024 * 1024)
+
 
 def players_word(n):
     return online.plural(n, 'игрок', 'игрока', 'игроков')
@@ -1288,7 +1297,21 @@ class Engine:
         today = streak.day(now, zone)
         entry = config['chats'].get(chat)
         words = text.strip()
+        message = getattr(event, 'message', event)
         try:
+            if streak.CHANGE.match(words):
+                peer = await event.get_input_chat()
+                if self.store.update(lambda s: streak.ask_change(s['streak'], chat, side, now)):
+                    await self.send_html(peer, '🖼 <b>Изменить серийчик</b>\nПришлите фото или напишите, что нарисовать. '
+                                               'Фото без подписи станет картинкой как есть, с подписью нейросеть изменит его.',
+                                         event.id)
+                else:
+                    await self.send_html(peer, 'Серийчика в этом чате ещё нет: напишите <b>серийчик</b>.', event.id)
+                return
+            photo = streak_photo(message)
+            if (entry and (entry.get('change') or {}).get('side') == side and (photo or words)
+                    and self.store.update(lambda s: streak.take_change(s['streak'], chat, side, now))):
+                await self.streak_change(event, chat, message, words, photo)
             if streak.COMMAND.match(words):
                 person = await event.get_chat()
                 if getattr(person, 'is_self', False):
@@ -1329,11 +1352,10 @@ class Engine:
             days = max(1, counter.finish())
             picture = io.BytesIO(await self.streak_picture(days))
             picture.name = 'streak.jpg'
-            caption, entities = render_command(f'🔥 <b>Серийчик: {days} {streak.days_word(days)} подряд</b>\n'
-                                               'Каждый день, когда вы оба пишете в этот чат, он продлевается.', PREFIX)
+            caption, entities = render_command(streak.caption(days), PREFIX)
             async with self.telegram_lock:
                 sent = await self.client.send_file(peer, picture, caption=caption, formatting_entities=entities)
-            self.store.update(lambda s: streak.activate(s['streak'], chat, days, counter.last or today, today))
+            self.store.update(lambda s: streak.activate(s['streak'], chat, days, counter.last or today, today, sent.id))
             try:
                 async with self.telegram_lock:
                     await self.client.pin_message(peer, sent, notify=False)  # in a private chat: for both
@@ -1352,13 +1374,57 @@ class Engine:
         except Exception as exc:  # a damaged or undecryptable file: draw from the text alone
             self.log('Серийчик: фото-образец не прочитано: ' + type(exc).__name__)
             photo = None
+        drawn = await self.streak_draw(state, state['streak']['prompt'], photo)
+        return await asyncio.to_thread(streak.picture, drawn, days)
+
+    async def streak_draw(self, state, prompt, photo):
+        """The AI picture: the photo edited by the prompt, or drawn from it; None when the AI cannot."""
         try:
             with ai_purpose('streak'):
-                drawn = await self.ai.draw(state['ai'], image_model(state['ai'], state['streak']),
-                                           streak.task(state['streak']['prompt'], bool(photo)), photo)
+                return await self.ai.draw(state['ai'], image_model(state['ai'], state['streak']),
+                                          streak.task(prompt, bool(photo)), photo)
         except AiError as exc:
             self.feature_event('streak', 'Серийчик: картинка без нейросети. ' + str(exc))
-        return await asyncio.to_thread(streak.picture, drawn, days)
+            return None
+
+    async def streak_change(self, event, chat, message, words, photo):
+        """After «изменить серийчик»: a photo (as it is, or edited by its caption) or a text replaces the pinned picture."""
+        try:
+            peer = await event.get_input_chat()
+            state = self.store.read()
+            entry = state['streak']['chats'].get(chat)
+            if not entry:
+                return
+            image = None
+            if photo:
+                image, _ = await asyncio.to_thread(media.prepare_image, await self.client.download_media(message, file=bytes))
+            drawn = await self.streak_draw(state, words, image) if words else None
+            picture = io.BytesIO(await asyncio.to_thread(streak.picture, drawn or image, entry['days']))
+            picture.name = 'streak.jpg'
+            caption, entities = render_command(streak.caption(entry['days']), PREFIX)
+            pinned = entry.get('message')
+            if pinned:
+                try:
+                    async with self.telegram_lock:
+                        await self.client.edit_message(peer, pinned, caption, formatting_entities=entities, file=picture)
+                except errors.RPCError as exc:  # too old to edit, deleted…: a new pinned picture instead
+                    self.log('Серийчик: закреплённая картинка не изменена, отправляю новую: ' + type(exc).__name__)
+                    pinned = None
+                    picture.seek(0)
+            if not pinned:
+                async with self.telegram_lock:
+                    sent = await self.client.send_file(peer, picture, caption=caption, formatting_entities=entities)
+                try:
+                    async with self.telegram_lock:
+                        if entry.get('message'):
+                            await self.client.unpin_message(peer, entry['message'])
+                        await self.client.pin_message(peer, sent, notify=False)
+                except errors.RPCError as exc:
+                    self.log('Серийчик: картинка не закреплена: ' + type(exc).__name__)
+                self.store.update(lambda s: streak.set_message(s['streak'], chat, sent.id))
+            await self.send_html(peer, '🖼 Картинка серийчика обновлена.', event.id)
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError, MediaError) as exc:
+            self.log('Серийчик: картинка не изменена: ' + type(exc).__name__)
 
     def streak_report(self):
         s = self.store.read()
