@@ -24,7 +24,14 @@ install -d -m 0755 /opt/replyai
 install -d -o replyai -g replyai -m 0700 /var/lib/replyai
 install -d -o root -g replyai -m 0750 /etc/replyai
 # Deploy source only. Data and keys remain in separate persistent directories on upgrades.
-if [ "$src_dir" != /opt/replyai ]; then
+version() { sed -n 's/^__version__ = "\(.*\)"$/\1/p' "$1/__init__.py" 2>/dev/null || true; }  # none on a fresh VPS
+installed=$(version /opt/replyai/replyai)
+bundled=$(version "$src_dir/replyai")
+if [ "$src_dir" != /opt/replyai ] && [ -n "$installed" ] && [ -n "$bundled" ] \
+    && [ "$(printf '%s\n%s\n' "$bundled" "$installed" | sort -V | tail -n 1)" != "$bundled" ]; then
+  # updated from GitHub (update.sh) after this app was built: an older copy from the app must not replace it
+  echo "Сервер $installed на VPS новее, чем в приложении ($bundled): оставляю $installed."
+elif [ "$src_dir" != /opt/replyai ]; then
   rm -rf /opt/replyai/replyai
   cp -R "$src_dir/replyai" /opt/replyai/
   cp "$src_dir/requirements.txt" /opt/replyai/
