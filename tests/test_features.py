@@ -1143,3 +1143,17 @@ async def test_owner_waits_for_a_server_and_hears_once_it_starts(env):
     finally:
         online.players = real
         restore()
+
+
+@pytest.mark.asyncio
+async def test_owner_asks_for_the_server_version_in_any_installation(env):
+    from replyai import engine as engine_module
+    original = engine_module.online.version_answer
+    engine_module.online.version_answer = lambda current: f"🖥 <b>Сервер Zamolvi {current}</b>"  # no GitHub in tests
+    try:
+        await env.engine.on_message(owner_message(env, 70, 123, "Версия"))
+    finally:
+        engine_module.online.version_answer = original
+    sent = env.engine.client.sent[-1]
+    assert sent.message == ai_module.PREFIX + "🖥 Сервер Zamolvi " + engine_module.SERVER_VERSION
+    assert sent.reply_to.reply_to_msg_id == 70

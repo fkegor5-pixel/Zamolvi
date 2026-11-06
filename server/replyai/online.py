@@ -118,6 +118,10 @@ REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,15})\s*(минут
 REMIND_AT = re.compile(r"^напомни\s+в\s+(\d{1,2})[:.](\d{2})\s+(.{1,200}?)\s*$", re.IGNORECASE | re.DOTALL)
 OWNER_SWITCH = re.compile(r"^бот\s+(вкл|выкл)\w*[.!\s]*$", re.IGNORECASE)
 AI_SWITCH = re.compile(r"^/ai[-_ ]?(on|off)[.!\s]*$", re.IGNORECASE)
+VERSION = re.compile(r"^(/version|версия(\s+сервера)?)[.!?\s]*$", re.IGNORECASE)  # the owner, in every installation
+LATEST = "https://raw.githubusercontent.com/fkegor5-pixel/Zamolvi/main/server/replyai/__init__.py"
+UPDATE = ("curl -fsSL https://raw.githubusercontent.com/fkegor5-pixel/Zamolvi/main/server/tools/update.sh "
+          "-o /root/update-zamolvi.sh && bash /root/update-zamolvi.sh")
 # JSON of every server: name, online, maxPlayers, queue, status, category («arizona» first in the answers)
 DODGER = "https://dodger-wiki.com/api/servers"
 ARZ_ALL = "https://arzdata.com/online"  # the fallback: no queue there
@@ -178,6 +182,7 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "<code>рандом</code> — число от 1 до 100\n"
         "<code>новости</code> — шуточные новости\n"
         "<code>получить деньги</code> — видео-инструкция\n"
+        "<code>версия</code> — версия сервера и есть ли новее\n"
         "<code>напомни через 30 минут позвонить</code>\n"
         "<code>напомни в 18:30 позвонить</code>")
 COMMAND_WORDS = sorted(set(SLASH.values()))  # every one is <code> in HELP: a tap copies it
@@ -257,6 +262,19 @@ def owner_switch(text):
         return slash.group(1).lower() == "on"
     m = OWNER_SWITCH.match((text or "").strip()) if enabled() else None
     return None if m is None else m.group(1).lower() == "вкл"
+
+
+def version_answer(current, fetcher=None, clock=time.time):
+    """«версия»: the server version and whether main on GitHub has a newer one."""
+    body = page(LATEST, fetcher or fetch, clock, raw=True, ttl=600)
+    found = re.search(r'__version__\s*=\s*"(\d+(?:\.\d+)*)"', body or "")
+    head = f"🖥 <b>Сервер Zamolvi {esc(current)}</b>\n"
+    if not found:
+        return head + "<i>Не удалось узнать последнюю версию на GitHub.</i>"
+    latest = found.group(1)
+    if tuple(map(int, latest.split("."))) <= tuple(map(int, current.split("."))):
+        return head + "✅ Это последняя версия."
+    return head + f"⬆️ Есть новее: <b>{latest}</b>. Обновите на VPS:\n<code>{esc(UPDATE)}</code>"
 
 
 def allowed(chat, now):
