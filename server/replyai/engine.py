@@ -21,7 +21,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.7.2"
+SERVER_VERSION = "3.7.3"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -544,6 +544,8 @@ class Engine:
                     await self.bot.recreate()
             elif switch is not None:
                 await self.owner_switch(event, switch)
+            elif online.VERSION.match(text.strip()):
+                await self.version_reply(event)
             elif not text.startswith(PREFIX):
                 body = online.addressed(text)
                 if body is not None and online.is_command(body):
@@ -1276,6 +1278,14 @@ class Engine:
                         no_webpage=True, reply_to=types.InputReplyToMessage(reply_to_msg_id=reply_to)))
         except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
             self.log('Картинка не отправлена: ' + type(exc).__name__)
+
+    async def version_reply(self, event):
+        """«версия» from the owner: this server's version and whether there is a newer one."""
+        try:
+            answer = await asyncio.to_thread(online.version_answer, SERVER_VERSION)
+            await self.send_html(await event.get_input_chat(), answer, event.id)
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+            self.log('Ответ на «версия» не отправлен: ' + type(exc).__name__)
 
     async def send_html(self, peer, html, reply_to=None):
         """A styled message (command HTML) to a chat, optionally as a reply."""

@@ -663,3 +663,17 @@ def test_personal_settings_come_from_the_server_env():
     finally:
         os.environ[online.STEAM_ENV], os.environ[online.DEMOB_ENV] = saved
     assert online.steam()[1] == ("bravo_two", "https://steamcommunity.com/id/bravo_two/?l=russian")
+
+
+def test_version_says_whether_github_has_a_newer_server():
+    online._cache.clear()
+    newer = lambda url: '__version__ = "3.10.0"\n'
+    assert "Есть новее: <b>3.10.0</b>" in online.version_answer("3.9.4", fetcher=newer)
+    online._cache.clear()
+    assert "✅ Это последняя версия" in online.version_answer("3.10.0", fetcher=newer)
+    online._cache.clear()
+    def offline(url):
+        raise OSError("no network")
+    answer = online.version_answer("3.7.3", fetcher=offline)
+    assert answer.startswith("🖥 <b>Сервер Zamolvi 3.7.3</b>") and "Не удалось узнать" in answer
+    assert online.VERSION.match("Версия") and online.VERSION.match("/version") and not online.VERSION.match("версия 2")
