@@ -291,7 +291,7 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
     if WATCH.match(text):  # the engine handles it for the owner
         return "🔒 Эта команда только для владельца."
     if DEMOB_COMMAND.match(text):
-        return demob(clock)
+        return demob(clock, rng.choice)
     if HELP_COMMAND.match(text):
         return HELP
     if TOP_COMMAND.match(text):
@@ -521,19 +521,38 @@ def demob_dates():
     return start, end
 
 
-TRAIN = ("Поезд стоит у казармы, чемоданы ещё не собраны", "Поезд тронулся, стук колёс едва слышен",
-         "За окном мелькают столбы", "Чай в подстаканнике остыл, а ехать ещё далеко",
-         "Почти полпути, проводник разносит печеньки", "Полпути позади", "Поезд набрал ход, домой летим",
-         "Уже пахнет мамиными пирожками", "Осталось две станции, пора собирать вещи", "Поезд уже сигналит у перрона")
+# «дембель»: the way home in 10 cells, a random picture each time:
+# (start, done, marker, ahead, finish, what is counted, «следующая/ий», captions for 0…9 cells behind)
+DEMOB_THEMES = (
+    ("🏚️", "🟩", "🚂", "⬜", "🏠", "Проехали станций", "следующая",
+     ("Поезд стоит у казармы, чемоданы ещё не собраны", "Поезд тронулся, стук колёс едва слышен",
+      "За окном мелькают столбы", "Чай в подстаканнике остыл, а ехать ещё далеко",
+      "Почти полпути, проводник разносит печеньки", "Полпути позади", "Поезд набрал ход, домой летим",
+      "Уже пахнет мамиными пирожками", "Осталось две станции, пора собирать вещи", "Поезд уже сигналит у перрона")),
+    ("", "💨", "🐌", "🚬", "", "Выкурено", "следующая",
+     ("Пачка целая, улитка только чиркнула зажигалкой", "Первая пошла, улитка никуда не торопится",
+      "Улитка ползёт, дым стелется по плацу", "Улитка ползёт, торопиться некуда", "Почти полпачки позади",
+      "Полпачки позади, улитка вошла во вкус", "Дым столбом, улитка разогналась", "Улитка дымит как паровоз",
+      "Осталось две, улитка уже видит КПП", "Последняя сигарета, держись!")),
+    ("", "👣", "💂", "➖", "🏡", "Пройдено переходов", "следующий",
+     ("Сапоги начищены, первый шаг впереди", "Левой! Дорога домой началась", "Портянки намотаны, шагаем бодро",
+      "Привал на обочине, и снова в путь", "Почти полпути, сапоги стоптаны", "Полпути позади, песня всё громче",
+      "Шаг чеканится сам собой", "Вдали показался родной район", "Осталось два перехода, уже видна крыша",
+      "Последний переход, мама ставит чайник")),
+    ("", "🍽️", "🥄", "🥫", "", "Съедено банок", "следующая",
+     ("Ящик тушёнки полный, ложка наготове", "Первая банка открыта, вкус службы", "Тушёнка с гречкой, классика",
+      "Ложка уже гнётся от усердия", "Почти полъящика съедено", "Полъящика позади, ремень туже",
+      "Банки пустеют, настроение растёт", "Остались самые вкусные", "Две банки до дома, одна на поезд",
+      "Последняя банка, а дома ждут пельмени")),
+    ("", "❌", "🖊️", "⬜", "🎉", "Зачёркнуто клеток", "следующая",
+     ("Календарь новый, ручка наготове", "Первая клетка зачёркнута", "Зачёркиваем с удовольствием",
+      "Календарь в каптёрке уже в крестиках", "Почти половина", "Половина зачёркнута",
+      "Ручка пишет всё увереннее", "Крестиков больше, чем пустых клеток", "Две клетки, и календарь можно дарить",
+      "Последняя клетка, ручка дрожит от нетерпения")),
+)
 
 
-def stations_word(n):
-    if n % 10 == 1 and n % 100 != 11:
-        return "станцию"
-    return "станции" if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else "станций"
-
-
-def demob(clock=time.time):
+def demob(clock=time.time, pick=random.choice):
     """The answer to «дембель»: time left until the end of the service."""
     dates = demob_dates()
     if not dates:
@@ -543,17 +562,23 @@ def demob(clock=time.time):
     left = int(DEMOB_AT.timestamp() - now)
     if left <= 0:
         return "🎉 <b>Дембель уже наступил!</b>"
-    # the service is a train ride home through 10 stations, one every tenth of the service
+    # 10 cells: a tenth of the service each, and in the last ten days a day each; the marker stands for now
     start, step = DEMOB_FROM.timestamp(), (DEMOB_AT.timestamp() - DEMOB_FROM.timestamp()) / 10
     passed = min(9, max(0, int((now - start) // step)))
     days, rest = divmod(left, 86400)
     hours, rest = divmod(rest, 3600)
     minutes = rest // 60
-    till = -(-(start + (passed + 1) * step - now) // 86400)  # whole days up, so «через 0 дн.» never shows
-    after = "до дома одна" if passed == 9 else f"следующая через <b>{int(till)}</b> дн."
+    first, done, marker, todo, finish, counted, next_one, captions = pick(DEMOB_THEMES)
+    if left <= 10 * 86400:
+        ahead = -(-left // 86400) - 1
+        passed = 9 - ahead
+        note = f"Последние 10 дней: позади <b>{passed}</b>, впереди <b>{ahead + 1}</b>"
+    else:
+        till = -(-(start + (passed + 1) * step - now) // 86400)  # whole days up, so «через 0 дн.» never shows
+        ahead = 9 - passed
+        note = f"{counted}: <b>{passed}</b> из 10 · {next_one} через <b>{int(till)}</b> дн."
     return (f"🪖 <b>До дембеля</b>\n<b>{days}</b> дн. <b>{hours}</b> ч. <b>{minutes}</b> мин.\n"
-            f"🏚️{'🟫' * passed}🚂{'⬜' * (9 - passed)}🏠\n"
-            f"Проехали <b>{passed}</b> {stations_word(passed)} из 10 · {after}\n<i>{TRAIN[passed]}</i>")
+            f"{first}{done * passed}{marker}{todo * ahead}{finish}\n{note}\n<i>{captions[passed]}</i>")
 
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,

@@ -204,17 +204,28 @@ def test_demob_counts_down_and_passes_the_gate():
     assert shown(online.answer("дембель!", clock=lambda: end + 1)) == "🎉 Дембель уже наступил!"
 
 
-def test_demob_is_a_train_home_through_ten_stations():
+def test_demob_draws_the_way_home_in_ten_cells_with_a_random_picture():
     start, end = (d.timestamp() for d in online.demob_dates())
     step = (end - start) / 10
-    lines = shown(online.answer("дембель", clock=lambda: start + 2.5 * step)).splitlines()
-    assert lines[2] == "🏚️🟫🟫🚂" + "⬜" * 7 + "🏠"                            # 2 stations behind, 7 ahead
-    assert lines[3] == f"Проехали 2 станции из 10 · следующая через {-(-(0.5 * step) // 86400):.0f} дн."
-    assert lines[4] == online.TRAIN[2]
-    assert shown(online.answer("дембель", clock=lambda: start - 86400)).splitlines()[2] == "🏚️🚂" + "⬜" * 9 + "🏠"
-    last = shown(online.answer("дембель", clock=lambda: end - 3600)).splitlines()
-    assert last[2] == "🏚️" + "🟫" * 9 + "🚂🏠" and last[3] == "Проехали 9 станций из 10 · до дома одна"
-    assert online.stations_word(1) == "станцию" and len(online.TRAIN) == 10
+    train = lambda themes: themes[0]
+    lines = shown(online.demob(lambda: start + 2.5 * step, train)).splitlines()
+    assert lines[2] == "🏚️🟩🟩🚂" + "⬜" * 7 + "🏠"                            # 2 tenths behind, 7 ahead
+    assert lines[3] == f"Проехали станций: 2 из 10 · следующая через {-(-(0.5 * step) // 86400):.0f} дн."
+    assert lines[4] == online.DEMOB_THEMES[0][7][2]
+    assert shown(online.demob(lambda: start - 86400, train)).splitlines()[2] == "🏚️🚂" + "⬜" * 9 + "🏠"
+    # the last ten days: a cell a day — with 8 days 13 hours left one day of the ten is behind
+    days = shown(online.demob(lambda: end - (8 * 86400 + 13 * 3600), train)).splitlines()
+    assert days[2] == "🏚️🟩🚂" + "⬜" * 8 + "🏠" and days[3] == "Последние 10 дней: позади 1, впереди 9"
+    last = shown(online.demob(lambda: end - 3600, train)).splitlines()
+    assert last[2] == "🏚️" + "🟩" * 9 + "🚂🏠" and last[4] == "Поезд уже сигналит у перрона"
+    for theme in online.DEMOB_THEMES:                                           # every picture is complete
+        first, done, marker, todo, finish, counted, next_one, captions = theme
+        assert len(captions) == 10 and marker and done and todo
+        line = shown(online.demob(lambda: start + 3.5 * step, lambda themes: theme)).splitlines()[2]
+        assert line == first + done * 3 + marker + todo * 6 + finish
+    seen = {shown(online.answer("дембель", clock=lambda: start + step)).splitlines()[2][-3:] for _ in range(60)}
+    assert len(seen) > 1                                                        # «дембель» picks at random
+
 
 
 def test_commands_are_off_without_the_owner_setting():
