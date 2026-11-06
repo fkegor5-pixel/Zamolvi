@@ -521,10 +521,16 @@ def demob_dates():
     return start, end
 
 
-SNAIL = ("Пачка целая, улитка только чиркнула зажигалкой", "Первая пошла, улитка никуда не торопится",
-         "Улитка ползёт, дым стелется по плацу", "Улитка ползёт, торопиться некуда", "Почти полпачки позади",
-         "Полпачки позади, улитка вошла во вкус", "Дым столбом, улитка разогналась",
-         "Улитка дымит как паровоз", "Осталось две, улитка уже видит КПП", "Последняя сигарета, держись!")
+TRAIN = ("Поезд стоит у казармы, чемоданы ещё не собраны", "Поезд тронулся, стук колёс едва слышен",
+         "За окном мелькают столбы", "Чай в подстаканнике остыл, а ехать ещё далеко",
+         "Почти полпути, проводник разносит печеньки", "Полпути позади", "Поезд набрал ход, домой летим",
+         "Уже пахнет мамиными пирожками", "Осталось две станции, пора собирать вещи", "Поезд уже сигналит у перрона")
+
+
+def stations_word(n):
+    if n % 10 == 1 and n % 100 != 11:
+        return "станцию"
+    return "станции" if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else "станций"
 
 
 def demob(clock=time.time):
@@ -537,17 +543,17 @@ def demob(clock=time.time):
     left = int(DEMOB_AT.timestamp() - now)
     if left <= 0:
         return "🎉 <b>Дембель уже наступил!</b>"
-    # the service is a pack of 10 cigarettes: a snail crawls along it and smokes one every tenth of the service
+    # the service is a train ride home through 10 stations, one every tenth of the service
     start, step = DEMOB_FROM.timestamp(), (DEMOB_AT.timestamp() - DEMOB_FROM.timestamp()) / 10
-    smoked = min(9, max(0, int((now - start) // step)))
+    passed = min(9, max(0, int((now - start) // step)))
     days, rest = divmod(left, 86400)
     hours, rest = divmod(rest, 3600)
     minutes = rest // 60
-    till = -(-(start + (smoked + 1) * step - now) // 86400)  # whole days up, so «через 0 дн.» never shows
-    after = "последняя — до самого дембеля" if smoked == 9 else f"следующая через <b>{int(till)}</b> дн."
+    till = -(-(start + (passed + 1) * step - now) // 86400)  # whole days up, so «через 0 дн.» never shows
+    after = "до дома одна" if passed == 9 else f"следующая через <b>{int(till)}</b> дн."
     return (f"🪖 <b>До дембеля</b>\n<b>{days}</b> дн. <b>{hours}</b> ч. <b>{minutes}</b> мин.\n"
-            f"{'💨' * smoked}🐌{'🚬' * (10 - smoked)}\n"
-            f"Выкурено <b>{smoked}</b> из 10 · {after}\n<i>{SNAIL[smoked]}</i>")
+            f"🏚️{'🟫' * passed}🚂{'⬜' * (9 - passed)}🏠\n"
+            f"Проехали <b>{passed}</b> {stations_word(passed)} из 10 · {after}\n<i>{TRAIN[passed]}</i>")
 
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
