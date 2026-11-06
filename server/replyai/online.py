@@ -521,6 +521,12 @@ def demob_dates():
     return start, end
 
 
+SNAIL = ("Пачка целая, улитка только чиркнула зажигалкой", "Первая пошла, улитка никуда не торопится",
+         "Улитка ползёт, дым стелется по плацу", "Улитка ползёт, торопиться некуда", "Почти полпачки позади",
+         "Полпачки позади, улитка вошла во вкус", "Дым столбом, улитка разогналась",
+         "Улитка дымит как паровоз", "Осталось две, улитка уже видит КПП", "Последняя сигарета, держись!")
+
+
 def demob(clock=time.time):
     """The answer to «дембель»: time left until the end of the service."""
     dates = demob_dates()
@@ -531,13 +537,17 @@ def demob(clock=time.time):
     left = int(DEMOB_AT.timestamp() - now)
     if left <= 0:
         return "🎉 <b>Дембель уже наступил!</b>"
-    done = min(1.0, max(0.0, (now - DEMOB_FROM.timestamp()) / (DEMOB_AT.timestamp() - DEMOB_FROM.timestamp())))
-    cells = round(done * 10)
-    days, left = divmod(left, 86400)
-    hours, left = divmod(left, 3600)
-    minutes = left // 60
+    # the service is a pack of 10 cigarettes: a snail crawls along it and smokes one every tenth of the service
+    start, step = DEMOB_FROM.timestamp(), (DEMOB_AT.timestamp() - DEMOB_FROM.timestamp()) / 10
+    smoked = min(9, max(0, int((now - start) // step)))
+    days, rest = divmod(left, 86400)
+    hours, rest = divmod(rest, 3600)
+    minutes = rest // 60
+    till = -(-(start + (smoked + 1) * step - now) // 86400)  # whole days up, so «через 0 дн.» never shows
+    after = "последняя — до самого дембеля" if smoked == 9 else f"следующая через <b>{int(till)}</b> дн."
     return (f"🪖 <b>До дембеля</b>\n<b>{days}</b> дн. <b>{hours}</b> ч. <b>{minutes}</b> мин.\n"
-            f"<code>{'█' * cells}{'░' * (10 - cells)}</code> " + f"отслужено <b>{done * 100:.1f}%</b>".replace(".", ","))
+            f"{'💨' * smoked}🐌{'🚬' * (10 - smoked)}\n"
+            f"Выкурено <b>{smoked}</b> из 10 · {after}\n<i>{SNAIL[smoked]}</i>")
 
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,

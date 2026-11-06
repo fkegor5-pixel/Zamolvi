@@ -204,6 +204,19 @@ def test_demob_counts_down_and_passes_the_gate():
     assert shown(online.answer("дембель!", clock=lambda: end + 1)) == "🎉 Дембель уже наступил!"
 
 
+def test_demob_is_a_snail_smoking_ten_cigarettes():
+    start, end = (d.timestamp() for d in online.demob_dates())
+    step = (end - start) / 10
+    lines = shown(online.answer("дембель", clock=lambda: start + 2.5 * step)).splitlines()
+    assert lines[2] == "💨💨🐌" + "🚬" * 8                                     # 2 smoked, the snail, 8 to go
+    assert lines[3] == f"Выкурено 2 из 10 · следующая через {-(-(0.5 * step) // 86400):.0f} дн."
+    assert lines[4] == online.SNAIL[2]
+    assert shown(online.answer("дембель", clock=lambda: start - 86400)).splitlines()[2] == "🐌" + "🚬" * 10
+    last = shown(online.answer("дембель", clock=lambda: end - 3600)).splitlines()
+    assert last[2] == "💨" * 9 + "🐌🚬" and "последняя" in last[3] and last[4] == "Последняя сигарета, держись!"
+    assert len(online.SNAIL) == 10
+
+
 def test_commands_are_off_without_the_owner_setting():
     os.environ.pop(online.COMMANDS_ENV)
     try:
