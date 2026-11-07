@@ -84,6 +84,7 @@ WATCH = re.compile(r"^жди\s+(.{2,40}?)[.!?\s]*$", re.IGNORECASE)
 # «статистика» (own account), «статистика Ник», «статистика Ник Tucson» (another player; a person does the captcha)
 ARIZONA_STATS = re.compile(r"^статистика(?:\s+(\S+)(?:\s+(.+?))?)?[.!?]*\s*$", re.IGNORECASE)
 SEARCH_SECONDS = 15 * 60  # a pending player search waits this long for the app to bring the site's answer
+PLAYER_CACHE_SECONDS = 30 * 60  # a found player is refreshed at most this often: a repeat within it returns the last look
 ARIZONA_TOKEN = re.compile(r"^аризона\s+токен\b(.*)$", re.IGNORECASE | re.DOTALL)
 ARIZONA_PROFILE = "https://n-api.arizona-rp.com/api/account"  # what the site itself asks after the login (11.2026)
 ARIZONA_MONEY = (("cash", "💵 Наличные"), ("bank", "🏦 Банк"), ("individualAccount", "💳 Личный счёт"),
@@ -532,14 +533,15 @@ ARIZONA_HOWTO = ("🔑 <b>Нужен вход на сайт Arizona</b>\n"
                  "<i>Сообщение с токеном бот сразу удалит, а сам токен хранит на вашем сервере в зашифрованном виде.</i>")
 
 
-def arizona_search_howto(nick, server):
+def arizona_search_howto(nick, server, link=""):
     """Reply to «статистика Ник сервер»: the site's captcha has to be passed by a person, in the app."""
     where = f" на сервере <b>{esc(server)}</b>" if server else ""
-    return (f"🔎 <b>Поиск игрока {esc(nick)}</b>{where}\n"
+    tap = f'\n👉 <a href="{link}">Открыть поиск в приложении</a>' if link else ""
+    return (f"🔎 <b>Поиск игрока {esc(nick)}</b>{where}{tap}\n"
             "Капчу на сайте нужно пройти вручную — за вас это сделать нельзя.\n"
-            "1. Откройте приложение Zamolvi → «Режим разработчика» → «Вход в Arizona».\n"
+            "1. Нажмите ссылку выше (или откройте Zamolvi → «Режим разработчика» → «Вход в Arizona»).\n"
             f"2. На сайте во вкладке «Поиск игроков» найдите <b>{esc(nick)}</b> и пройдите капчу.\n"
-            "3. Карточка игрока придёт сюда сама.")
+            "3. Карточка игрока придёт сюда сама. Повторный запрос за 30 минут вернёт прошлые данные.")
 
 
 def arizona_token(text):

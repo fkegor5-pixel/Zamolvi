@@ -1226,3 +1226,8 @@ async def test_arizona_other_player_waits_for_the_app_then_posts_the_card(env):
     assert chat == "123" and "Tony_B" in card and "в игре" in card
     assert env.engine.arizona_pending() == {} and env.store.read()["arizona"]["pending"] is None
     assert await env.engine.arizona_player("{}") == {"ok": False}   # nothing is waiting any more
+    again = await env.engine.arizona_stats("tony_b", "tucson", "123")   # within 30 min: cached card, no new pending
+    assert again == card and env.engine.arizona_pending() == {}
+    env.engine.arizona_report(host="my.vps.example")                   # the app tells the server its https host
+    howto = await env.engine.arizona_stats("Other_Guy", "Phoenix", "123")
+    assert "https://my.vps.example/open/arizona" in howto

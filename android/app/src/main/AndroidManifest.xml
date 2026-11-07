@@ -51,7 +51,14 @@
         <activity android:name=".TipsActivity" android:exported="false"/>
         <activity android:name=".CommandsActivity" android:exported="false"/>
         <activity android:name=".StreakActivity" android:exported="false"/>
-        <activity android:name=".ArizonaLoginActivity" android:exported="false"/>
+        <activity android:name=".ArizonaLoginActivity" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="zamolvi" android:host="arizona"/>
+            </intent-filter>
+        </activity>
         <activity
             android:name=".VideoAdActivity"
             android:exported="false"

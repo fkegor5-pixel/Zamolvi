@@ -22,7 +22,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.7.11"
+SERVER_VERSION = "3.7.12"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -1280,10 +1280,18 @@ class Engine:
         return ('🔑 <b>Вход в Arizona сохранён</b>\nСообщение с токеном я удалил. Пишите <code>статистика</code>.'
                 + (f'\n<i>Токен действует до {until:%d.%m %H:%M} МСК.</i>' if until else ''))
 
-    def arizona_report(self):
+    def arizona_report(self, host=None):
+        if host and re.fullmatch(r'[A-Za-z0-9.-]+(:\d+)?', host):   # the app's own https host, for the tap-to-open link
+            base = 'https://' + host
+            if self.store.read()['arizona'].get('base_url') != base:
+                self.store.update(lambda s: s['arizona'].update(base_url=base))
         token = self.store.read()['arizona'].get('token', '')
         until = online.token_until(token) if token else None
         return {'has_token': bool(token), 'until': f'{until:%d.%m %H:%M}' if until else ''}
+
+    def _arizona_link(self):
+        base = (self.store.read()['arizona'].get('base_url') or '').rstrip('/')
+        return f'{base}/open/arizona' if base.startswith('https://') else ''
 
     async def save_arizona_token(self, raw):
         """The token the app took from its own arizona-rp.com page after the owner logged in; checked before kept."""
@@ -1308,9 +1316,13 @@ class Engine:
             return online.ARIZONA_HOWTO
         if nick:
             now = self.clock()
+            key = f"{nick.strip().casefold()}|{(server or '').strip().casefold()}"
+            cached = (state.get('cache') or {}).get(key)
+            if cached and now - cached.get('at', 0) <= online.PLAYER_CACHE_SECONDS:
+                return cached['card']  # within 30 min: the last look, no new site request
             self.store.update(lambda s: s['arizona'].update(
-                pending={'nick': nick[:32], 'server': (server or '')[:32], 'chat': chat, 'asked': now}))
-            return online.arizona_search_howto(nick, server)
+                pending={'nick': nick[:32], 'server': (server or '')[:32], 'chat': chat, 'asked': now, 'key': key}))
+            return online.arizona_search_howto(nick, server, self._arizona_link())
         try:
             user = await asyncio.to_thread(online.arizona_profile, state['token'])
         except PermissionError:
@@ -1351,6 +1363,14 @@ class Engine:
                     + f'\n<code>{online.esc(online.shape(data)[:1500])}</code>')
         else:
             card = online.arizona_card(user, {}, self.clock, fallback_name=p['nick'])
+            key, now = p.get('key'), self.clock()
+            if key:
+                def put(s):
+                    cache = s['arizona'].setdefault('cache', {})
+                    cache[key] = {'card': card, 'at': now}
+                    for old in sorted(cache, key=lambda k: cache[k].get('at', 0))[:-20]:
+                        cache.pop(old, None)   # keep only the 20 freshest players
+                self.store.update(put)
         await self.send_to_chat(p.get('chat'), card)
         return {'ok': True}
 
