@@ -780,3 +780,29 @@ def test_arizona_card_reads_the_n_api_account():
     assert lines[0] == "🎮 Arizona · Tony_Bandana" and lines[1] == "⭐ Уровень 30 · 👑 Diamond · ⏱ 1 234 ч в игре"
     assert "📈 Депозит: 3 000 $" in lines and "💳 Доп. счета: 500 $" in lines and "💰 Всего: 6 500 $" in lines
     assert "💎 AZ-коины: 120" in lines and "💼 Механик · LSPD" in lines and not any("Предупреждений" in l for l in lines)
+
+
+def test_arizona_stats_command_parses_nick_and_server():
+    assert online.ARIZONA_STATS.match("статистика").groups() == (None, None)
+    assert online.ARIZONA_STATS.match("статистика.").groups() == (None, None)
+    assert online.ARIZONA_STATS.match("статистика Tony_B").groups() == ("Tony_B", None)
+    assert online.ARIZONA_STATS.match("статистика Tony_B Tucson").groups() == ("Tony_B", "Tucson")
+    assert online.ARIZONA_STATS.match("статистика Tony_B Casa Grande").groups() == ("Tony_B", "Casa Grande")
+
+
+def test_arizona_player_card_shows_public_fields_without_a_total():
+    found = {"status": 1, "data": {"players": [{"name": "Vasya", "level": 12, "PlayHours": 300, "organization": "LSPD"}]}}
+    user = online.account_in(found) or online.player_in(found)
+    assert user["name"] == "Vasya"
+    lines = shown(online.arizona_card(user, {}, clock=lambda: 1793000000, fallback_name="Vasya")).splitlines()
+    assert lines[0] == "🎮 Arizona · Vasya" and "⏱ 300 ч в игре" in lines[1]
+    assert not any("Всего" in l for l in lines) and "💼 LSPD" in lines
+    nameless = online.player_in({"players": [{"login": "Ghost", "level": 5}]})   # no username/name → the asked nick
+    assert shown(online.arizona_card(nameless, {}, clock=lambda: 1793000000, fallback_name="Ghost")).splitlines()[0] \
+        == "🎮 Arizona · Ghost"
+
+
+def test_arizona_search_howto_names_the_player_and_server():
+    text = online.arizona_search_howto("Tony_B", "Tucson")
+    assert "Tony_B" in text and "Tucson" in text and "капч" in text.lower()
+    assert "сервере" not in online.arizona_search_howto("Tony_B", "")   # no server → no server line

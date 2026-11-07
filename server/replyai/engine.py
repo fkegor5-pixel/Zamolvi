@@ -2,6 +2,7 @@ from .errors import UserError
 import re
 import asyncio
 import io
+import json
 import copy
 import datetime as dt
 import math
@@ -21,7 +22,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.7.10"
+SERVER_VERSION = "3.7.11"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -1248,8 +1249,8 @@ class Engine:
         try:
             if secret:
                 answer = await self.arizona_login(event, text)
-            elif online.ARIZONA_STATS.match(text.strip()):
-                answer = await self.arizona_stats()
+            elif (stats := online.ARIZONA_STATS.match(text.strip())):
+                answer = await self.arizona_stats(stats.group(1), stats.group(2), chat)
             elif online.watch_target(text):
                 answer = await self.add_watch(online.watch_target(text))
             elif kind:
@@ -1300,11 +1301,16 @@ class Engine:
         self.store.update(lambda s: s['arizona'].update(token=token, last={}))
         return {**self.arizona_report(), 'name': str(user.get('username') or user.get('name') or '')}
 
-    async def arizona_stats(self):
-        """«статистика»: the owner's Arizona account, compared with the previous look."""
+    async def arizona_stats(self, nick=None, server=None, chat=None):
+        """«статистика»: own account now, or a pending search for another player (a person passes the captcha in the app)."""
         state = self.store.read()['arizona']
         if not state.get('token'):
             return online.ARIZONA_HOWTO
+        if nick:
+            now = self.clock()
+            self.store.update(lambda s: s['arizona'].update(
+                pending={'nick': nick[:32], 'server': (server or '')[:32], 'chat': chat, 'asked': now}))
+            return online.arizona_search_howto(nick, server)
         try:
             user = await asyncio.to_thread(online.arizona_profile, state['token'])
         except PermissionError:
@@ -1319,6 +1325,47 @@ class Engine:
         card = online.arizona_card(user, state.get('last') or {}, lambda: now)
         self.store.update(lambda s: s['arizona'].update(last=online.arizona_snapshot(user, now)))
         return card
+
+    def arizona_pending(self):
+        """What the app should search next (nick, server), or {} when nothing is waiting or it expired."""
+        p = self.store.read()['arizona'].get('pending')
+        if not p or self.clock() - p.get('asked', 0) > online.SEARCH_SECONDS:
+            return {}
+        return {'nick': p['nick'], 'server': p.get('server', '')}
+
+    async def arizona_player(self, raw):
+        """The site's «поиск игроков» answer the app forwarded: build the card and send it to the chat that asked."""
+        p = self.store.read()['arizona'].get('pending')
+        if not p:
+            return {'ok': False}
+        self.store.update(lambda s: s['arizona'].update(pending=None))  # one answer per request, however many arrive
+        if self.clock() - p.get('asked', 0) > online.SEARCH_SECONDS:
+            return {'ok': False}
+        try:
+            data = json.loads(raw)
+        except (ValueError, TypeError):
+            return {'ok': False}
+        user = online.account_in(data) or online.player_in(data)
+        if user is None:
+            card = (online.warn('Сайт ответил в незнакомом виде. Перешлите разработчику (здесь только названия полей):')
+                    + f'\n<code>{online.esc(online.shape(data)[:1500])}</code>')
+        else:
+            card = online.arizona_card(user, {}, self.clock, fallback_name=p['nick'])
+        await self.send_to_chat(p.get('chat'), card)
+        return {'ok': True}
+
+    async def send_to_chat(self, chat, html):
+        """Posts an HTML message to a chat by id, outside any incoming event (like a due reminder)."""
+        if not (self.authorized and self.client and chat):
+            return
+        try:
+            async with self.telegram_lock:
+                peer = await self.client.get_input_entity(int(chat))
+                message, entities = render_command(html, PREFIX)
+                await self.client(functions.messages.SendMessageRequest(
+                    peer=peer, message=message, entities=entities, random_id=secrets.randbits(63), no_webpage=True))
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+            self.log('Карточка Arizona не отправлена: ' + type(exc).__name__)
 
     async def send_picture(self, peer, reply_to, text):
         """Answers a picture command with the picture (or with a text when it cannot be made)."""

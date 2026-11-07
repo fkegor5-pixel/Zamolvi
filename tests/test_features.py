@@ -547,7 +547,8 @@ ROUTES_29 = [("GET", "/api/memory"), ("PUT", "/api/memory"), ("POST", "/api/memo
              ("PUT", "/api/pricing"), ("GET", "/api/features"),
              ("POST", "/api/memory/import"), ("POST", "/api/memory/import/cancel"),
              ("GET", "/api/commands"), ("PUT", "/api/commands"), ("POST", "/api/commands/preview"),
-             ("GET", "/api/streak"), ("PUT", "/api/streak"), ("GET", "/api/arizona"), ("PUT", "/api/arizona")]
+             ("GET", "/api/streak"), ("PUT", "/api/streak"), ("GET", "/api/arizona"), ("PUT", "/api/arizona"),
+             ("GET", "/api/arizona/pending"), ("POST", "/api/arizona/player")]
 
 
 @pytest.fixture
@@ -1211,3 +1212,17 @@ async def test_app_sends_the_arizona_login_and_the_server_checks_it_first(env):
         assert "token" not in report and env.store.read()["arizona"]["token"] == "eyJhbGciOiJI.eyJzdWIiOjF9.c2ln"
     finally:
         online.arizona_profile = original
+
+
+@pytest.mark.asyncio
+async def test_arizona_other_player_waits_for_the_app_then_posts_the_card(env):
+    env.store.update(lambda s: s["arizona"].update(token="tok"))
+    sent = env.engine.send_to_chat = AsyncMock()                    # no real Telegram client in the test
+    howto = await env.engine.arizona_stats("Tony_B", "Tucson", "123")
+    assert "Tony_B" in howto and env.engine.arizona_pending() == {"nick": "Tony_B", "server": "Tucson"}
+    ok = await env.engine.arizona_player(json.dumps({"data": {"name": "Tony_B", "level": 9, "PlayHours": 50}}))
+    assert ok == {"ok": True}
+    chat, card = sent.await_args.args
+    assert chat == "123" and "Tony_B" in card and "в игре" in card
+    assert env.engine.arizona_pending() == {} and env.store.read()["arizona"]["pending"] is None
+    assert await env.engine.arizona_player("{}") == {"ok": False}   # nothing is waiting any more

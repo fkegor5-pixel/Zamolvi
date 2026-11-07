@@ -37,7 +37,7 @@ def initial():
         "muted": [],
         "watch": [],
         "streak": streak.initial(),
-        "arizona": {"token": "", "last": {}},  # the owner's own login to arizona-rp.com («статистика»)
+        "arizona": {"token": "", "last": {}, "pending": None},  # login to arizona-rp.com + a waiting player search
     }
 
 
@@ -70,7 +70,7 @@ class Store:
                 for key in ('behavior', 'voice', 'voice_pause_until', 'transcripts', 'stats', 'message_archive',
                             'memory', 'media', 'approval', 'pricing', 'style', 'commands', 'muted', 'watch', 'streak', 'arizona'):
                     s.setdefault(key, fresh[key])
-                for key in ('memory', 'media', 'approval'):
+                for key in ('memory', 'media', 'approval', 'arizona'):
                     for field, value in fresh[key].items():
                         s[key].setdefault(field, value)
                 for field in ('text_model', 'document_model'):  # per-type models of 2.9.6, removed
