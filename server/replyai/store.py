@@ -37,7 +37,7 @@ def initial():
         "muted": [],
         "watch": [],
         "streak": streak.initial(),
-        "arizona": {"token": "", "last": {}, "pending": None},  # login to arizona-rp.com + a waiting player search
+        "arizona": {"token": "", "last": {}, "pending": None, "base_url": "", "cache": {}},  # login + waiting search + 30-min player cache
     }
 
 

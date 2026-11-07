@@ -530,8 +530,8 @@ def create_app(store=None, engine=None, token=None):
         return engine.save_media(data.model_dump())
 
     @app.get('/api/arizona', dependencies=protected)
-    async def arizona_login():
-        return engine.arizona_report()
+    async def arizona_login(request: Request):
+        return engine.arizona_report(host=request.headers.get('host'))
 
     @app.put('/api/arizona', dependencies=protected)
     async def put_arizona_login(data: ArizonaLogin):
@@ -544,6 +544,19 @@ def create_app(store=None, engine=None, token=None):
     @app.post('/api/arizona/player', dependencies=protected)
     async def post_arizona_player(data: ArizonaPlayer):
         return await engine.arizona_player(data.data)
+
+    # Public: the tappable link in the bot's reply opens here, then bounces into the app (zamolvi://).
+    @app.get('/open/arizona', response_class=HTMLResponse)
+    async def open_arizona():
+        return HTMLResponse(
+            '<!doctype html><html lang=ru><meta charset=utf-8>'
+            '<meta name=viewport content="width=device-width,initial-scale=1"><title>Zamolvi</title>'
+            '<body style="font-family:sans-serif;text-align:center;padding:40px">'
+            '<p>Открываю Zamolvi…</p>'
+            '<p><a id=go href="intent://arizona/#Intent;scheme=zamolvi;package=ru.replyai.android;end" '
+            'style="font-size:18px">Открыть приложение Zamolvi</a></p>'
+            '<script>try{location.replace(document.getElementById("go").href)}catch(e){}'
+            'setTimeout(function(){try{location.href="zamolvi://arizona"}catch(e){}},400);</script>')
 
     @app.get('/api/streak', dependencies=protected)
     async def streak_settings():

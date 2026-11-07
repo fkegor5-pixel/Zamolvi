@@ -806,3 +806,4 @@ def test_arizona_search_howto_names_the_player_and_server():
     text = online.arizona_search_howto("Tony_B", "Tucson")
     assert "Tony_B" in text and "Tucson" in text and "капч" in text.lower()
     assert "сервере" not in online.arizona_search_howto("Tony_B", "")   # no server → no server line
+    assert 'href="https://x.y/open/arizona"' in online.arizona_search_howto("Tony_B", "Tucson", "https://x.y/open/arizona")
