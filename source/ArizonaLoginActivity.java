@@ -7,6 +7,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.MotionEvent;
 import android.webkit.CookieManager;
+import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -38,6 +39,24 @@ public final class ArizonaLoginActivity extends FeatureActivity {
             + "function(p){for(var i=0;i<p[1].length;i++){var k=p[1].key(i),v=p[1].getItem(k)||'';"
             + "r.push(p[0]+':'+k+(/eyJ[\\w-]+\\.[\\w-]+\\./.test(v)?' (JWT)':'')+' len='+v.length);}});return r.join(', ');})()";
 
+    // the site's requests to n-api: field names of what it sends and of the answer, never the values
+    private static final String HOOK = "(function(){if(window.__zr)return;window.__zr=1;"
+            + "function sh(v,d){if(v===null)return 'null';if(Array.isArray(v))return '['+(v.length?sh(v[0],d+1):'')+']';"
+            + "if(typeof v=='object'){if(d>3)return '{…}';return '{'+Object.keys(v).slice(0,40).map(function(k){return k+':'+sh(v[k],d+1)}).join(',')+'}'}"
+            + "return typeof v}"
+            + "function js(t){try{return sh(JSON.parse(t),0)}catch(e){return 'не JSON'}}"
+            + "function cut(u){return String(u).replace(/[?#].*/,'')}"
+            + "var o=XMLHttpRequest.prototype.open,s=XMLHttpRequest.prototype.send;"
+            + "XMLHttpRequest.prototype.open=function(m,u){this.__u=cut(u);this.__m=m;return o.apply(this,arguments)};"
+            + "XMLHttpRequest.prototype.send=function(b){var x=this;if(/n-api/.test(x.__u)){"
+            + "if(b)ZamolviReport.note('send '+x.__m+' '+x.__u+' '+js(b));"
+            + "x.addEventListener('load',function(){ZamolviReport.note('answer '+x.__u+' '+x.status+' '+js(x.responseText))})}"
+            + "return s.apply(this,arguments)};"
+            + "var f=window.fetch;if(f)window.fetch=function(u,i){var url=cut(typeof u=='string'?u:u.url);"
+            + "if(/n-api/.test(url)&&i&&i.body)ZamolviReport.note('send '+(i.method||'GET')+' '+url+' '+js(i.body));"
+            + "return f.apply(this,arguments).then(function(r){if(/n-api/.test(url))r.clone().text().then(function(t){"
+            + "ZamolviReport.note('answer '+url+' '+r.status+' '+js(t))});return r})};})()";
+
     private final Set<String> tried = new HashSet<>();
     private final Set<String> seen = new LinkedHashSet<>();   // the report: pages, backend requests, answers
     private String storage = "", cookies = "";
@@ -57,6 +76,9 @@ public final class ArizonaLoginActivity extends FeatureActivity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true); // the captcha
+        web.addJavascriptInterface(new Object() {
+            @JavascriptInterface public void note(String line) { ui.post(() -> ArizonaLoginActivity.this.note(line)); }
+        }, "ZamolviReport");
         web.setOnTouchListener((v, e) -> { // the page scrolls itself inside the screen's scroll
             if (e.getAction() == MotionEvent.ACTION_DOWN) v.getParent().requestDisallowInterceptTouchEvent(true);
             return false;
@@ -85,6 +107,7 @@ public final class ArizonaLoginActivity extends FeatureActivity {
             @Override public void onPageFinished(WebView view, String url) {
                 Uri page = Uri.parse(url);
                 note("page " + page.getHost() + page.getPath());
+                view.evaluateJavascript(HOOK, null);
                 scan();
             }
         });
@@ -151,7 +174,7 @@ public final class ArizonaLoginActivity extends FeatureActivity {
     }
 
     private void note(String line) {
-        if (seen.size() < 150) seen.add(line);
+        if (seen.size() < 300) seen.add(line.length() > 1500 ? line.substring(0, 1500) + "…" : line);
     }
 
     private static String names(String cookieHeader) {
