@@ -701,3 +701,59 @@ def test_version_says_whether_github_has_a_newer_server():
     answer = online.version_answer("3.7.3", fetcher=offline)
     assert answer.startswith("🖥 <b>Сервер Zamolvi 3.7.3</b>") and "Не удалось узнать" in answer
     assert online.VERSION.match("Версия") and online.VERSION.match("/version") and not online.VERSION.match("версия 2")
+
+
+import urllib.error
+
+import pytest
+
+
+def fake_jwt(exp):
+    import base64 as b64
+    part = lambda d: b64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstrip("=")
+    return f"{part({'alg': 'HS256'})}.{part({'exp': exp, 'sub': 1})}.c2lnbmF0dXJl"
+
+
+def test_arizona_token_is_taken_from_whatever_was_pasted():
+    jwt = fake_jwt(1800000000)
+    assert online.arizona_token(f"аризона токен {jwt}") == jwt
+    assert online.arizona_token(f'Аризона токен accessToken: "{jwt}", refresh: x') == jwt   # pasted with its key
+    assert online.arizona_token("аризона токен abcdefghijklmnopqrstuvwxyz123") == "abcdefghijklmnopqrstuvwxyz123"
+    assert online.arizona_token("аризона токен коротко") == ""
+    assert online.token_until(jwt).timestamp() == 1800000000 and online.token_until("opaque") is None
+
+
+def test_arizona_profile_asks_the_site_with_the_owner_login():
+    seen = {}
+    def site(url, headers=None):
+        seen.update(url=url, headers=headers)
+        return json.dumps({"status": 1, "user": {"username": "Ivan_Petrov", "cash": 1500, "bank": 2000000}})
+    user = online.arizona_profile("tok", fetcher=site)
+    assert user["username"] == "Ivan_Petrov" and seen["headers"]["Authorization"] == "Bearer tok"
+    assert seen["url"] == online.ARIZONA_PROFILE
+    def expired(url, headers=None):
+        raise urllib.error.HTTPError(url, 401, "Unauthorized", {}, None)
+    with pytest.raises(PermissionError):
+        online.arizona_profile("tok", fetcher=expired)
+    with pytest.raises(ValueError):
+        online.arizona_profile("tok", fetcher=lambda url, headers=None: '{"status": 0, "message": "no"}')
+
+
+def test_arizona_card_shows_money_total_and_changes():
+    user = {"username": "Ivan_Petrov", "level": 45, "vipName": "Titan", "cash": 1_500_000, "bank": 20_000_000,
+            "individualAccount": 0, "depozit": 5_000_000, "donate": 300, "euro": 0, "jobName": "Таксист",
+            "orgName": "LSPD", "rangName": "Сержант"}
+    first = shown(online.arizona_card(user, {}, clock=lambda: 1793000000)).splitlines()
+    assert first[0] == "🎮 Arizona · Ivan_Petrov" and first[1] == "⭐ Уровень 45 · 👑 Titan"
+    assert "💵 Наличные: 1 500 000 $" in first and "💰 Всего: 26 500 000 $" in first
+    assert "💎 AZ-коины: 300" in first and "💶 Евро: 0 €" not in "\n".join(first)       # zero extras are hidden
+    assert "💼 Таксист · LSPD · Сержант" in first
+    before = online.arizona_snapshot(dict(user, cash=1_000_000, bank=21_000_000), 1792900000)
+    second = shown(online.arizona_card(user, before, clock=lambda: 1793000000))
+    assert "💵 Наличные: 1 500 000 $ (+500 000)" in second and "🏦 Банк: 20 000 000 $ (−1 000 000)" in second
+    assert "изменения с" in second.splitlines()[-1]
+
+
+def test_arizona_commands_are_only_for_the_owner():
+    assert online.is_command("статистика") and online.is_command("аризона токен x")
+    assert online.answer("статистика") == "🔒 Эта команда только для владельца."

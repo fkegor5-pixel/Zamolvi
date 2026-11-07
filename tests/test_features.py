@@ -1157,3 +1157,36 @@ async def test_owner_asks_for_the_server_version_in_any_installation(env):
     sent = env.engine.client.sent[-1]
     assert sent.message == ai_module.PREFIX + "🖥 Сервер Zamolvi " + engine_module.SERVER_VERSION
     assert sent.reply_to.reply_to_msg_id == 70
+
+
+@pytest.mark.asyncio
+async def test_owner_keeps_the_arizona_login_in_saved_messages_and_sees_own_stats(env):
+    from replyai import online
+    restore = owner_commands_on()
+    original = online.arizona_profile
+    try:
+        sent = env.engine.client.sent
+        await env.engine.on_message(owner_message(env, 80, 777, "статистика"))
+        assert "Нужен вход на сайт Arizona" in sent[-1].message                     # no token yet: how to add it
+        elsewhere = owner_message(env, 81, 777, "аризона токен abcdefghijklmnopqrstuvwxyz0123")
+        await env.engine.on_message(elsewhere)
+        assert "только в «Избранное»" in sent[-1].message and 81 in env.engine.client.deleted
+        assert env.store.read()["arizona"]["token"] == ""                            # not kept from another chat
+        saved = owner_message(env, 82, 1, "аризона токен abcdefghijklmnopqrstuvwxyz0123")
+        saved.get_chat = AsyncMock(return_value=SimpleNamespace(is_self=True))
+        await env.engine.on_message(saved)
+        assert "Вход в Arizona сохранён" in sent[-1].message and sent[-1].reply_to is None
+        assert 82 in env.engine.client.deleted and "abcdefghijklmnopqrstuvwxyz0123" not in sent[-1].message
+        assert env.store.read()["arizona"]["token"] == "abcdefghijklmnopqrstuvwxyz0123"
+        online.arizona_profile = lambda token: {"username": "Ivan_Petrov", "cash": 100, "bank": 900}
+        await env.engine.on_message(owner_message(env, 83, 1, "Статистика"))
+        assert "Arizona · Ivan_Petrov" in sent[-1].message and "Всего: 1 000 $" in sent[-1].message
+        assert env.store.read()["arizona"]["last"]["bank"] == 900
+        def ended(token):
+            raise PermissionError(401)
+        online.arizona_profile = ended
+        await env.engine.on_message(owner_message(env, 84, 1, "статистика"))
+        assert "Вход на сайт Arizona закончился" in sent[-1].message
+    finally:
+        online.arizona_profile = original
+        restore()
