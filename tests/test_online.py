@@ -770,3 +770,13 @@ def test_arizona_account_is_found_in_a_wrapped_answer_and_otherwise_shown_withou
         raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
     with pytest.raises(OSError, match="HTTP 404"):
         online.arizona_profile("t", fetcher=broken)
+
+
+def test_arizona_card_reads_the_n_api_account():
+    user = {"id": 1, "name": "Tony_Bandana", "level": 30, "money": 5, "vip": "Diamond", "coins": 120,
+            "cash": 1_000, "bank": 2_000, "deposit": 3_000, "bankAccount1": 500, "bankAccount2": 0,
+            "PlayHours": 1234, "organization": "LSPD", "job": "Механик", "warns": 0, "bitcoins": None}
+    lines = shown(online.arizona_card(user, {}, clock=lambda: 1793000000)).splitlines()
+    assert lines[0] == "🎮 Arizona · Tony_Bandana" and lines[1] == "⭐ Уровень 30 · 👑 Diamond · ⏱ 1 234 ч в игре"
+    assert "📈 Депозит: 3 000 $" in lines and "💳 Доп. счета: 500 $" in lines and "💰 Всего: 6 500 $" in lines
+    assert "💎 AZ-коины: 120" in lines and "💼 Механик · LSPD" in lines and not any("Предупреждений" in l for l in lines)

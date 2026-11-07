@@ -87,7 +87,9 @@ ARIZONA_TOKEN = re.compile(r"^аризона\s+токен\b(.*)$", re.IGNORECASE
 ARIZONA_PROFILE = "https://n-api.arizona-rp.com/api/account"  # what the site itself asks after the login (11.2026)
 ARIZONA_MONEY = (("cash", "💵 Наличные"), ("bank", "🏦 Банк"), ("individualAccount", "💳 Личный счёт"),
                  ("depozit", "📈 Депозит"), ("deposit", "📈 Депозит"))
-ARIZONA_EXTRA = (("donate", "💎 AZ-коины", ""), ("euro", "💶 Евро", " €"), ("bitcoin", "🪙 Биткоины", " BTC"))  # «жди space»: the owner hears when it starts
+ARIZONA_EXTRA = (("donate", "💎 AZ-коины", ""), ("coins", "💎 AZ-коины", ""), ("euro", "💶 Евро", " €"),
+                 ("bitcoin", "🪙 Биткоины", " BTC"), ("bitcoins", "🪙 Биткоины", " BTC"))
+ARIZONA_ACCOUNTS = tuple(f"bankAccount{i}" for i in range(1, 7))  # n-api: extra bank accounts  # «жди space»: the owner hears when it starts
 WATCH_SECONDS = 60      # how often a watched server is checked
 MAX_WATCHES = 5
 SAMPLE_SECONDS = 300    # «онлайн график»: one count of every server per 5 minutes
@@ -616,7 +618,8 @@ def arizona_card(user, previous, clock=time.time):
     name = user.get("username") or user.get("name") or user.get("nickname") or "ваш аккаунт"
     lines = [f"🎮 <b>Arizona · {esc(name)}</b>"]
     head = [f"⭐ Уровень <b>{esc(user['level'])}</b>" if user.get("level") is not None else "",
-            f"👑 {esc(user['vipName'])}" if user.get("vipName") else ""]
+            f"👑 {esc(user.get('vipName') or user.get('vip'))}" if user.get("vipName") or user.get("vip") else "",
+            f"⏱ {money(user['PlayHours'])} ч в игре" if isinstance(user.get("PlayHours"), (int, float)) else ""]
     if any(head):
         lines.append(" · ".join(x for x in head if x))
     total, seen = 0, set()
@@ -625,13 +628,19 @@ def arizona_card(user, previous, clock=time.time):
             seen.add(label)
             total += user[key]
             lines.append(f"{label}: <b>{money(user[key])} $</b>{change(key)}")
+    extra = sum(user[k] for k in ARIZONA_ACCOUNTS if isinstance(user.get(k), (int, float)))
+    if extra:
+        total += extra
+        lines.append(f"💳 Доп. счета: <b>{money(extra)} $</b>")
     lines.append(f"💰 Всего: <b>{money(total)} $</b>")
     for key, label, unit in ARIZONA_EXTRA:
-        if user.get(key):
+        if user.get(key) and isinstance(user[key], (int, float)):
             lines.append(f"{label}: <b>{money(user[key])}{unit}</b>{change(key)}")
-    work = [esc(user[k]) for k in ("jobName", "orgName", "rangName") if user.get(k)]
+    work = [esc(user[k]) for k in ("jobName", "job", "orgName", "organization", "rangName") if user.get(k)]
     if work:
         lines.append("💼 " + " · ".join(work))
+    if user.get("warns"):
+        lines.append(f"⚠️ Предупреждений: <b>{esc(user['warns'])}</b>")
     since = f" · изменения с {datetime.fromtimestamp(previous['at'], MSK):%d.%m %H:%M}" if previous.get("at") else ""
     return "\n".join(lines) + "\n" + stamp(clock, "arizona-rp.com" + since)
 
