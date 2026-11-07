@@ -142,6 +142,10 @@ class ArizonaLogin(Input):
     token: str = Field(min_length=10, max_length=8000, repr=False)
 
 
+class ArizonaPlayer(Input):
+    data: str = Field(min_length=2, max_length=200_000, repr=False)  # the site's player-search answer, forwarded by the app
+
+
 class StreakSettings(Input):
     enabled: bool = False
     prompt: str = Field(default='', max_length=1000)
@@ -532,6 +536,14 @@ def create_app(store=None, engine=None, token=None):
     @app.put('/api/arizona', dependencies=protected)
     async def put_arizona_login(data: ArizonaLogin):
         return await engine.save_arizona_token(data.token)
+
+    @app.get('/api/arizona/pending', dependencies=protected)
+    async def get_arizona_pending():
+        return engine.arizona_pending()
+
+    @app.post('/api/arizona/player', dependencies=protected)
+    async def post_arizona_player(data: ArizonaPlayer):
+        return await engine.arizona_player(data.data)
 
     @app.get('/api/streak', dependencies=protected)
     async def streak_settings():

@@ -81,8 +81,9 @@ CREATE_BOT_COMMAND = re.compile(r"^(?:бот\s+)?создать\s+бота[.!?\s
 GRAPH_COMMAND = re.compile(r"^онлайн\s+график[.!?\s]*$", re.IGNORECASE)
 STEAM_GAMES_COMMAND = re.compile(r"^(?:стим|steam)\s+игры[.!?\s]*$", re.IGNORECASE)
 WATCH = re.compile(r"^жди\s+(.{2,40}?)[.!?\s]*$", re.IGNORECASE)
-# The owner's own Arizona account through the owner's own login on arizona-rp.com (the captcha is solved by a person)
-ARIZONA_STATS = re.compile(r"^статистика[.!?\s]*$", re.IGNORECASE)
+# «статистика» (own account), «статистика Ник», «статистика Ник Tucson» (another player; a person does the captcha)
+ARIZONA_STATS = re.compile(r"^статистика(?:\s+(\S+)(?:\s+(.+?))?)?[.!?]*\s*$", re.IGNORECASE)
+SEARCH_SECONDS = 15 * 60  # a pending player search waits this long for the app to bring the site's answer
 ARIZONA_TOKEN = re.compile(r"^аризона\s+токен\b(.*)$", re.IGNORECASE | re.DOTALL)
 ARIZONA_PROFILE = "https://n-api.arizona-rp.com/api/account"  # what the site itself asks after the login (11.2026)
 ARIZONA_MONEY = (("cash", "💵 Наличные"), ("bank", "🏦 Банк"), ("individualAccount", "💳 Личный счёт"),
@@ -195,6 +196,7 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "<code>получить деньги</code> — видео-инструкция\n"
         "<code>версия</code> — версия сервера и есть ли новее\n"
         "<code>статистика</code> — ваш аккаунт Arizona (нужен токен)\n"
+        "<code>статистика Ник Tucson</code> — другой игрок (капчу проходите в приложении)\n"
         "<code>напомни через 30 минут позвонить</code>\n"
         "<code>напомни в 18:30 позвонить</code>")
 COMMAND_WORDS = sorted(set(SLASH.values()))  # every one is <code> in HELP: a tap copies it
@@ -530,6 +532,16 @@ ARIZONA_HOWTO = ("🔑 <b>Нужен вход на сайт Arizona</b>\n"
                  "<i>Сообщение с токеном бот сразу удалит, а сам токен хранит на вашем сервере в зашифрованном виде.</i>")
 
 
+def arizona_search_howto(nick, server):
+    """Reply to «статистика Ник сервер»: the site's captcha has to be passed by a person, in the app."""
+    where = f" на сервере <b>{esc(server)}</b>" if server else ""
+    return (f"🔎 <b>Поиск игрока {esc(nick)}</b>{where}\n"
+            "Капчу на сайте нужно пройти вручную — за вас это сделать нельзя.\n"
+            "1. Откройте приложение Zamolvi → «Режим разработчика» → «Вход в Arizona».\n"
+            f"2. На сайте во вкладке «Поиск игроков» найдите <b>{esc(nick)}</b> и пройдите капчу.\n"
+            "3. Карточка игрока придёт сюда сама.")
+
+
 def arizona_token(text):
     """The login token from «аризона токен …»: a JWT anywhere in the pasted text, or the one long word there."""
     return pick_token((ARIZONA_TOKEN.match((text or "").strip()) or [None, ""])[1])
@@ -593,6 +605,24 @@ def account_in(data, depth=0):
     return None
 
 
+def player_in(data, depth=0):
+    """The first object that looks like a player (has a name/login), for the public «поиск игроков» answer."""
+    ident = ("username", "name", "nickname", "nick", "login")
+    if isinstance(data, dict):
+        if any(isinstance(data.get(k), str) and data.get(k) for k in ident):
+            return data
+        children = data.values()
+    elif isinstance(data, list):
+        children = data
+    else:
+        return None
+    for child in children:
+        found = player_in(child, depth + 1) if depth < 4 else None
+        if found is not None:
+            return found
+    return None
+
+
 def shape(data, depth=0):
     """Field names and types of an answer, never the values: «{data:{id:int,players:[{cash:int}]}}»."""
     if isinstance(data, dict):
@@ -608,14 +638,14 @@ def money(value):
     return f"{int(value):,}".replace(",", " ")
 
 
-def arizona_card(user, previous, clock=time.time):
+def arizona_card(user, previous, clock=time.time, fallback_name="ваш аккаунт"):
     """«статистика»: the account with the money and what changed since the last look."""
     def change(key):
         if key not in previous or not isinstance(user.get(key), (int, float)):
             return ""
         diff = user[key] - previous[key]
         return f" <i>({'+' if diff > 0 else '−'}{money(abs(diff))})</i>" if diff else ""
-    name = user.get("username") or user.get("name") or user.get("nickname") or "ваш аккаунт"
+    name = user.get("username") or user.get("name") or user.get("nickname") or fallback_name
     lines = [f"🎮 <b>Arizona · {esc(name)}</b>"]
     head = [f"⭐ Уровень <b>{esc(user['level'])}</b>" if user.get("level") is not None else "",
             f"👑 {esc(user.get('vipName') or user.get('vip'))}" if user.get("vipName") or user.get("vip") else "",
@@ -632,7 +662,8 @@ def arizona_card(user, previous, clock=time.time):
     if extra:
         total += extra
         lines.append(f"💳 Доп. счета: <b>{money(extra)} $</b>")
-    lines.append(f"💰 Всего: <b>{money(total)} $</b>")
+    if seen or extra:  # a public player answer may carry no money at all: skip the «total» line then
+        lines.append(f"💰 Всего: <b>{money(total)} $</b>")
     for key, label, unit in ARIZONA_EXTRA:
         if user.get(key) and isinstance(user[key], (int, float)):
             lines.append(f"{label}: <b>{money(user[key])}{unit}</b>{change(key)}")
