@@ -21,7 +21,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.7.8"
+SERVER_VERSION = "3.7.9"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -1293,8 +1293,10 @@ class Engine:
             user = await asyncio.to_thread(online.arizona_profile, token)
         except PermissionError:
             raise UserError('Сайт Arizona не принял этот токен.') from None
+        except online.ArizonaShape:
+            user = {}  # the site took the login: keep it, «статистика» shows what the answer looks like
         except (OSError, ValueError) as exc:
-            raise UserError('Сайт Arizona не ответил как ожидалось: ' + type(exc).__name__) from None
+            raise UserError(f'Сайт Arizona не ответил как ожидалось: {exc}') from None
         self.store.update(lambda s: s['arizona'].update(token=token, last={}))
         return {**self.arizona_report(), 'name': str(user.get('username') or user.get('name') or '')}
 
@@ -1308,8 +1310,11 @@ class Engine:
         except PermissionError:
             return ('🔑 <b>Вход на сайт Arizona закончился</b>\nВойдите на arizona-rp.com заново и пришлите новый токен в '
                     '«Избранное»: <code>аризона токен …</code>')
-        except (OSError, ValueError):
-            return online.warn('Сайт Arizona не ответил или ответил не так, как ожидалось. Попробуйте позже.')
+        except online.ArizonaShape as exc:
+            return (online.warn('Вход работает, но сайт ответил в незнакомом виде. Перешлите это разработчику '
+                                '(здесь только названия полей, без значений):') + f'\n<code>{online.esc(str(exc)[:1500])}</code>')
+        except (OSError, ValueError) as exc:
+            return online.warn(f'Сайт Arizona не ответил: {online.esc(exc)}. Попробуйте позже.')
         now = self.clock()
         card = online.arizona_card(user, state.get('last') or {}, lambda: now)
         self.store.update(lambda s: s['arizona'].update(last=online.arizona_snapshot(user, now)))

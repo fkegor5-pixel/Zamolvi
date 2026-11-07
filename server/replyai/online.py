@@ -84,7 +84,7 @@ WATCH = re.compile(r"^жди\s+(.{2,40}?)[.!?\s]*$", re.IGNORECASE)
 # The owner's own Arizona account through the owner's own login on arizona-rp.com (the captcha is solved by a person)
 ARIZONA_STATS = re.compile(r"^статистика[.!?\s]*$", re.IGNORECASE)
 ARIZONA_TOKEN = re.compile(r"^аризона\s+токен\b(.*)$", re.IGNORECASE | re.DOTALL)
-ARIZONA_PROFILE = "https://backend.arizona-rp.com/profile/general-data"
+ARIZONA_PROFILE = "https://n-api.arizona-rp.com/api/account"  # what the site itself asks after the login (11.2026)
 ARIZONA_MONEY = (("cash", "💵 Наличные"), ("bank", "🏦 Банк"), ("individualAccount", "💳 Личный счёт"),
                  ("depozit", "📈 Депозит"), ("deposit", "📈 Депозит"))
 ARIZONA_EXTRA = (("donate", "💎 AZ-коины", ""), ("euro", "💶 Евро", " €"), ("bitcoin", "🪙 Биткоины", " BTC"))  # «жди space»: the owner hears when it starts
@@ -562,12 +562,44 @@ def arizona_profile(token, fetcher=None):
     except urllib.error.HTTPError as exc:
         if exc.code in (401, 403):
             raise PermissionError(exc.code) from None
-        raise
+        raise OSError(f"HTTP {exc.code}") from None
     data = json.loads(body)
-    user = data.get("user", data) if isinstance(data, dict) else None
-    if not isinstance(user, dict) or not any(k in user for k, _ in ARIZONA_MONEY):
-        raise ValueError("no account in the answer")
+    user = account_in(data)
+    if user is None:
+        raise ArizonaShape(shape(data))
     return user
+
+
+class ArizonaShape(ValueError):
+    """The login works but the answer has no money fields where expected; the message is its shape, without values."""
+
+
+def account_in(data, depth=0):
+    """The first object with money fields anywhere in the answer (it may be wrapped or a list of characters)."""
+    if isinstance(data, dict):
+        if any(isinstance(data.get(k), (int, float)) for k, _ in ARIZONA_MONEY):
+            return data
+        children = data.values()
+    elif isinstance(data, list):
+        children = data
+    else:
+        return None
+    for child in children:
+        found = account_in(child, depth + 1) if depth < 4 else None
+        if found is not None:
+            return found
+    return None
+
+
+def shape(data, depth=0):
+    """Field names and types of an answer, never the values: «{data:{id:int,players:[{cash:int}]}}»."""
+    if isinstance(data, dict):
+        if depth > 3:
+            return "{…}"
+        return "{" + ",".join(f"{k}:{shape(v, depth + 1)}" for k, v in list(data.items())[:40]) + "}"
+    if isinstance(data, list):
+        return "[" + (shape(data[0], depth + 1) if data else "") + "]"
+    return type(data).__name__
 
 
 def money(value):

@@ -757,3 +757,16 @@ def test_arizona_card_shows_money_total_and_changes():
 def test_arizona_commands_are_only_for_the_owner():
     assert online.is_command("статистика") and online.is_command("аризона токен x")
     assert online.answer("статистика") == "🔒 Эта команда только для владельца."
+
+
+def test_arizona_account_is_found_in_a_wrapped_answer_and_otherwise_shown_without_values():
+    wrapped = {"status": 1, "data": {"email": "x@y.z", "players": [{"username": "Ivan", "cash": 5, "bank": 7}]}}
+    assert online.arizona_profile("t", fetcher=lambda u, headers=None: json.dumps(wrapped))["username"] == "Ivan"
+    odd = {"data": {"email": "secret@mail.ru", "balance": 100, "players": [{"nick": "Ivan"}]}}
+    with pytest.raises(online.ArizonaShape) as caught:
+        online.arizona_profile("t", fetcher=lambda u, headers=None: json.dumps(odd))
+    assert str(caught.value) == "{data:{email:str,balance:int,players:[{nick:str}]}}" and "secret" not in str(caught.value)
+    def broken(url, headers=None):
+        raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
+    with pytest.raises(OSError, match="HTTP 404"):
+        online.arizona_profile("t", fetcher=broken)
