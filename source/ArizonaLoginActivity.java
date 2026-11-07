@@ -183,7 +183,7 @@ public final class ArizonaLoginActivity extends FeatureActivity {
 
     /** The site's player-search answer, forwarded to the server, which posts the card to the chat that asked. */
     private void sendPlayer(String body) {
-        if (done || playerSending || body == null || body.length() < 2) return;
+        if (playerSending || body == null || body.length() < 2) return;  // NB: not gated by `done` — own-token save must not block a player card
         playerSending = true;
         status.setText("Отправляю статистику игрока…");
         worker.execute(() -> {
