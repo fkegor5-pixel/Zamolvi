@@ -3,12 +3,14 @@
 Pages are fetched by the server and reduced to text. Only the text around a server name is used,
 and the count is the «N / M» nearest to that name. The model never fetches anything itself.
 """
+import base64
 import html
 import json
 import os
 import random
 import re
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
@@ -78,7 +80,14 @@ TURIK_ONE_COMMAND = re.compile(r"^(?:турик|турнир)\s+" + GAME + r"\s+
 CREATE_BOT_COMMAND = re.compile(r"^(?:бот\s+)?создать\s+бота[.!?\s]*$", re.IGNORECASE)  # in «Избранное» only
 GRAPH_COMMAND = re.compile(r"^онлайн\s+график[.!?\s]*$", re.IGNORECASE)
 STEAM_GAMES_COMMAND = re.compile(r"^(?:стим|steam)\s+игры[.!?\s]*$", re.IGNORECASE)
-WATCH = re.compile(r"^жди\s+(.{2,40}?)[.!?\s]*$", re.IGNORECASE)  # «жди space»: the owner hears when it starts
+WATCH = re.compile(r"^жди\s+(.{2,40}?)[.!?\s]*$", re.IGNORECASE)
+# The owner's own Arizona account through the owner's own login on arizona-rp.com (the captcha is solved by a person)
+ARIZONA_STATS = re.compile(r"^статистика[.!?\s]*$", re.IGNORECASE)
+ARIZONA_TOKEN = re.compile(r"^аризона\s+токен\b(.*)$", re.IGNORECASE | re.DOTALL)
+ARIZONA_PROFILE = "https://backend.arizona-rp.com/profile/general-data"
+ARIZONA_MONEY = (("cash", "💵 Наличные"), ("bank", "🏦 Банк"), ("individualAccount", "💳 Личный счёт"),
+                 ("depozit", "📈 Депозит"), ("deposit", "📈 Депозит"))
+ARIZONA_EXTRA = (("donate", "💎 AZ-коины", ""), ("euro", "💶 Евро", " €"), ("bitcoin", "🪙 Биткоины", " BTC"))  # «жди space»: the owner hears when it starts
 WATCH_SECONDS = 60      # how often a watched server is checked
 MAX_WATCHES = 5
 SAMPLE_SECONDS = 300    # «онлайн график»: one count of every server per 5 minutes
@@ -183,6 +192,7 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "<code>новости</code> — шуточные новости\n"
         "<code>получить деньги</code> — видео-инструкция\n"
         "<code>версия</code> — версия сервера и есть ли новее\n"
+        "<code>статистика</code> — ваш аккаунт Arizona (нужен токен)\n"
         "<code>напомни через 30 минут позвонить</code>\n"
         "<code>напомни в 18:30 позвонить</code>")
 COMMAND_WORDS = sorted(set(SLASH.values()))  # every one is <code> in HELP: a tap copies it
@@ -288,7 +298,7 @@ def allowed(chat, now):
 def answer(text, fetcher=None, clock=time.time, rng=None):
     """The fixed answer to a command (reminders are handled by the engine, see reminder())."""
     text, fetcher, rng = (text or "").strip(), fetcher or fetch, rng or _rng
-    if WATCH.match(text):  # the engine handles it for the owner
+    if WATCH.match(text) or ARIZONA_STATS.match(text) or ARIZONA_TOKEN.match(text):  # the engine, for the owner
         return "🔒 Эта команда только для владельца."
     if DEMOB_COMMAND.match(text):
         return demob(clock, rng.choice)
@@ -511,6 +521,90 @@ def steam():
     return [(n, f"https://steamcommunity.com/id/{urllib.parse.quote(n)}/?l=russian") for n in names]
 
 
+ARIZONA_HOWTO = ("🔑 <b>Нужен вход на сайт Arizona</b>\n"
+                 "1. Войдите на arizona-rp.com в браузере: капчу проходите сами.\n"
+                 "2. Возьмите токен входа (инструкция у разработчика) и пришлите сюда:\n"
+                 "<code>аризона токен ваш_токен</code>\n"
+                 "<i>Сообщение с токеном бот сразу удалит, а сам токен хранит на вашем сервере в зашифрованном виде.</i>")
+
+
+def arizona_token(text):
+    """The login token from «аризона токен …»: a JWT anywhere in the pasted text, or the one long word there."""
+    rest = (ARIZONA_TOKEN.match((text or "").strip()) or [None, ""])[1]
+    jwt = re.search(r"eyJ[\w-]+\.[\w-]+\.[\w-]+", rest)
+    if jwt:
+        return jwt.group(0)
+    word = re.search(r"[\w.~+/=-]{20,}", rest)
+    return word.group(0) if word else ""
+
+
+def token_until(token):
+    """When a JWT login token stops working (its «exp»); None for other tokens."""
+    try:
+        part = token.split(".")[1]
+        exp = json.loads(base64.urlsafe_b64decode(part + "=" * (-len(part) % 4)))["exp"]
+        return datetime.fromtimestamp(int(exp), MSK)
+    except (IndexError, ValueError, KeyError, TypeError):
+        return None
+
+
+def arizona_profile(token, fetcher=None):
+    """The owner's account from the site's own profile page data; PermissionError when the login has ended."""
+    try:
+        body = (fetcher or fetch)(ARIZONA_PROFILE, headers={
+            "Authorization": "Bearer " + token, "Accept": "application/json",
+            "Referer": "https://arizona-rp.com/", "Origin": "https://arizona-rp.com"})
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            raise PermissionError(exc.code) from None
+        raise
+    data = json.loads(body)
+    user = data.get("user", data) if isinstance(data, dict) else None
+    if not isinstance(user, dict) or not any(k in user for k, _ in ARIZONA_MONEY):
+        raise ValueError("no account in the answer")
+    return user
+
+
+def money(value):
+    return f"{int(value):,}".replace(",", " ")
+
+
+def arizona_card(user, previous, clock=time.time):
+    """«статистика»: the account with the money and what changed since the last look."""
+    def change(key):
+        if key not in previous or not isinstance(user.get(key), (int, float)):
+            return ""
+        diff = user[key] - previous[key]
+        return f" <i>({'+' if diff > 0 else '−'}{money(abs(diff))})</i>" if diff else ""
+    name = user.get("username") or user.get("name") or user.get("nickname") or "ваш аккаунт"
+    lines = [f"🎮 <b>Arizona · {esc(name)}</b>"]
+    head = [f"⭐ Уровень <b>{esc(user['level'])}</b>" if user.get("level") is not None else "",
+            f"👑 {esc(user['vipName'])}" if user.get("vipName") else ""]
+    if any(head):
+        lines.append(" · ".join(x for x in head if x))
+    total, seen = 0, set()
+    for key, label in ARIZONA_MONEY:
+        if isinstance(user.get(key), (int, float)) and label not in seen:
+            seen.add(label)
+            total += user[key]
+            lines.append(f"{label}: <b>{money(user[key])} $</b>{change(key)}")
+    lines.append(f"💰 Всего: <b>{money(total)} $</b>")
+    for key, label, unit in ARIZONA_EXTRA:
+        if user.get(key):
+            lines.append(f"{label}: <b>{money(user[key])}{unit}</b>{change(key)}")
+    work = [esc(user[k]) for k in ("jobName", "orgName", "rangName") if user.get(k)]
+    if work:
+        lines.append("💼 " + " · ".join(work))
+    since = f" · изменения с {datetime.fromtimestamp(previous['at'], MSK):%d.%m %H:%M}" if previous.get("at") else ""
+    return "\n".join(lines) + "\n" + stamp(clock, "arizona-rp.com" + since)
+
+
+def arizona_snapshot(user, now):
+    """What the next «статистика» compares with."""
+    keys = [k for k, _ in ARIZONA_MONEY] + [k for k, _, _ in ARIZONA_EXTRA]
+    return {"at": now, **{k: user[k] for k in keys if isinstance(user.get(k), (int, float))}}
+
+
 def demob_dates():
     """(start, end) of the service from ZAMOLVI_DEMOB; None when it is not set or wrong."""
     try:
@@ -584,7 +678,7 @@ def demob(clock=time.time, pick=random.choice):
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
                 RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, FLAG_COMMAND, NEWS_COMMAND, MONEY_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
                 INVENTORY_COMMAND, LEVEL_COMMAND, TURIK_COMMAND, TURIK_GRID_COMMAND, TURIK_ONE_COMMAND,
-                GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT, WATCH)
+                GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT, WATCH, ARIZONA_STATS, ARIZONA_TOKEN)
 
 
 def steam_key(key=None):

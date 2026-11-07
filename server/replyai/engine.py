@@ -21,7 +21,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.7.6"
+SERVER_VERSION = "3.7.7"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -1244,8 +1244,13 @@ class Engine:
             return
         plan = online.reminder(text, self.clock())
         kind = online.digest_kind(text)
+        secret = bool(online.ARIZONA_TOKEN.match(text.strip()))
         try:
-            if online.watch_target(text):
+            if secret:
+                answer = await self.arizona_login(event, text)
+            elif online.ARIZONA_STATS.match(text.strip()):
+                answer = await self.arizona_stats()
+            elif online.watch_target(text):
                 answer = await self.add_watch(online.watch_target(text))
             elif kind:
                 answer = await self.digest(chat, kind)
@@ -1256,9 +1261,40 @@ class Engine:
             async with self.telegram_lock:
                 await self.client(functions.messages.SendMessageRequest(
                     peer=await event.get_input_chat(), message=message, entities=entities, random_id=secrets.randbits(63),
-                    no_webpage=True, reply_to=types.InputReplyToMessage(reply_to_msg_id=event.id)))
+                    no_webpage=True, reply_to=None if secret else types.InputReplyToMessage(reply_to_msg_id=event.id)))
         except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
             self.log('Ответ на команду владельца не отправлен: ' + type(exc).__name__)
+        if secret:  # the token opens the whole Arizona account: it must not stay in the chat
+            await self.delete_for_all([event.id], 'Сообщение с токеном Arizona не удалено')
+
+    async def arizona_login(self, event, text):
+        """«аризона токен …» in «Избранное»: keeps the owner's login to arizona-rp.com for «статистика»."""
+        if not getattr(await event.get_chat(), 'is_self', False):
+            return online.warn('Токен присылайте только в «Избранное». Это сообщение я удалил.')
+        token = online.arizona_token(text)
+        if not token:
+            return online.warn('Не вижу токена после «аризона токен».')
+        self.store.update(lambda s: s['arizona'].update(token=token, last={}))
+        until = online.token_until(token)
+        return ('🔑 <b>Вход в Arizona сохранён</b>\nСообщение с токеном я удалил. Пишите <code>статистика</code>.'
+                + (f'\n<i>Токен действует до {until:%d.%m %H:%M} МСК.</i>' if until else ''))
+
+    async def arizona_stats(self):
+        """«статистика»: the owner's Arizona account, compared with the previous look."""
+        state = self.store.read()['arizona']
+        if not state.get('token'):
+            return online.ARIZONA_HOWTO
+        try:
+            user = await asyncio.to_thread(online.arizona_profile, state['token'])
+        except PermissionError:
+            return ('🔑 <b>Вход на сайт Arizona закончился</b>\nВойдите на arizona-rp.com заново и пришлите новый токен в '
+                    '«Избранное»: <code>аризона токен …</code>')
+        except (OSError, ValueError):
+            return online.warn('Сайт Arizona не ответил или ответил не так, как ожидалось. Попробуйте позже.')
+        now = self.clock()
+        card = online.arizona_card(user, state.get('last') or {}, lambda: now)
+        self.store.update(lambda s: s['arizona'].update(last=online.arizona_snapshot(user, now)))
+        return card
 
     async def send_picture(self, peer, reply_to, text):
         """Answers a picture command with the picture (or with a text when it cannot be made)."""
