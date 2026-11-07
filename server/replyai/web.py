@@ -138,6 +138,10 @@ class Forget(Input):
     chat: str = Field(default='', pattern=r'^(|[0-9]{1,20})$')
 
 
+class ArizonaLogin(Input):
+    token: str = Field(min_length=10, max_length=8000, repr=False)
+
+
 class StreakSettings(Input):
     enabled: bool = False
     prompt: str = Field(default='', max_length=1000)
@@ -520,6 +524,14 @@ def create_app(store=None, engine=None, token=None):
     @app.put('/api/media', dependencies=protected)
     async def put_media(data: MediaSettings):
         return engine.save_media(data.model_dump())
+
+    @app.get('/api/arizona', dependencies=protected)
+    async def arizona_login():
+        return engine.arizona_report()
+
+    @app.put('/api/arizona', dependencies=protected)
+    async def put_arizona_login(data: ArizonaLogin):
+        return await engine.save_arizona_token(data.token)
 
     @app.get('/api/streak', dependencies=protected)
     async def streak_settings():

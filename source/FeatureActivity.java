@@ -29,11 +29,11 @@ abstract class FeatureActivity extends Activity {
     protected TextView status;
     protected ThemeManager.Palette colors;
     protected final ArrayList<View> controls = new ArrayList<>();
-    private final ExecutorService worker = Executors.newSingleThreadExecutor();
-    private final Handler ui = new Handler(Looper.getMainLooper());
+    protected final ExecutorService worker = Executors.newSingleThreadExecutor();
+    protected final Handler ui = new Handler(Looper.getMainLooper());
     protected boolean busy;
     private int tone; // the next accent color, so neighbouring cards and buttons differ
-    private boolean closed;
+    protected boolean closed;
     private AlertDialog dialog;
 
     @Override public void onCreate(Bundle state) {

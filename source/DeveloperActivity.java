@@ -41,6 +41,7 @@ public final class DeveloperActivity extends FeatureActivity {
                         + "\nУдалённых сообщений: " + response.optInt("total"))));
         button("Сохранить диагностику", v -> startActivity(new Intent().setClassName(this, "ru.replyai.android.DiagnosticsActivity")));
         button("Открыть архив сообщений", v -> startActivity(new Intent(this, DeletedMessagesActivity.class)));
+        button("Вход в Arizona (для «статистика»)", v -> startActivity(new Intent(this, ArizonaLoginActivity.class)));
         button("Выключить режим разработчика", v -> {
             getSharedPreferences("replyai_features", 0).edit().remove("developer").apply();
             finish();

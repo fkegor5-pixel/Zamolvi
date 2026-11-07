@@ -547,7 +547,7 @@ ROUTES_29 = [("GET", "/api/memory"), ("PUT", "/api/memory"), ("POST", "/api/memo
              ("PUT", "/api/pricing"), ("GET", "/api/features"),
              ("POST", "/api/memory/import"), ("POST", "/api/memory/import/cancel"),
              ("GET", "/api/commands"), ("PUT", "/api/commands"), ("POST", "/api/commands/preview"),
-             ("GET", "/api/streak"), ("PUT", "/api/streak")]
+             ("GET", "/api/streak"), ("PUT", "/api/streak"), ("GET", "/api/arizona"), ("PUT", "/api/arizona")]
 
 
 @pytest.fixture
@@ -1190,3 +1190,24 @@ async def test_owner_keeps_the_arizona_login_in_saved_messages_and_sees_own_stat
     finally:
         online.arizona_profile = original
         restore()
+
+
+@pytest.mark.asyncio
+async def test_app_sends_the_arizona_login_and_the_server_checks_it_first(env):
+    from replyai import online
+    from replyai.errors import UserError
+    original = online.arizona_profile
+    try:
+        def site(token):
+            if token != "eyJhbGciOiJI.eyJzdWIiOjF9.c2ln":
+                raise PermissionError(401)
+            return {"username": "Ivan_Petrov", "cash": 1}
+        online.arizona_profile = site
+        with pytest.raises(UserError):
+            await env.engine.save_arizona_token("eyJhbGciOiJI.eyJzdWIiOjI9.YmFk")       # the site refuses it
+        assert not env.engine.arizona_report()["has_token"]
+        report = await env.engine.save_arizona_token('{"accessToken":"eyJhbGciOiJI.eyJzdWIiOjF9.c2ln"}')
+        assert report["has_token"] and report["name"] == "Ivan_Petrov"
+        assert "token" not in report and env.store.read()["arizona"]["token"] == "eyJhbGciOiJI.eyJzdWIiOjF9.c2ln"
+    finally:
+        online.arizona_profile = original

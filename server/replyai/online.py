@@ -523,14 +523,19 @@ def steam():
 
 ARIZONA_HOWTO = ("🔑 <b>Нужен вход на сайт Arizona</b>\n"
                  "1. Войдите на arizona-rp.com в браузере: капчу проходите сами.\n"
-                 "2. Возьмите токен входа (инструкция у разработчика) и пришлите сюда:\n"
-                 "<code>аризона токен ваш_токен</code>\n"
+                 "2. Проще всего в приложении Zamolvi: «Режим разработчика» → «Вход в Arizona».\n"
+                 "   Или пришлите токен сюда: <code>аризона токен ваш_токен</code>\n"
                  "<i>Сообщение с токеном бот сразу удалит, а сам токен хранит на вашем сервере в зашифрованном виде.</i>")
 
 
 def arizona_token(text):
     """The login token from «аризона токен …»: a JWT anywhere in the pasted text, or the one long word there."""
-    rest = (ARIZONA_TOKEN.match((text or "").strip()) or [None, ""])[1]
+    return pick_token((ARIZONA_TOKEN.match((text or "").strip()) or [None, ""])[1])
+
+
+def pick_token(rest):
+    """A JWT anywhere in the text, or else its one long word; '' when there is none."""
+    rest = rest or ""
     jwt = re.search(r"eyJ[\w-]+\.[\w-]+\.[\w-]+", rest)
     if jwt:
         return jwt.group(0)
