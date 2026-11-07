@@ -21,7 +21,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.7.7"
+SERVER_VERSION = "3.7.8"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -1278,6 +1278,25 @@ class Engine:
         until = online.token_until(token)
         return ('🔑 <b>Вход в Arizona сохранён</b>\nСообщение с токеном я удалил. Пишите <code>статистика</code>.'
                 + (f'\n<i>Токен действует до {until:%d.%m %H:%M} МСК.</i>' if until else ''))
+
+    def arizona_report(self):
+        token = self.store.read()['arizona'].get('token', '')
+        until = online.token_until(token) if token else None
+        return {'has_token': bool(token), 'until': f'{until:%d.%m %H:%M}' if until else ''}
+
+    async def save_arizona_token(self, raw):
+        """The token the app took from its own arizona-rp.com page after the owner logged in; checked before kept."""
+        token = online.pick_token(raw)
+        if not token:
+            raise UserError('Это не похоже на токен входа Arizona.')
+        try:
+            user = await asyncio.to_thread(online.arizona_profile, token)
+        except PermissionError:
+            raise UserError('Сайт Arizona не принял этот токен.') from None
+        except (OSError, ValueError) as exc:
+            raise UserError('Сайт Arizona не ответил как ожидалось: ' + type(exc).__name__) from None
+        self.store.update(lambda s: s['arizona'].update(token=token, last={}))
+        return {**self.arizona_report(), 'name': str(user.get('username') or user.get('name') or '')}
 
     async def arizona_stats(self):
         """«статистика»: the owner's Arizona account, compared with the previous look."""
