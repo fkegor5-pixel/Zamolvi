@@ -42,12 +42,11 @@ public final class HomeFeatures {
             {"replyai.update.navigation.v1", "16. Обновление", "Версия приложения и выпуски на GitHub"},
             {"replyai.notification.navigation.v1", "17. Ответы из уведомлений", "Без сервера, с телефона: WhatsApp, VK, Viber, SMS"},
             {"replyai.style.navigation.v1", "18. Стиль общения", "Тон ответов: деловой, добрый, дерзкий…"},
-            {"replyai.commands.navigation.v1", "20. Свои команды", "Слово, где искать и как ответить — отвечает нейросеть"},
             {"replyai.streak.navigation.v1", "21. Серийчик", "Дни общения подряд: картинка с числом в чате"},
     };
     private static final Class<?>[] SCREENS = {DeletedMessagesActivity.class, MemoryActivity.class,
             MediaActivity.class, ApprovalActivity.class, StatsActivity.class, CheckupActivity.class,
-            UpdateActivity.class, NotificationReplyActivity.class, StyleActivity.class, CommandsActivity.class,
+            UpdateActivity.class, NotificationReplyActivity.class, StyleActivity.class,
             StreakActivity.class};
     private static final String LOGO_TAG = "replyai.developer.logo.v1";
     private static final String AUTOREPLY_TAG = "replyai.autoreply.intro.v1";
@@ -338,7 +337,7 @@ public final class HomeFeatures {
      */
     private static final String[][] GROUPS = {
             {"Подключения", "1.", "2.", "17."},
-            {"Ответы", "5.", "4.", "3.", "18.", "20.", "13."},
+            {"Ответы", "5.", "4.", "3.", "18.", "13."},
             {"Данные и память", "11.", "12.", "10.", "21."},
             {"Статистика", "8.", "14.", "6."},
             {"Приложение", "9.", "15.", "16.", "7."},
