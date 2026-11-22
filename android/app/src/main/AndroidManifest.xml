@@ -49,7 +49,6 @@
         <activity android:name=".RulesActivity" android:exported="false"/>
         <activity android:name=".UpdateActivity" android:exported="false"/>
         <activity android:name=".TipsActivity" android:exported="false"/>
-        <activity android:name=".CommandsActivity" android:exported="false"/>
         <activity android:name=".StreakActivity" android:exported="false"/>
         <activity android:name=".ArizonaLoginActivity" android:exported="true">
             <intent-filter>
