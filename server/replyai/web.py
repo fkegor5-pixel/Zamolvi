@@ -530,22 +530,23 @@ def create_app(store=None, engine=None, token=None):
         return engine.save_media(data.model_dump())
 
     @app.get('/api/arizona', dependencies=protected)
-    async def arizona_login(request: Request):
-        return engine.arizona_report(host=request.headers.get('host'))
+    async def arizona_login():
+        return engine.arizona_report()
 
     @app.put('/api/arizona', dependencies=protected)
     async def put_arizona_login(data: ArizonaLogin):
         return await engine.save_arizona_token(data.token)
 
+    # Older Android builds still call these routes when the Arizona screen is open.
     @app.get('/api/arizona/pending', dependencies=protected)
     async def get_arizona_pending():
-        return engine.arizona_pending()
+        return {}
 
     @app.post('/api/arizona/player', dependencies=protected)
     async def post_arizona_player(data: ArizonaPlayer):
-        return await engine.arizona_player(data.data)
+        return {"ok": False}
 
-    # Public: the tappable link in the bot's reply opens here, then bounces into the app (zamolvi://).
+    # Keep previously sent links working for users who open them from chat history.
     @app.get('/open/arizona', response_class=HTMLResponse)
     async def open_arizona():
         return HTMLResponse(

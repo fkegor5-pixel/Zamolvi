@@ -1192,14 +1192,10 @@ async def test_owner_asks_for_the_server_version_in_any_installation(env):
 
 
 @pytest.mark.asyncio
-async def test_owner_keeps_the_arizona_login_in_saved_messages_and_sees_own_stats(env):
-    from replyai import online
+async def test_owner_keeps_the_arizona_login_only_in_saved_messages(env):
     restore = owner_commands_on()
-    original = online.arizona_profile
     try:
         sent = env.engine.client.sent
-        await env.engine.on_message(owner_message(env, 80, 777, "статистика"))
-        assert "Нужен вход на сайт Arizona" in sent[-1].message                     # no token yet: how to add it
         elsewhere = owner_message(env, 81, 777, "аризона токен abcdefghijklmnopqrstuvwxyz0123")
         await env.engine.on_message(elsewhere)
         assert "только в «Избранное»" in sent[-1].message and 81 in env.engine.client.deleted
@@ -1210,17 +1206,10 @@ async def test_owner_keeps_the_arizona_login_in_saved_messages_and_sees_own_stat
         assert "Вход в Arizona сохранён" in sent[-1].message and sent[-1].reply_to is None
         assert 82 in env.engine.client.deleted and "abcdefghijklmnopqrstuvwxyz0123" not in sent[-1].message
         assert env.store.read()["arizona"]["token"] == "abcdefghijklmnopqrstuvwxyz0123"
-        online.arizona_profile = lambda token: {"username": "Ivan_Petrov", "cash": 100, "bank": 900}
         await env.engine.on_message(owner_message(env, 83, 1, "Статистика"))
-        assert "Arizona · Ivan_Petrov" in sent[-1].message and "Всего: 1 000 $" in sent[-1].message
-        assert env.store.read()["arizona"]["last"]["bank"] == 900
-        def ended(token):
-            raise PermissionError(401)
-        online.arizona_profile = ended
-        await env.engine.on_message(owner_message(env, 84, 1, "статистика"))
-        assert "Вход на сайт Arizona закончился" in sent[-1].message
+        await env.engine.on_message(owner_message(env, 84, 1, "статистика Tony_B Tucson"))
+        assert len(sent) == 2 and env.store.read()["arizona"]["pending"] is None
     finally:
-        online.arizona_profile = original
         restore()
 
 
@@ -1245,20 +1234,11 @@ async def test_app_sends_the_arizona_login_and_the_server_checks_it_first(env):
         online.arizona_profile = original
 
 
-@pytest.mark.asyncio
-async def test_arizona_other_player_waits_for_the_app_then_posts_the_card(env):
-    env.store.update(lambda s: s["arizona"].update(token="tok"))
-    sent = env.engine.send_to_chat = AsyncMock()                    # no real Telegram client in the test
-    howto = await env.engine.arizona_stats("Tony_B", "Tucson", "123")
-    assert "Tony_B" in howto and env.engine.arizona_pending() == {"nick": "Tony_B", "server": "Tucson"}
-    ok = await env.engine.arizona_player(json.dumps({"data": {"name": "Tony_B", "level": 9, "PlayHours": 50}}))
-    assert ok == {"ok": True}
-    chat, card = sent.await_args.args
-    assert chat == "123" and "Tony_B" in card and "в игре" in card
-    assert env.engine.arizona_pending() == {} and env.store.read()["arizona"]["pending"] is None
-    assert await env.engine.arizona_player("{}") == {"ok": False}   # nothing is waiting any more
-    again = await env.engine.arizona_stats("tony_b", "tucson", "123")   # within 30 min: cached card, no new pending
-    assert again == card and env.engine.arizona_pending() == {}
-    env.engine.arizona_report(host="my.vps.example")                   # the app tells the server its https host
-    howto = await env.engine.arizona_stats("Other_Guy", "Phoenix", "123")
-    assert "https://my.vps.example/open/arizona" in howto
+def test_older_android_cannot_send_a_pending_player_card_after_update(api29, env):
+    env.store.update(lambda s: s["arizona"].update(
+        pending={"nick": "Tony_B", "server": "Tucson", "chat": "123", "asked": env.clock[0]}))
+    pending = api29.get("/api/arizona/pending", headers=AUTH)
+    answer = api29.post("/api/arizona/player", headers=AUTH, json={"data": '{"name":"Tony_B","level":9}'})
+    assert pending.status_code == answer.status_code == 200
+    assert pending.json() == {} and answer.json() == {"ok": False}
+    assert env.engine.client.sent == []

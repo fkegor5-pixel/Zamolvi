@@ -22,7 +22,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.7.13"
+SERVER_VERSION = "3.7.14"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -1290,8 +1290,6 @@ class Engine:
         try:
             if secret:
                 answer = await self.arizona_login(event, text)
-            elif (stats := online.ARIZONA_STATS.match(text.strip())):
-                answer = await self.arizona_stats(stats.group(1), stats.group(2), chat)
             elif online.watch_target(text):
                 answer = await self.add_watch(online.watch_target(text))
             elif kind:
@@ -1310,29 +1308,21 @@ class Engine:
             await self.delete_for_all([event.id], 'Сообщение с токеном Arizona не удалено')
 
     async def arizona_login(self, event, text):
-        """«аризона токен …» in «Избранное»: keeps the owner's login to arizona-rp.com for «статистика»."""
+        """«аризона токен …» in «Избранное»: keeps the owner's login to arizona-rp.com."""
         if not getattr(await event.get_chat(), 'is_self', False):
             return online.warn('Токен присылайте только в «Избранное». Это сообщение я удалил.')
         token = online.arizona_token(text)
         if not token:
             return online.warn('Не вижу токена после «аризона токен».')
-        self.store.update(lambda s: s['arizona'].update(token=token, last={}))
+        self.store.update(lambda s: s['arizona'].update(token=token))
         until = online.token_until(token)
-        return ('🔑 <b>Вход в Arizona сохранён</b>\nСообщение с токеном я удалил. Пишите <code>статистика</code>.'
+        return ('🔑 <b>Вход в Arizona сохранён</b>\nСообщение с токеном я удалил.'
                 + (f'\n<i>Токен действует до {until:%d.%m %H:%M} МСК.</i>' if until else ''))
 
-    def arizona_report(self, host=None):
-        if host and re.fullmatch(r'[A-Za-z0-9.-]+(:\d+)?', host):   # the app's own https host, for the tap-to-open link
-            base = 'https://' + host
-            if self.store.read()['arizona'].get('base_url') != base:
-                self.store.update(lambda s: s['arizona'].update(base_url=base))
+    def arizona_report(self):
         token = self.store.read()['arizona'].get('token', '')
         until = online.token_until(token) if token else None
         return {'has_token': bool(token), 'until': f'{until:%d.%m %H:%M}' if until else ''}
-
-    def _arizona_link(self):
-        base = (self.store.read()['arizona'].get('base_url') or '').rstrip('/')
-        return f'{base}/open/arizona' if base.startswith('https://') else ''
 
     async def save_arizona_token(self, raw):
         """The token the app took from its own arizona-rp.com page after the owner logged in; checked before kept."""
@@ -1344,89 +1334,11 @@ class Engine:
         except PermissionError:
             raise UserError('Сайт Arizona не принял этот токен.') from None
         except online.ArizonaShape:
-            user = {}  # the site took the login: keep it, «статистика» shows what the answer looks like
+            user = {}  # the site took the login even if the profile format changed
         except (OSError, ValueError) as exc:
             raise UserError(f'Сайт Arizona не ответил как ожидалось: {exc}') from None
-        self.store.update(lambda s: s['arizona'].update(token=token, last={}))
+        self.store.update(lambda s: s['arizona'].update(token=token))
         return {**self.arizona_report(), 'name': str(user.get('username') or user.get('name') or '')}
-
-    async def arizona_stats(self, nick=None, server=None, chat=None):
-        """«статистика»: own account now, or a pending search for another player (a person passes the captcha in the app)."""
-        state = self.store.read()['arizona']
-        if not state.get('token'):
-            return online.ARIZONA_HOWTO
-        if nick:
-            now = self.clock()
-            key = f"{nick.strip().casefold()}|{(server or '').strip().casefold()}"
-            cached = (state.get('cache') or {}).get(key)
-            if cached and now - cached.get('at', 0) <= online.PLAYER_CACHE_SECONDS:
-                return cached['card']  # within 30 min: the last look, no new site request
-            self.store.update(lambda s: s['arizona'].update(
-                pending={'nick': nick[:32], 'server': (server or '')[:32], 'chat': chat, 'asked': now, 'key': key}))
-            return online.arizona_search_howto(nick, server, self._arizona_link())
-        try:
-            user = await asyncio.to_thread(online.arizona_profile, state['token'])
-        except PermissionError:
-            return ('🔑 <b>Вход на сайт Arizona закончился</b>\nВойдите на arizona-rp.com заново и пришлите новый токен в '
-                    '«Избранное»: <code>аризона токен …</code>')
-        except online.ArizonaShape as exc:
-            return (online.warn('Вход работает, но сайт ответил в незнакомом виде. Перешлите это разработчику '
-                                '(здесь только названия полей, без значений):') + f'\n<code>{online.esc(str(exc)[:1500])}</code>')
-        except (OSError, ValueError) as exc:
-            return online.warn(f'Сайт Arizona не ответил: {online.esc(exc)}. Попробуйте позже.')
-        now = self.clock()
-        card = online.arizona_card(user, state.get('last') or {}, lambda: now)
-        self.store.update(lambda s: s['arizona'].update(last=online.arizona_snapshot(user, now)))
-        return card
-
-    def arizona_pending(self):
-        """What the app should search next (nick, server), or {} when nothing is waiting or it expired."""
-        p = self.store.read()['arizona'].get('pending')
-        if not p or self.clock() - p.get('asked', 0) > online.SEARCH_SECONDS:
-            return {}
-        return {'nick': p['nick'], 'server': p.get('server', '')}
-
-    async def arizona_player(self, raw):
-        """The site's «поиск игроков» answer the app forwarded: build the card and send it to the chat that asked."""
-        p = self.store.read()['arizona'].get('pending')
-        if not p:
-            return {'ok': False}
-        self.store.update(lambda s: s['arizona'].update(pending=None))  # one answer per request, however many arrive
-        if self.clock() - p.get('asked', 0) > online.SEARCH_SECONDS:
-            return {'ok': False}
-        try:
-            data = json.loads(raw)
-        except (ValueError, TypeError):
-            return {'ok': False}
-        user = online.account_in(data) or online.player_in(data)
-        if user is None:
-            card = (online.warn('Сайт ответил в незнакомом виде. Перешлите разработчику (здесь только названия полей):')
-                    + f'\n<code>{online.esc(online.shape(data)[:1500])}</code>')
-        else:
-            card = online.arizona_card(user, {}, self.clock, fallback_name=p['nick'])
-            key, now = p.get('key'), self.clock()
-            if key:
-                def put(s):
-                    cache = s['arizona'].setdefault('cache', {})
-                    cache[key] = {'card': card, 'at': now}
-                    for old in sorted(cache, key=lambda k: cache[k].get('at', 0))[:-20]:
-                        cache.pop(old, None)   # keep only the 20 freshest players
-                self.store.update(put)
-        await self.send_to_chat(p.get('chat'), card)
-        return {'ok': True}
-
-    async def send_to_chat(self, chat, html):
-        """Posts an HTML message to a chat by id, outside any incoming event (like a due reminder)."""
-        if not (self.authorized and self.client and chat):
-            return
-        try:
-            async with self.telegram_lock:
-                peer = await self.client.get_input_entity(int(chat))
-                message, entities = render_command(html, PREFIX)
-                await self.client(functions.messages.SendMessageRequest(
-                    peer=peer, message=message, entities=entities, random_id=secrets.randbits(63), no_webpage=True))
-        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
-            self.log('Карточка Arizona не отправлена: ' + type(exc).__name__)
 
     async def send_picture(self, peer, reply_to, text):
         """Answers a picture command with the picture (or with a text when it cannot be made)."""

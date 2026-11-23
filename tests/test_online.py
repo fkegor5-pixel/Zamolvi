@@ -715,24 +715,13 @@ def test_arizona_profile_asks_the_site_with_the_owner_login():
         online.arizona_profile("tok", fetcher=lambda url, headers=None: '{"status": 0, "message": "no"}')
 
 
-def test_arizona_card_shows_money_total_and_changes():
-    user = {"username": "Ivan_Petrov", "level": 45, "vipName": "Titan", "cash": 1_500_000, "bank": 20_000_000,
-            "individualAccount": 0, "depozit": 5_000_000, "donate": 300, "euro": 0, "jobName": "Таксист",
-            "orgName": "LSPD", "rangName": "Сержант"}
-    first = shown(online.arizona_card(user, {}, clock=lambda: 1793000000)).splitlines()
-    assert first[0] == "🎮 Arizona · Ivan_Petrov" and first[1] == "⭐ Уровень 45 · 👑 Titan"
-    assert "💵 Наличные: 1 500 000 $" in first and "💰 Всего: 26 500 000 $" in first
-    assert "💎 AZ-коины: 300" in first and "💶 Евро: 0 €" not in "\n".join(first)       # zero extras are hidden
-    assert "💼 Таксист · LSPD · Сержант" in first
-    before = online.arizona_snapshot(dict(user, cash=1_000_000, bank=21_000_000), 1792900000)
-    second = shown(online.arizona_card(user, before, clock=lambda: 1793000000))
-    assert "💵 Наличные: 1 500 000 $ (+500 000)" in second and "🏦 Банк: 20 000 000 $ (−1 000 000)" in second
-    assert "изменения с" in second.splitlines()[-1]
-
-
-def test_arizona_commands_are_only_for_the_owner():
-    assert online.is_command("статистика") and online.is_command("аризона токен x")
-    assert online.answer("статистика") == "🔒 Эта команда только для владельца."
+def test_arizona_statistics_commands_are_removed():
+    for text in ("статистика", "Статистика.", "статистика Tony_B", "статистика Tony_B Tucson"):
+        assert not online.is_command(text)
+        assert online.addressed(text) is None
+    assert "<code>статистика" not in online.HELP
+    assert online.is_command("аризона токен x")
+    assert online.answer("аризона токен x") == "🔒 Эта команда только для владельца."
 
 
 def test_arizona_account_is_found_in_a_wrapped_answer_and_otherwise_shown_without_values():
@@ -746,40 +735,3 @@ def test_arizona_account_is_found_in_a_wrapped_answer_and_otherwise_shown_withou
         raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
     with pytest.raises(OSError, match="HTTP 404"):
         online.arizona_profile("t", fetcher=broken)
-
-
-def test_arizona_card_reads_the_n_api_account():
-    user = {"id": 1, "name": "Tony_Bandana", "level": 30, "money": 5, "vip": "Diamond", "coins": 120,
-            "cash": 1_000, "bank": 2_000, "deposit": 3_000, "bankAccount1": 500, "bankAccount2": 0,
-            "PlayHours": 1234, "organization": "LSPD", "job": "Механик", "warns": 0, "bitcoins": None}
-    lines = shown(online.arizona_card(user, {}, clock=lambda: 1793000000)).splitlines()
-    assert lines[0] == "🎮 Arizona · Tony_Bandana" and lines[1] == "⭐ Уровень 30 · 👑 Diamond · ⏱ 1 234 ч в игре"
-    assert "📈 Депозит: 3 000 $" in lines and "💳 Доп. счета: 500 $" in lines and "💰 Всего: 6 500 $" in lines
-    assert "💎 AZ-коины: 120" in lines and "💼 Механик · LSPD" in lines and not any("Предупреждений" in l for l in lines)
-
-
-def test_arizona_stats_command_parses_nick_and_server():
-    assert online.ARIZONA_STATS.match("статистика").groups() == (None, None)
-    assert online.ARIZONA_STATS.match("статистика.").groups() == (None, None)
-    assert online.ARIZONA_STATS.match("статистика Tony_B").groups() == ("Tony_B", None)
-    assert online.ARIZONA_STATS.match("статистика Tony_B Tucson").groups() == ("Tony_B", "Tucson")
-    assert online.ARIZONA_STATS.match("статистика Tony_B Casa Grande").groups() == ("Tony_B", "Casa Grande")
-
-
-def test_arizona_player_card_shows_public_fields_without_a_total():
-    found = {"status": 1, "data": {"players": [{"name": "Vasya", "level": 12, "PlayHours": 300, "organization": "LSPD"}]}}
-    user = online.account_in(found) or online.player_in(found)
-    assert user["name"] == "Vasya"
-    lines = shown(online.arizona_card(user, {}, clock=lambda: 1793000000, fallback_name="Vasya")).splitlines()
-    assert lines[0] == "🎮 Arizona · Vasya" and "⏱ 300 ч в игре" in lines[1]
-    assert not any("Всего" in l for l in lines) and "💼 LSPD" in lines
-    nameless = online.player_in({"players": [{"login": "Ghost", "level": 5}]})   # no username/name → the asked nick
-    assert shown(online.arizona_card(nameless, {}, clock=lambda: 1793000000, fallback_name="Ghost")).splitlines()[0] \
-        == "🎮 Arizona · Ghost"
-
-
-def test_arizona_search_howto_names_the_player_and_server():
-    text = online.arizona_search_howto("Tony_B", "Tucson")
-    assert "Tony_B" in text and "Tucson" in text and "капч" in text.lower()
-    assert "сервере" not in online.arizona_search_howto("Tony_B", "")   # no server → no server line
-    assert 'href="https://x.y/open/arizona"' in online.arizona_search_howto("Tony_B", "Tucson", "https://x.y/open/arizona")

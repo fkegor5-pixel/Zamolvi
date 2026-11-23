@@ -81,17 +81,9 @@ CREATE_BOT_COMMAND = re.compile(r"^(?:бот\s+)?создать\s+бота[.!?\s
 GRAPH_COMMAND = re.compile(r"^онлайн\s+график[.!?\s]*$", re.IGNORECASE)
 STEAM_GAMES_COMMAND = re.compile(r"^(?:стим|steam)\s+игры[.!?\s]*$", re.IGNORECASE)
 WATCH = re.compile(r"^жди\s+(.{2,40}?)[.!?\s]*$", re.IGNORECASE)
-# «статистика» (own account), «статистика Ник», «статистика Ник Tucson» (another player; a person does the captcha)
-ARIZONA_STATS = re.compile(r"^статистика(?:\s+(\S+)(?:\s+(.+?))?)?[.!?]*\s*$", re.IGNORECASE)
-SEARCH_SECONDS = 15 * 60  # a pending player search waits this long for the app to bring the site's answer
-PLAYER_CACHE_SECONDS = 30 * 60  # a found player is refreshed at most this often: a repeat within it returns the last look
 ARIZONA_TOKEN = re.compile(r"^аризона\s+токен\b(.*)$", re.IGNORECASE | re.DOTALL)
 ARIZONA_PROFILE = "https://n-api.arizona-rp.com/api/account"  # what the site itself asks after the login (11.2026)
-ARIZONA_MONEY = (("cash", "💵 Наличные"), ("bank", "🏦 Банк"), ("individualAccount", "💳 Личный счёт"),
-                 ("depozit", "📈 Депозит"), ("deposit", "📈 Депозит"))
-ARIZONA_EXTRA = (("donate", "💎 AZ-коины", ""), ("coins", "💎 AZ-коины", ""), ("euro", "💶 Евро", " €"),
-                 ("bitcoin", "🪙 Биткоины", " BTC"), ("bitcoins", "🪙 Биткоины", " BTC"))
-ARIZONA_ACCOUNTS = tuple(f"bankAccount{i}" for i in range(1, 7))  # n-api: extra bank accounts  # «жди space»: the owner hears when it starts
+ARIZONA_MONEY_FIELDS = ("cash", "bank", "individualAccount", "depozit", "deposit")
 WATCH_SECONDS = 60      # how often a watched server is checked
 MAX_WATCHES = 5
 SAMPLE_SECONDS = 300    # «онлайн график»: one count of every server per 5 minutes
@@ -190,8 +182,6 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "<code>новости</code> — шуточные новости\n"
         "<code>получить деньги</code> — видео-инструкция\n"
         "<code>версия</code> — версия сервера и есть ли новее\n"
-        "<code>статистика</code> — ваш аккаунт Arizona (нужен токен)\n"
-        "<code>статистика Ник Tucson</code> — другой игрок (капчу проходите в приложении)\n"
         "<code>напомни через 30 минут позвонить</code>\n"
         "<code>напомни в 18:30 позвонить</code>")
 COMMAND_WORDS = sorted(set(SLASH.values()))  # every one is <code> in HELP: a tap copies it
@@ -296,7 +286,7 @@ def allowed(chat, now):
 def answer(text, fetcher=None, clock=time.time, rng=None):
     """The fixed answer to a command (reminders are handled by the engine, see reminder())."""
     text, fetcher, rng = (text or "").strip(), fetcher or fetch, rng or _rng
-    if WATCH.match(text) or ARIZONA_STATS.match(text) or ARIZONA_TOKEN.match(text):  # the engine, for the owner
+    if WATCH.match(text) or ARIZONA_TOKEN.match(text):  # the engine, for the owner
         return "🔒 Эта команда только для владельца."
     if DEMOB_COMMAND.match(text):
         return demob(clock, rng.choice)
@@ -518,24 +508,6 @@ def steam():
     return [(n, f"https://steamcommunity.com/id/{urllib.parse.quote(n)}/?l=russian") for n in names]
 
 
-ARIZONA_HOWTO = ("🔑 <b>Нужен вход на сайт Arizona</b>\n"
-                 "1. Войдите на arizona-rp.com в браузере: капчу проходите сами.\n"
-                 "2. Проще всего в приложении Zamolvi: «Режим разработчика» → «Вход в Arizona».\n"
-                 "   Или пришлите токен сюда: <code>аризона токен ваш_токен</code>\n"
-                 "<i>Сообщение с токеном бот сразу удалит, а сам токен хранит на вашем сервере в зашифрованном виде.</i>")
-
-
-def arizona_search_howto(nick, server, link=""):
-    """Reply to «статистика Ник сервер»: the site's captcha has to be passed by a person, in the app."""
-    where = f" на сервере <b>{esc(server)}</b>" if server else ""
-    tap = f'\n👉 <a href="{link}">Открыть поиск в приложении</a>' if link else ""
-    return (f"🔎 <b>Поиск игрока {esc(nick)}</b>{where}{tap}\n"
-            "Капчу на сайте нужно пройти вручную — за вас это сделать нельзя.\n"
-            "1. Нажмите ссылку выше (или откройте Zamolvi → «Режим разработчика» → «Вход в Arizona»).\n"
-            f"2. На сайте во вкладке «Поиск игроков» найдите <b>{esc(nick)}</b> и пройдите капчу.\n"
-            "3. Карточка игрока придёт сюда сама. Повторный запрос за 30 минут вернёт прошлые данные.")
-
-
 def arizona_token(text):
     """The login token from «аризона токен …»: a JWT anywhere in the pasted text, or the one long word there."""
     return pick_token((ARIZONA_TOKEN.match((text or "").strip()) or [None, ""])[1])
@@ -585,7 +557,7 @@ class ArizonaShape(ValueError):
 def account_in(data, depth=0):
     """The first object with money fields anywhere in the answer (it may be wrapped or a list of characters)."""
     if isinstance(data, dict):
-        if any(isinstance(data.get(k), (int, float)) for k, _ in ARIZONA_MONEY):
+        if any(isinstance(data.get(k), (int, float)) for k in ARIZONA_MONEY_FIELDS):
             return data
         children = data.values()
     elif isinstance(data, list):
@@ -594,24 +566,6 @@ def account_in(data, depth=0):
         return None
     for child in children:
         found = account_in(child, depth + 1) if depth < 4 else None
-        if found is not None:
-            return found
-    return None
-
-
-def player_in(data, depth=0):
-    """The first object that looks like a player (has a name/login), for the public «поиск игроков» answer."""
-    ident = ("username", "name", "nickname", "nick", "login")
-    if isinstance(data, dict):
-        if any(isinstance(data.get(k), str) and data.get(k) for k in ident):
-            return data
-        children = data.values()
-    elif isinstance(data, list):
-        children = data
-    else:
-        return None
-    for child in children:
-        found = player_in(child, depth + 1) if depth < 4 else None
         if found is not None:
             return found
     return None
@@ -626,54 +580,6 @@ def shape(data, depth=0):
     if isinstance(data, list):
         return "[" + (shape(data[0], depth + 1) if data else "") + "]"
     return type(data).__name__
-
-
-def money(value):
-    return f"{int(value):,}".replace(",", " ")
-
-
-def arizona_card(user, previous, clock=time.time, fallback_name="ваш аккаунт"):
-    """«статистика»: the account with the money and what changed since the last look."""
-    def change(key):
-        if key not in previous or not isinstance(user.get(key), (int, float)):
-            return ""
-        diff = user[key] - previous[key]
-        return f" <i>({'+' if diff > 0 else '−'}{money(abs(diff))})</i>" if diff else ""
-    name = user.get("username") or user.get("name") or user.get("nickname") or fallback_name
-    lines = [f"🎮 <b>Arizona · {esc(name)}</b>"]
-    head = [f"⭐ Уровень <b>{esc(user['level'])}</b>" if user.get("level") is not None else "",
-            f"👑 {esc(user.get('vipName') or user.get('vip'))}" if user.get("vipName") or user.get("vip") else "",
-            f"⏱ {money(user['PlayHours'])} ч в игре" if isinstance(user.get("PlayHours"), (int, float)) else ""]
-    if any(head):
-        lines.append(" · ".join(x for x in head if x))
-    total, seen = 0, set()
-    for key, label in ARIZONA_MONEY:
-        if isinstance(user.get(key), (int, float)) and label not in seen:
-            seen.add(label)
-            total += user[key]
-            lines.append(f"{label}: <b>{money(user[key])} $</b>{change(key)}")
-    extra = sum(user[k] for k in ARIZONA_ACCOUNTS if isinstance(user.get(k), (int, float)))
-    if extra:
-        total += extra
-        lines.append(f"💳 Доп. счета: <b>{money(extra)} $</b>")
-    if seen or extra:  # a public player answer may carry no money at all: skip the «total» line then
-        lines.append(f"💰 Всего: <b>{money(total)} $</b>")
-    for key, label, unit in ARIZONA_EXTRA:
-        if user.get(key) and isinstance(user[key], (int, float)):
-            lines.append(f"{label}: <b>{money(user[key])}{unit}</b>{change(key)}")
-    work = [esc(user[k]) for k in ("jobName", "job", "orgName", "organization", "rangName") if user.get(k)]
-    if work:
-        lines.append("💼 " + " · ".join(work))
-    if user.get("warns"):
-        lines.append(f"⚠️ Предупреждений: <b>{esc(user['warns'])}</b>")
-    since = f" · изменения с {datetime.fromtimestamp(previous['at'], MSK):%d.%m %H:%M}" if previous.get("at") else ""
-    return "\n".join(lines) + "\n" + stamp(clock, "arizona-rp.com" + since)
-
-
-def arizona_snapshot(user, now):
-    """What the next «статистика» compares with."""
-    keys = [k for k, _ in ARIZONA_MONEY] + [k for k, _, _ in ARIZONA_EXTRA]
-    return {"at": now, **{k: user[k] for k in keys if isinstance(user.get(k), (int, float))}}
 
 
 def demob_dates():
@@ -749,7 +655,7 @@ def demob(clock=time.time, pick=random.choice):
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
                 RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, FLAG_COMMAND, NEWS_COMMAND, MONEY_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
                 INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, PGL_GRID_COMMAND,
-                GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT, WATCH, ARIZONA_STATS, ARIZONA_TOKEN)
+                GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT, WATCH, ARIZONA_TOKEN)
 
 
 def steam_key(key=None):
