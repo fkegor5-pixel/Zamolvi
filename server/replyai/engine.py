@@ -22,7 +22,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.7.12"
+SERVER_VERSION = "3.7.13"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -551,6 +551,8 @@ class Engine:
                 body = online.addressed(text)
                 if body is not None and online.is_command(body):
                     await self.owner_command(event, chat, body)
+                elif body and online.BOT.match(text):
+                    await self.owner_question(event, body)
             await self.streak_message(event, chat, text)
             return
         sender = await event.get_sender()
@@ -577,7 +579,7 @@ class Engine:
         if text.startswith(PREFIX):
             return
         body = online.addressed(text)
-        if body is None:  # only «бот …» and «онлайн» get an answer
+        if body is None:  # only «бот …» and recognised commands get an answer
             return
         if getattr(message, 'voice', None):
             try:
@@ -895,6 +897,35 @@ class Engine:
             return job
         return None
 
+    async def generate_reply(self, state, text, chat=None):
+        self.metric(ai_calls=1)
+        started = time.perf_counter()
+        answer_style = state.get('style', '')
+        config = style.apply(state['ai'], answer_style)
+        remembered = memory.context(state, chat) if chat is not None else ''
+        live = await asyncio.to_thread(online.context, text)
+        context = '\n\n'.join(part for part in (remembered, live) if part)
+        if context:
+            config = dict(config, prompt=config['prompt'] + '\n\n' + context)
+        history = state['history'].get(chat, []) if chat is not None else []
+        with ai_purpose('reply', chat):
+            answer = await self.ai.answer(config, text, history)
+        answer = style.finish(answer_style, answer)
+        self.metric(ai_success=1, ai_ms=(time.perf_counter() - started) * 1000)
+        return answer
+
+    async def answer_question(self, text):
+        """Answer an explicit question using only the text the requester supplied."""
+        state = self.store.read()
+        try:
+            answer = await self.generate_reply(state, text.strip()[:4000])
+        except AiError as exc:
+            self.error_metric('ai')
+            self.diagnostics.emit('ai', 'answer_failed', exc, retry_after_s=exc.retry_after)
+            self.log(str(exc))
+            answer = '⚠️ Нейросеть сейчас не может ответить. Попробуйте позже.'
+        return render(answer, state['ai'].get('formatting', 'auto'), PREFIX)
+
     async def process_one(self):
         s = self.store.read()
         if quiet.active(s['behavior'], self.clock()):
@@ -981,18 +1012,7 @@ class Engine:
                     answer = (self.add_reminder(job['chat'], *plan) if plan
                               else await self.command_answer(job['text']))
             if not answer:
-                self.metric(ai_calls=1)
-                started = time.perf_counter()
-                config = style.apply(s['ai'], s.get('style', ''))
-                remembered = memory.context(s, job['chat'])
-                if remembered:
-                    config = dict(config, prompt=config['prompt'] + '\n\n' + remembered)
-                live = await asyncio.to_thread(online.context, job['text'])
-                if live:
-                    config = dict(config, prompt=config['prompt'] + '\n\n' + live)
-                with ai_purpose('reply', job['chat']):
-                    answer = style.finish(s.get('style', ''), await self.ai.answer(config, job['text'], s['history'].get(job['chat'], [])))
-                self.metric(ai_success=1, ai_ms=(time.perf_counter() - started) * 1000)
+                answer = await self.generate_reply(s, job['text'], job['chat'])
         except AiError as exc:
             self.error_metric('ai', job['chat'])
             self.diagnostics.emit('ai', 'answer_failed', exc, retry_after_s=exc.retry_after)
@@ -1237,6 +1257,27 @@ class Engine:
         if username and online.HELP_COMMAND.match(text.strip()):
             answer += '\n\n' + online.bot_link(username)
         return answer
+
+    async def owner_question(self, event, text):
+        client, original = self.client, event.raw_text
+        if not self.authorized or not client:
+            return
+        try:
+            if getattr(await event.get_chat(), 'bot', False):
+                return  # A separate Telegram bot handles requests sent to its own chat.
+            peer = await event.get_input_chat()
+            message, entities = await self.answer_question(text)
+            async with self.telegram_lock:
+                if client is not self.client or not self.authorized:
+                    return
+                source = await client.get_messages(peer, ids=event.id)
+                if not source or not source.out or source.raw_text != original:
+                    return
+                await client(functions.messages.SendMessageRequest(
+                    peer=peer, message=message, entities=entities, random_id=secrets.randbits(63), no_webpage=True,
+                    reply_to=types.InputReplyToMessage(reply_to_msg_id=event.id)))
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+            self.log('Ответ нейросети владельцу не отправлен: ' + type(exc).__name__)
 
     async def owner_command(self, event, chat, text):
         """A command written by the owner in any private chat: the answer goes to the same chat."""

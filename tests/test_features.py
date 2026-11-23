@@ -404,8 +404,7 @@ async def test_drafts_expire_and_owner_reply_cancels_them(env):
     env.engine.save_approval("all", [], False)
     await reply(env, 1, 123)
     await reply(env, 2, 456)
-    owner = incoming(env, 9, 456, "Отвечу сам")
-    owner.out = True
+    owner = owner_message(env, 9, 456, "Отвечу сам")
     await env.engine.on_message(owner)
     assert [d["chat"] for d in env.engine.approval_report()["drafts"]] == ["123"]
     env.clock[0] += 13 * 3600
@@ -892,14 +891,16 @@ def test_notification_answer_takes_style_and_note_of_a_profile(api29, env):
 
 @pytest.mark.asyncio
 async def test_message_without_bot_gets_no_answer_and_with_bot_is_sent(env):
-    setup_chats(env)
+    model = setup_chats(env)
     plain = incoming(env, 7)
     plain.raw_text = plain.message.raw_text = "Привет"
     await env.engine.on_message(plain)
     await env.engine.process_one()
     assert env.engine.client.sent == []
     await reply(env, 8)  # «бот Привет»: the source check sees the text Telegram has
-    assert len(env.engine.client.sent) == 1
+    assert model.calls == [("Привет", [])]
+    sent, = env.engine.client.sent
+    assert sent.message == "[AI-автоответ] Тестовый ответ" and sent.reply_to.reply_to_msg_id == 8
 
 
 
@@ -995,6 +996,36 @@ def owner_message(env, message_id, chat, text):
 
 
 @pytest.mark.asyncio
+async def test_owner_question_gets_ai_reply_even_when_autoreplies_are_off(env):
+    model = setup_chats(env)
+    env.engine.disable()
+    question = owner_message(env, 38, 777, "Бот, что такое DNS?")
+    env.engine.client.get_messages = AsyncMock(return_value=SimpleNamespace(out=True, raw_text=question.raw_text))
+    await env.engine.on_message(question)
+    assert model.calls == [("что такое DNS?", [])]
+    sent, = env.engine.client.sent
+    assert sent.message == "[AI-автоответ] Тестовый ответ" and sent.reply_to.reply_to_msg_id == 38
+
+    await env.engine.on_message(owner_message(env, 39, 777, "бот"))
+    await env.engine.on_message(owner_message(env, 40, 777, sent.message))
+    assert len(model.calls) == len(env.engine.client.sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_owner_question_is_not_answered_twice_in_a_bot_chat_or_after_an_edit(env):
+    model = setup_chats(env)
+    question = owner_message(env, 38, 777, "бот что такое DNS?")
+    question.get_chat.return_value = SimpleNamespace(bot=True)
+    await env.engine.on_message(question)
+    assert not model.calls
+
+    question.get_chat.return_value = SimpleNamespace(bot=False)
+    env.engine.client.get_messages = AsyncMock(return_value=SimpleNamespace(out=True, raw_text="бот новый вопрос"))
+    await env.engine.on_message(question)
+    assert model.calls == [("что такое DNS?", [])] and not env.engine.client.sent
+
+
+@pytest.mark.asyncio
 async def test_owner_gets_answers_to_own_commands_in_any_chat(env):
     restore = owner_commands_on()
     try:
@@ -1037,10 +1068,10 @@ async def test_grid_command_is_answered_with_a_picture(env):
     try:
         setup_chats(env)
         env.engine.client.send_file = AsyncMock()
-        await env.engine.on_message(owner_message(env, 60, 777, "турик кс2 IEM сетка"))
+        await env.engine.on_message(owner_message(env, 60, 777, online.MAJOR_GRID_TEXT))
         args, kwargs = env.engine.client.send_file.call_args
         assert args[1].getvalue() == b"\x89PNG fake" and kwargs["reply_to"] == 60
-        await reply(env, 61, text="турик кс2 IEM сетка")  # a contact asks: also a picture, not a text
+        await reply(env, 61, text=online.MAJOR_GRID_TEXT)
         assert env.engine.client.send_file.call_count == 2
     finally:
         online.image = original

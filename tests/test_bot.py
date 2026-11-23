@@ -174,6 +174,25 @@ async def test_bot_reminder_is_sent_by_the_bot(env, commands_on):
 
 
 @pytest.mark.asyncio
+async def test_bot_prefix_routes_free_text_to_ai_for_owner_and_approved_user(env, commands_on):
+    bot = env.engine.bot
+    bot.client, bot.owner_id = BotClient(), 1
+    env.store.update(lambda s: s.update(bot={"token": TOKEN, "allowed": {"2": {}}}))
+
+    await bot.on_message(message(3, "бот что такое DNS?"))
+    assert not env.ai.calls
+    plain = message(2, "что такое DNS?")
+    await bot.on_message(plain)
+    assert plain.answers and not env.ai.calls
+
+    await bot.on_message(message(1, "бот что такое DNS?"))
+    await bot.on_message(message(2, "Бот, объясни HTTPS"))
+    assert env.ai.calls == [("что такое DNS?", []), ("объясни HTTPS", [])]
+    assert [(chat, text) for chat, text, _ in bot.client.sent[-2:]] == [
+        (1, "[AI-автоответ] Тестовый ответ"), (2, "[AI-автоответ] Тестовый ответ")]
+
+
+@pytest.mark.asyncio
 async def test_help_in_a_chat_lists_the_commands_and_links_the_bot(env, commands_on):
     assert await env.engine.command_answer("команды") == online.HELP  # no bot yet
     env.store.update(lambda s: s.update(bot={"token": TOKEN, "username": "zamolvi_helper_bot"}))

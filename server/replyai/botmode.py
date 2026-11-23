@@ -29,14 +29,15 @@ MENU = (  # (button, command); the emoji is the section
     ("🔫 Часы в CS2", "часы в кс"), ("🔫 Кто в игре", "кто в игре"),
     ("🔫 FACEIT", "фейсит"), ("🔫 Инвентарь", "инвентарь"),
     ("🔫 Уровень Steam", "уровень стим"), ("🔫 Скидки Steam", "стим игры"),
-    ("🏆 Турниры", "турик"),
+    ("🏆 PGL Major", "pgl"),
     ("🧰 Дембель", "дембель"), ("🧰 Курс", "курс"), ("🧰 Монетка", "монетка"), ("🧰 Рандом", "рандом"),
     ("🧰 Новости", "новости"), ("🧰 Получить деньги", "получить деньги"),
 )
 MENU_TEXT = ("🤖 <b>Zamolvi Bot</b>\n"
              "<i>Нажмите кнопку или напишите команду текстом — команды ниже копируются нажатием:</i>\n"
-             "<code>погода Москва</code>\n<code>онлайн Phoenix</code>\n<code>турик кс2 IEM</code>\n"
-             "<code>рандом 10-20</code>\n<code>напомни через 30 минут позвонить</code>")
+             "<code>погода Москва</code>\n<code>онлайн Phoenix</code>\n<code>pgl</code>\n"
+             "<code>рандом 10-20</code>\n<code>напомни через 30 минут позвонить</code>\n\n"
+             "Вопрос нейросети: <code>бот объясни, что такое DNS</code>")
 OPEN = {"/start", "/menu", "/help", "меню", "команды", "помощь"}
 
 
@@ -302,8 +303,9 @@ class OwnBot:
             await self.request_access(event)
             return
         word = text.split("@")[0].lower()
+        addressed_to_bot = online.BOT.match(text)
         unit = self.waiting.get(event.chat_id)
-        if unit and not text.startswith("/") and word not in OPEN:
+        if unit and not addressed_to_bot and not text.startswith("/") and word not in OPEN:
             found = REMIND_ANSWER.match(text)
             if not found:
                 await event.respond(f"✍️ Напишите число и текст, например: <code>{UNITS[unit][1]}</code>", buttons=back())
@@ -320,11 +322,13 @@ class OwnBot:
             return
         body = online.addressed(text)
         body = text if body is None else body
-        if not online.is_command(body):
+        command = online.is_command(body)
+        question = bool(addressed_to_bot and body.strip() and not command)
+        if not command and not question:
             await event.respond("🤷 Не знаю такой команды. Нажмите /menu", buttons=back())
             return
         if self.ready(event.chat_id):
-            await self.run(event.chat_id, body)
+            await self.run(event.chat_id, body, question=question)
 
     async def handle_button(self, event):
         data = event.data or b""
@@ -367,21 +371,27 @@ class OwnBot:
         else:
             await event.answer("Кнопка устарела, откройте /menu")
 
-    async def run(self, chat, body):
+    async def run(self, chat, body, question=False):
         """Answers one command in the bot chat: a picture, a channel summary, a reminder or a text."""
-        e = self.engine
-        old, new = self.shown.pop(chat, []), []
+        e, client = self.engine, self.client
+        new = []
         try:
+            if question:
+                text, entities = await e.answer_question(body)
+                if client is self.client and self.allowed(chat):
+                    new.append(await client.send_message(chat, text, formatting_entities=entities,
+                                                         buttons=back(), link_preview=False))
+                return
             if online.is_image_command(body):
                 result = await asyncio.to_thread(online.image, body, samples=e.store.read().get("online_samples", []))
                 if isinstance(result, bytes):
                     picture = io.BytesIO(result)
                     picture.name = "picture.png"
-                    new.append(await self.client.send_file(chat, picture, caption=online.caption(body), buttons=back()))
+                    new.append(await client.send_file(chat, picture, caption=online.caption(body), buttons=back()))
                     return
                 answer = result
             elif online.digest_kind(body):
-                new.append(await self.client.send_message(chat, "⏳ Читаю каналы, это займёт до минуты…"))
+                new.append(await client.send_message(chat, "⏳ Читаю каналы, это займёт до минуты…"))
                 answer = await e.digest(str(chat), online.digest_kind(body))
             elif online.watch_target(body):
                 answer = (await e.add_watch(online.watch_target(body)) if chat == self.owner_id
@@ -391,17 +401,19 @@ class OwnBot:
             else:
                 answer = await asyncio.to_thread(online.answer, body)
             text, entities = render_command(answer)
-            new.append(await self.client.send_message(chat, text, formatting_entities=entities, buttons=back(),
-                                                      link_preview=bool(online.MONEY_COMMAND.match(body))))
+            new.append(await client.send_message(chat, text, formatting_entities=entities, buttons=back(),
+                                                 link_preview=bool(online.MONEY_COMMAND.match(body))))
         except FAILURES as exc:
             self.log("ответ не отправлен: " + type(exc).__name__)
         finally:
-            self.shown[chat] = [m.id for m in new if m is not None]
-            if old:  # one answer at a time keeps the chat clean; removed after the new one is there
-                try:
-                    await self.client.delete_messages(chat, old)
-                except FAILURES:
-                    pass  # older than 48 hours or already deleted by the person
+            if client is self.client:
+                old = self.shown.get(chat, [])
+                self.shown[chat] = [m.id for m in new if m is not None]
+                if old:  # one answer at a time keeps the chat clean; removed after the new one is there
+                    try:
+                        await client.delete_messages(chat, old)
+                    except FAILURES:
+                        pass  # older than 48 hours or already deleted by the person
 
     async def safe_send(self, chat, text, buttons=None):
         """A message from the bot; False when it cannot be sent (bot not running, the person never started it)."""
