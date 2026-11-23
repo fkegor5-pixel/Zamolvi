@@ -253,7 +253,7 @@ ROWS_PAGE = ("<h2>Arizona RP</h2> Arizona (Staging) 0 / 2000 0% · очеред�
 
 def test_help_lists_the_commands():
     assert "\n<code>онлайн</code> — " in online.answer("команды") and online.answer("Помощь") == online.HELP
-    assert online.addressed("/turik") == "турик" and online.addressed("/Online@x") == "онлайн"
+    assert online.addressed("/pgl") == "pgl" and online.addressed("/Online@x") == "онлайн"
     for word in online.COMMAND_WORDS:
         assert online.is_command(word), word
     message, entities = render_command(online.HELP, "[AI] ")
@@ -459,88 +459,80 @@ def real_swiss():
     return rows, [t for t in teams if record[t][0] == 3]
 
 
-TID = 5113
-CS_LIST = json.dumps({"results": [
-    {"id": 6216, "name": "Fiesta Series 3", "tier": "c", "tier_rank": 4, "prize": 1000},
-    {"id": TID, "name": "Intel Extreme Masters Beijing 2026", "slug": "intel-extreme-masters-beijing-2026",
-     "tier": "s", "tier_rank": 1, "prize": 1250000}]})
-D2_LIST = json.dumps({"results": [
-    {"id": 6200, "name": "EPL Masters III", "tier": "b", "tier_rank": 3, "prize": 5},
-    {"id": 6245, "name": "Esports Pro Circuit Season 3", "tier": "b", "tier_rank": 3, "prize": 10}]})
+STAGE_1, STAGE_2, STAGE_3 = (tid for tid, _ in online.MAJOR_STAGES)
 
 
-def tourney_pages(rows=(), game="cs2", tid=TID, **extra):
-    pages = {online.TOURNEYS.format(game=1): CS_LIST, online.TOURNEYS.format(game=4): D2_LIST,
-             online.TOURNEY_MATCHES.format(game=online.GAMES[game][0], tid=tid): json.dumps({"results": list(rows)})}
+def major_pages(rows=(), tid=STAGE_1, **extra):
+    pages = {online.TOURNEY_MATCHES.format(tid=stage): json.dumps({"results": list(rows) if stage == tid else []})
+             for stage, _ in online.MAJOR_STAGES}
     pages.update(extra)
     return pages
 
 
 def test_new_commands_are_recognised():
-    for text in ("турик", "Турики", "турик кс2 IEM", "турик д2 EPL Masters III сетка", "онлайн график", "стим игры"):
+    for text in ("pgl", "PGL!", "major", "мажор", online.MAJOR_GRID_TEXT, "онлайн график", "стим игры"):
         assert online.is_command(text), text
-    assert online.is_image_command("турик cs2 IEM сетка") and online.is_image_command("онлайн график")
-    assert not online.is_image_command("турик кс2 IEM") and not online.is_command("турик IEM")
-    assert not online.is_command("pgl")  # renamed
-    assert [online.digest_kind(t) for t in ("стим игры", "турик")] == ["steam", None]
+    assert online.is_image_command(online.MAJOR_GRID_TEXT) and online.is_image_command("онлайн график")
+    assert online.is_image_command("pgl сетка") and not online.is_image_command("pgl")
+    for text in ("турик", "Турики", "турнир", "турик кс2 IEM", "турик д2 EPL Masters III сетка", "/turik"):
+        assert online.addressed(text) is None
+    assert online.addressed("/PGL@zamolvi_bot") == "pgl"
+    assert [online.digest_kind(t) for t in ("стим игры", "pgl")] == ["steam", None]
     assert not online.is_command("куда вложить кс") and not online.is_command("куда вложить гта")
     assert online.caption("онлайн график") == "Онлайн за сутки"
-    assert online.caption('турик кс2 "IEM Beijing" сетка') == "IEM Beijing — сетка"
-    assert [online.game_of(w) for w in ("кс2", "CS", "д2", "dota", "Дота2")] == ["cs2", "cs2", "dota2", "dota2", "dota2"]
+    assert online.caption(online.MAJOR_GRID_TEXT) == "PGL Major Singapore 2026 — сетка"
 
 
-def test_turik_lists_current_tournaments_with_copyable_commands():
+def test_pgl_keeps_matches_from_available_stages_when_one_fails():
     online._cache.clear()
-    now = online.datetime(2026, 11, 2, 17, 0, tzinfo=online.MSK).timestamp()
-    answer = online.answer("турик", fetcher=fake(tourney_pages()), clock=lambda: now)
-    assert shown(answer).splitlines() == [
-        "🏆 Турниры на 02.11.2026", "🔫 CS2 — Intel Extreme Masters Beijing 2026",
-        "🐉 Dota2 — Esports Pro Circuit Season 3", "🐉 Dota2 — EPL Masters III",  # no S/A tier: the best ones
-        "📋 Подробнее о турнире (нажмите, чтобы скопировать)", "CS2 — турик кс2 Intel Extreme Masters Beijing 2026",
-        "Dota2 — турик д2 Esports Pro Circuit Season 3", "Dota2 — турик д2 EPL Masters III", "",
-        "📊 Сетка — добавьте в конце «сетка»", "🕒 02.11 17:00 МСК · bo3.gg"]
-    assert "CS2 — <code>турик кс2 Intel Extreme Masters Beijing 2026</code>" in answer  # a tap copies it
-    online._cache.clear()
-    pages = tourney_pages()
-    pages.pop(online.TOURNEYS.format(game=4))
-    assert "🐉 Dota2 — bo3.gg сейчас не отвечает" in shown(online.answer("турик", fetcher=fake(pages), clock=lambda: now))
-    assert online.addressed("/turik") == "турик"
+    now = online.datetime(2026, 11, 29, 11, 0, tzinfo=online.MSK).timestamp()
+    pages = major_pages([bo3_row("G2", "NAVI", 0, 0, "upcoming", "2026-11-29T12:00:00+03:00")], tid=STAGE_2)
+    pages.pop(online.TOURNEY_MATCHES.format(tid=STAGE_1))
+    answer = shown(online.answer("pgl", fetcher=fake(pages), clock=lambda: now))
+    assert "12:00 G2 — NAVI" in answer and "bo3.gg не отдал данные: Stage 1" in answer
 
 
-def test_turik_one_shows_the_matches_and_says_when_it_is_not_running():
+def test_pgl_tomorrow_and_team_use_moscow_dates_and_all_stages():
     online._cache.clear()
-    now = online.datetime(2026, 10, 27, 20, 30, tzinfo=online.MSK).timestamp()
-    rows = [bo3_row("G2", "DENDELE", 0, 0, "upcoming", "2026-10-27T17:00:00.000+00:00"),
-            bo3_row("Mongolz", "MOUZ", 0, 2, start="2026-10-27T08:00:00.000+00:00"),
-            bo3_row("Vitality", "FUT", 1, 1, "current", "2026-10-27T14:00:00.000+00:00", slug="v-f"),
-            bo3_row("A", "B", 2, 0, start="2026-10-26T08:00:00.000+00:00"),  # yesterday: not shown
-            bo3_row("C", "D", 0, 0, "upcoming", "2026-10-30T08:00:00.000+00:00")]  # in 3 days: not shown
-    games = json.dumps({"games": [{"number": 3, "status": "current", "map_name": "de_inferno"}]})
-    pages = tourney_pages(rows, **{f"{online.BO3_API}/matches/v-f?scope=show-match&with=games,teams": games})
-    answer = online.answer('турик кс2 "beijing"', fetcher=fake(pages), clock=lambda: now)
-    assert shown(answer).splitlines() == [
-        "🔫 Intel Extreme Masters Beijing 2026 · CS2", "",
-        "✅ Сыграно сегодня", "11:00 Mongolz 0:2 MOUZ",
-        "🔴 Сейчас идёт", "17:00 Vitality 1:1 FUT", "   🗺 Карта 3: Inferno, идёт",
-        "🕒 Ожидаются", "20:00 G2 — DENDELE", "",
-        "📊 Сетка: турик кс2 Intel Extreme Masters Beijing 2026 сетка", "🕒 27.10 20:30 МСК · bo3.gg"]
-    assert "Mongolz <b>0:2</b> <b>MOUZ</b>" in answer  # the winner in bold
-    assert shown(online.answer("турик д2 The International", fetcher=fake(pages), clock=lambda: now)).splitlines() == [
-        "🔍 Турнир «The International» по Dota2 сейчас не идёт.", "",
-        "📋 Сейчас идут (нажмите, чтобы скопировать)",
-        "турик д2 Esports Pro Circuit Season 3", "турик д2 EPL Masters III"]
+    now = online.datetime(2026, 12, 1, 20, 0, tzinfo=online.MSK).timestamp()
+    pages = major_pages([
+        bo3_row("Spirit", "G2", 0, 0, "upcoming", "2026-12-01T21:30:00+00:00"),
+        bo3_row("NAVI", "Spirit", 0, 0, "upcoming", "2026-12-03T11:00:00+03:00"),
+    ], tid=STAGE_3)
+    pages[online.TOURNEY_MATCHES.format(tid=STAGE_2)] = json.dumps({"results": [
+        bo3_row("Vitality", "Spirit", 0, 2, start="2026-11-30T15:00:00+03:00")]})
+    assert online.addressed('pgl завтра') == 'pgl завтра' and online.is_command('pgl Spirit')
+    tomorrow = shown(online.answer('pgl завтра', fetcher=fake(pages), clock=lambda: now))
+    assert '02.12 00:30 Spirit — G2' in tomorrow and 'NAVI' not in tomorrow and 'Vitality' not in tomorrow
+    team = shown(online.answer('pgl SPIRIT', fetcher=fake(pages), clock=lambda: now))
+    assert '02.12 00:30 Spirit — G2' in team and '30.11 15:00 Vitality 0-2 Spirit' in team
+    assert 'NAVI' not in team
     online._cache.clear()
-    assert "не отвечает" in online.answer("турик кс2 beijing", fetcher=fake({}), clock=lambda: now)
 
 
-def test_dota_games_have_no_maps():
+def test_pgl_uses_the_requested_format_and_copyable_grid_command():
     online._cache.clear()
+    now = online.datetime(2026, 12, 2, 16, 20, tzinfo=online.MSK).timestamp()
+    rows = [bo3_row("Vitality", "MOUZ", 0, 2, start="2026-12-02T08:00:00+00:00"),
+            bo3_row("Nemiga", "FURIA", 1, 1, "current", "2026-12-02T11:00:00+00:00", slug="n-f"),
+            bo3_row("A", "B", 2, 0, start="2026-12-01T08:00:00+00:00"),
+            bo3_row("C", "D", 0, 0, "upcoming", "2026-12-05T08:00:00+00:00")]
     games = json.dumps({"games": [
-        {"number": 1, "status": "finished", "map_name": None, "winner_clan_name": "Team Spirit"},
-        {"number": 2, "status": "current", "map_name": None}]})
-    assert online.match_maps({"slug": "s-t"}, fetcher=fake(
-        {f"{online.BO3_API}/matches/s-t?scope=show-match&with=games,teams": games}), clock=lambda: 1.0) == [
-        "🎮 Игра 1: победа Team Spirit", "🎮 Игра 2, <i>идёт</i>"]
+        {"number": 1, "status": "finished", "map_name": "de_ancient", "winner_clan_score": 13,
+         "loser_clan_score": 2, "winner_clan_name": "NEMIGA"},
+        {"number": 2, "status": "finished", "map_name": "de_dust2", "winner_clan_score": 13,
+         "loser_clan_score": 5, "winner_clan_name": "FURIA"},
+        {"number": 3, "status": "current", "map_name": "de_cache"}]})
+    pages = major_pages(rows, tid=STAGE_3, **{f"{online.BO3_API}/matches/n-f?scope=show-match&with=games,teams": games})
+    answer = online.answer("pgl", fetcher=fake(pages), clock=lambda: now)
+    assert render_command(answer, "[AI-автоответ] ")[0].splitlines() == [
+        "[AI-автоответ] 🏆 PGL Major Singapore 2026 (CS2)", "Обновлено: 02.12.2026 16:20 (МСК)", "",
+        "Сыграно сегодня:", "11:00 Vitality 0-2 MOUZ", "", "Онлайн:", "14:00 Nemiga 1-1 FURIA",
+        "Карта 1: Ancient 13:2 (NEMIGA)", "Карта 2: Dust2 13:5 (FURIA)", "Карта 3: Cache, идёт", "",
+        "Ожидаются игры:", "нет", "", "Сетка: pgl PGL Major Singapore 2026 сетка"]
+    assert "<b>PGL Major Singapore 2026</b>" in answer and f"<code>{online.MAJOR_GRID_TEXT}</code>" in answer
+    online._cache.clear()
+    assert "не отвечает" in online.answer("pgl", fetcher=fake({}), clock=lambda: now)
 
 
 def test_grid_by_day_for_any_format():
@@ -549,43 +541,45 @@ def test_grid_by_day_for_any_format():
     rows = [bo3_row("FUT", "TYLOO", 2, 0, start="2026-11-02T08:00:00.000+00:00"),
             bo3_row("G2", "NAVI", 1, 0, "current", "2026-11-02T11:00:00.000+00:00"),
             bo3_row("MOUZ", "Spirit", 0, 0, "upcoming", "2026-11-03T11:00:00.000+00:00")]
-    assert not bracket.is_swiss(online.bo3_rows("cs2", TID, fake(tourney_pages(rows)), lambda: 1.0))
+    assert not bracket.is_swiss(online.bo3_rows(STAGE_1, fake(major_pages(rows)), lambda: 1.0))
     drawn = []
     real = bracket.render_days
     bracket.render_days = lambda matches, title, subtitle, today: drawn.append((matches, title, today)) or b"PNG"
     try:
-        assert online.image("турик кс2 Beijing сетка", fetcher=fake(tourney_pages(rows)), clock=lambda: NOW_GRID) == b"PNG"
+        assert online.image(online.MAJOR_GRID_TEXT, fetcher=fake(major_pages(rows)), clock=lambda: NOW_GRID) == b"PNG"
     finally:
         bracket.render_days = real
     matches, title, today = drawn[0]
-    assert title == "Intel Extreme Masters Beijing 2026" and [m["when"].hour for m in matches] == [11, 14, 14]
+    assert title == "PGL Major Singapore 2026 — Stage 1" and [m["when"].hour for m in matches] == [11, 14, 14]
     now = online.datetime(2026, 11, 2, 15, 0, tzinfo=online.MSK)
     timed = [dict(m, when=m["when"]) for m in matches] * 5  # more than fit in a column
     assert bracket.render_days(timed, title, "x", now)[:8] == b"\x89PNG\r\n\x1a\n"
     assert bracket.render_days([], title, "x", now)[:4] == b"\x89PNG"
     online._cache.clear()
-    assert "не отвечает" in online.image("турик кс2 Beijing сетка", fetcher=fake({}), clock=lambda: NOW_GRID)
+    assert "не отвечает" in online.image(online.MAJOR_GRID_TEXT, fetcher=fake({}), clock=lambda: NOW_GRID)
 
 
 def test_swiss_event_draws_its_grid_then_the_playoff():
     from replyai import bracket
     online._cache.clear()
     rows, top = real_swiss()
-    assert len(top) == 8 and bracket.is_swiss(online.bo3_rows("cs2", TID, fake(tourney_pages(rows)), lambda: 1.0))
+    pages = major_pages(rows, tid=STAGE_3)
+    assert len(top) == 8 and bracket.is_swiss(online.bo3_rows(STAGE_3, fake(pages), lambda: 1.0))
     real = bracket.render, bracket.render_playoff
     bracket.render = lambda matches, title, subtitle: b"swiss " + title.encode()
     bracket.render_playoff = lambda games, title, subtitle: b"playoff " + title.encode()
     try:
         online._cache.clear()
-        assert online.image("турик кс2 beijing сетка", fetcher=fake(tourney_pages(rows)), clock=lambda: 2.0) == \
-            "swiss Intel Extreme Masters Beijing 2026 — групповой этап".encode()
+        assert online.image(online.MAJOR_GRID_TEXT, fetcher=fake(pages), clock=lambda: 2.0) == \
+            "swiss PGL Major Singapore 2026 — Stage 3".encode()
         rows += [bo3_row(top[0], top[1], 2, 1), bo3_row(top[2], top[3], 0, 0, "upcoming")]
+        pages = major_pages(rows, tid=STAGE_3)
         online._cache.clear()
-        assert online.image("турик кс2 beijing сетка", fetcher=fake(tourney_pages(rows)), clock=lambda: 3.0) == \
-            "playoff Intel Extreme Masters Beijing 2026 — плей-офф".encode()
+        assert online.image(online.MAJOR_GRID_TEXT, fetcher=fake(pages), clock=lambda: 3.0) == \
+            "playoff PGL Major Singapore 2026 — плей-офф".encode()
     finally:
         bracket.render, bracket.render_playoff = real
-    games, advanced = bracket.playoff(online.bo3_rows("cs2", TID, fake(tourney_pages(rows)), lambda: 4.0))
+    games, advanced = bracket.playoff(online.bo3_rows(STAGE_3, fake(pages), lambda: 4.0))
     assert len(games) == 2 and len(advanced) == 8
     assert bracket.render_playoff(games, "t", "s")[:8] == b"\x89PNG\r\n\x1a\n"
 
@@ -596,13 +590,13 @@ def test_playoff_final_is_between_the_semifinal_winners():
     rows = [bo3_row("FUT", "Nemiga", 0, 2), bo3_row("Vitality", "NaVi", 2, 1), bo3_row("Aurora", "MOUZ", 0, 2),
             bo3_row("BetBoom", "FURIA", 0, 2), bo3_row("Nemiga", "Vitality", 2, 0), bo3_row("MOUZ", "FURIA", 1, 2),
             bo3_row("Vitality", "MOUZ", 0, 0, "upcoming")]  # a stray match of two losers
-    boxes = bracket.rounds(online.bo3_rows("cs2", TID, fake(tourney_pages(rows)), lambda: 1.0))
+    boxes = bracket.rounds(online.bo3_rows(STAGE_1, fake(major_pages(rows)), lambda: 1.0))
     assert [(b["team1"], b["team2"]) for b in boxes[4:]] == [("Nemiga", "Vitality"), ("MOUZ", "FURIA"),
                                                              ("Nemiga", "FURIA")]
     assert not boxes[6].get("done")
     # quarterfinals played out of bracket order are regrouped by their semifinals
     online._cache.clear()
-    swapped = bracket.rounds([{**m} for m in online.bo3_rows("cs2", TID, fake(tourney_pages(
+    swapped = bracket.rounds([{**m} for m in online.bo3_rows(STAGE_1, fake(major_pages(
         [rows[0], rows[2], rows[1], rows[3], rows[4]])), lambda: 2.0)])
     assert [b["team2"] for b in swapped[:2]] == ["Nemiga", "NaVi"] and swapped[5]["team1"] == "MOUZ"
 
@@ -739,24 +733,13 @@ def test_arizona_profile_asks_the_site_with_the_owner_login():
         online.arizona_profile("tok", fetcher=lambda url, headers=None: '{"status": 0, "message": "no"}')
 
 
-def test_arizona_card_shows_money_total_and_changes():
-    user = {"username": "Ivan_Petrov", "level": 45, "vipName": "Titan", "cash": 1_500_000, "bank": 20_000_000,
-            "individualAccount": 0, "depozit": 5_000_000, "donate": 300, "euro": 0, "jobName": "Таксист",
-            "orgName": "LSPD", "rangName": "Сержант"}
-    first = shown(online.arizona_card(user, {}, clock=lambda: 1793000000)).splitlines()
-    assert first[0] == "🎮 Arizona · Ivan_Petrov" and first[1] == "⭐ Уровень 45 · 👑 Titan"
-    assert "💵 Наличные: 1 500 000 $" in first and "💰 Всего: 26 500 000 $" in first
-    assert "💎 AZ-коины: 300" in first and "💶 Евро: 0 €" not in "\n".join(first)       # zero extras are hidden
-    assert "💼 Таксист · LSPD · Сержант" in first
-    before = online.arizona_snapshot(dict(user, cash=1_000_000, bank=21_000_000), 1792900000)
-    second = shown(online.arizona_card(user, before, clock=lambda: 1793000000))
-    assert "💵 Наличные: 1 500 000 $ (+500 000)" in second and "🏦 Банк: 20 000 000 $ (−1 000 000)" in second
-    assert "изменения с" in second.splitlines()[-1]
-
-
-def test_arizona_commands_are_only_for_the_owner():
-    assert online.is_command("статистика") and online.is_command("аризона токен x")
-    assert online.answer("статистика") == "🔒 Эта команда только для владельца."
+def test_arizona_statistics_commands_are_removed():
+    for text in ("статистика", "Статистика.", "статистика Tony_B", "статистика Tony_B Tucson"):
+        assert not online.is_command(text)
+        assert online.addressed(text) is None
+    assert "<code>статистика" not in online.HELP
+    assert online.is_command("аризона токен x")
+    assert online.answer("аризона токен x") == "🔒 Эта команда только для владельца."
 
 
 def test_arizona_account_is_found_in_a_wrapped_answer_and_otherwise_shown_without_values():
@@ -770,40 +753,3 @@ def test_arizona_account_is_found_in_a_wrapped_answer_and_otherwise_shown_withou
         raise urllib.error.HTTPError(url, 404, "Not Found", {}, None)
     with pytest.raises(OSError, match="HTTP 404"):
         online.arizona_profile("t", fetcher=broken)
-
-
-def test_arizona_card_reads_the_n_api_account():
-    user = {"id": 1, "name": "Tony_Bandana", "level": 30, "money": 5, "vip": "Diamond", "coins": 120,
-            "cash": 1_000, "bank": 2_000, "deposit": 3_000, "bankAccount1": 500, "bankAccount2": 0,
-            "PlayHours": 1234, "organization": "LSPD", "job": "Механик", "warns": 0, "bitcoins": None}
-    lines = shown(online.arizona_card(user, {}, clock=lambda: 1793000000)).splitlines()
-    assert lines[0] == "🎮 Arizona · Tony_Bandana" and lines[1] == "⭐ Уровень 30 · 👑 Diamond · ⏱ 1 234 ч в игре"
-    assert "📈 Депозит: 3 000 $" in lines and "💳 Доп. счета: 500 $" in lines and "💰 Всего: 6 500 $" in lines
-    assert "💎 AZ-коины: 120" in lines and "💼 Механик · LSPD" in lines and not any("Предупреждений" in l for l in lines)
-
-
-def test_arizona_stats_command_parses_nick_and_server():
-    assert online.ARIZONA_STATS.match("статистика").groups() == (None, None)
-    assert online.ARIZONA_STATS.match("статистика.").groups() == (None, None)
-    assert online.ARIZONA_STATS.match("статистика Tony_B").groups() == ("Tony_B", None)
-    assert online.ARIZONA_STATS.match("статистика Tony_B Tucson").groups() == ("Tony_B", "Tucson")
-    assert online.ARIZONA_STATS.match("статистика Tony_B Casa Grande").groups() == ("Tony_B", "Casa Grande")
-
-
-def test_arizona_player_card_shows_public_fields_without_a_total():
-    found = {"status": 1, "data": {"players": [{"name": "Vasya", "level": 12, "PlayHours": 300, "organization": "LSPD"}]}}
-    user = online.account_in(found) or online.player_in(found)
-    assert user["name"] == "Vasya"
-    lines = shown(online.arizona_card(user, {}, clock=lambda: 1793000000, fallback_name="Vasya")).splitlines()
-    assert lines[0] == "🎮 Arizona · Vasya" and "⏱ 300 ч в игре" in lines[1]
-    assert not any("Всего" in l for l in lines) and "💼 LSPD" in lines
-    nameless = online.player_in({"players": [{"login": "Ghost", "level": 5}]})   # no username/name → the asked nick
-    assert shown(online.arizona_card(nameless, {}, clock=lambda: 1793000000, fallback_name="Ghost")).splitlines()[0] \
-        == "🎮 Arizona · Ghost"
-
-
-def test_arizona_search_howto_names_the_player_and_server():
-    text = online.arizona_search_howto("Tony_B", "Tucson")
-    assert "Tony_B" in text and "Tucson" in text and "капч" in text.lower()
-    assert "сервере" not in online.arizona_search_howto("Tony_B", "")   # no server → no server line
-    assert 'href="https://x.y/open/arizona"' in online.arizona_search_howto("Tony_B", "Tucson", "https://x.y/open/arizona")

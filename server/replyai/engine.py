@@ -8,7 +8,9 @@ import datetime as dt
 import math
 import secrets
 import time
+from collections import OrderedDict
 from contextlib import suppress
+from weakref import WeakValueDictionary
 
 from telethon import TelegramClient, events, errors, functions, types
 from telethon.sessions import StringSession
@@ -22,7 +24,7 @@ from .botmode import OwnBot
 from .media import MediaError
 import importlib.util
 
-SERVER_VERSION = "3.7.12"
+SERVER_VERSION = "3.7.15"
 from .voice import VoiceClient, VoiceError, VoiceCancelled, LimitedAudio, MAX_BYTES, MODELS, key_for, describe
 
 
@@ -93,6 +95,10 @@ class Engine:
         self.online_sampled_at = 0
         self.watch_checked_at = 0
         self.bot = OwnBot(self)  # the owner's own Telegram bot (owner's server only)
+        self.question_history = OrderedDict()
+        self.question_locks = WeakValueDictionary()
+        self.reply_notes = OrderedDict()
+        self.arizona_login_revision = 0
         self.digests = {}  # kind -> (time, answer) of «стим игры»
         self.draft_notice_at = {}
         self.notice_at = {}
@@ -151,6 +157,8 @@ class Engine:
     async def connect(self, credentials):
         if self.client:
             await self.client.disconnect()
+        self.question_history.clear()
+        self.reply_notes.clear()
         self.authorized = False
         self.client = self.client_factory(
             PersistentSession(self.store), credentials["api_id"], credentials["api_hash"],
@@ -377,6 +385,8 @@ class Engine:
                 self.client = None
             self.authorized = False
             self.login_stage = "disconnected"
+            self.question_history.clear()
+            self.reply_notes.clear()
             self.account = ""
             self.phone_hash = None
             self.login_delivery = {}
@@ -532,7 +542,11 @@ class Engine:
         message = getattr(event, 'message', event)
         text = event.raw_text or ''
         chat = str(event.chat_id)
+        control = online.bot_control(text)
         if event.out:
+            if control:
+                await self.owner_bot_control(event, chat, control)
+                return
             self.remember_message(event)
             if not text.startswith(PREFIX):
                 self.cancel_chat(chat)
@@ -551,12 +565,15 @@ class Engine:
                 body = online.addressed(text)
                 if body is not None and online.is_command(body):
                     await self.owner_command(event, chat, body)
+                elif body and online.BOT.match(text):
+                    await self.owner_question(event, body)
             await self.streak_message(event, chat, text)
             return
         sender = await event.get_sender()
         if not isinstance(sender, types.User) or sender.bot or sender.is_self or sender.id == 777000:
             return
         if chat in self.store.read().get('muted', []):
+            self.record_reply_note(chat, event.id, 'Чат заглушён.')
             await self.delete_for_all([event.id], 'Сообщение в замученном чате не удалено')
             return
         if text.strip().lower() == '/ai_off':
@@ -570,31 +587,88 @@ class Engine:
                 privacy.restrict(s)
                 s['revision'] += 1
             self.store.update(revoke)
+            self.question_history.pop(('owner', chat), None)
+            self.reply_notes.pop(chat, None)
             self.log('Собеседник отключил автоответы командой /ai_off.')
             return
         self.remember_message(event, sender)
         await self.streak_message(event, chat, text)
-        if text.startswith(PREFIX):
+        if text.startswith(PREFIX) or control == 'статус':
             return
         body = online.addressed(text)
-        if body is None:  # only «бот …» and «онлайн» get an answer
+        if body is None:  # only «бот …» and recognised commands get an answer
+            self.record_reply_note(chat, event.id, 'В сообщении не было обращения «бот» или команды.')
+            return
+        now = self.clock()
+        timestamp = event.date.timestamp()
+        blocked = queueing.blocked_reason(self.store.read(), chat, timestamp, now)
+        if blocked:
+            self.record_reply_note(chat, event.id, blocked)
+            return
+        if control == 'сброс':
+            self.cancel_chat(chat)
+            await self.send_reset_reply(event, chat)
             return
         if getattr(message, 'voice', None):
             try:
-                self.enqueue_voice(chat, event.id, message, event.date.timestamp())
+                if not self.enqueue_voice(chat, event.id, message, timestamp):
+                    self.record_reply_note(chat, event.id, 'Голосовое не принято. Проверьте настройки голосовых сообщений.')
             except VoiceError as exc:
                 self.error_metric('voice', chat)
+                self.record_reply_note(chat, event.id, 'Не удалось принять голосовое сообщение.')
                 self.log(str(exc))
             return
         handled = False
         try:
-            handled = self.enqueue_media(chat, event.id, message, event.date.timestamp())
+            handled = self.enqueue_media(chat, event.id, message, timestamp)
         except MediaError as exc:
             # The file itself is skipped; a caption is still answered as ordinary text.
             self.error_metric('media', chat)
             self.feature_event('media', str(exc))
-        if not handled and body:
-            self.enqueue(chat, event.id, body, event.date.timestamp(), original=text)
+        if not handled and body.strip():
+            handled = self.enqueue(chat, event.id, body, timestamp, original=text)
+        if not handled:
+            self.record_reply_note(chat, event.id, 'Сообщение не попало в очередь. Проверьте текст и настройки вложений.')
+
+    def record_reply_note(self, chat, message_id, note):
+        previous = self.reply_notes.get(chat)
+        if previous and previous[0] > message_id:
+            return
+        self.reply_notes[chat] = (message_id, self.clock(), note)
+        self.reply_notes.move_to_end(chat)
+        if len(self.reply_notes) > 100:
+            self.reply_notes.popitem(last=False)
+
+    def reply_status(self, chat=None):
+        state = self.store.read()
+        now = self.clock()
+        label = state['selected'].get(chat, {}).get('name') or chat
+        title = f'📋 <b>Автоответы · {online.esc(label)}</b>' if label else '📋 <b>Состояние автоответчика</b>'
+        if not self.authorized or not self.client or not self.client.is_connected():
+            current = 'Telegram не подключён.'
+        elif chat is not None and chat in state.get('muted', []):
+            current = 'Чат заглушён.'
+        elif chat is not None and chat not in state['selected']:
+            current = 'Чат не выбран для автоответов.'
+        elif not state['enabled']:
+            current = 'Автоответчик выключен.'
+        elif quiet.active(state['behavior'], now):
+            current = 'Сейчас тихие часы.'
+        else:
+            jobs = [job for job in state['queue'] if chat is None or job['chat'] == chat]
+            if any(job['state'] == 'awaiting' for job in jobs):
+                current = 'Черновик ждёт согласования в приложении.'
+            elif state['pause_until'] > now:
+                current = 'Обработка временно на паузе. Сервер повторит попытку.'
+            elif any(job['state'] in ('queued', 'processing', 'delivering') for job in jobs):
+                current = 'Ответ в очереди или уже обрабатывается.'
+            else:
+                current = 'Автоответчик включён. Очередь пуста.'
+        note = self.reply_notes.get(chat)
+        if note:
+            when = dt.datetime.fromtimestamp(note[1], online.MSK)
+            current += f'\nПоследняя попытка · {when:%d.%m %H:%M} МСК\n{note[2]}'
+        return f'{title}\n{current}'
 
     def remember_message(self, event, sender=None, edited=False):
         state = self.store.read()
@@ -895,10 +969,66 @@ class Engine:
             return job
         return None
 
+    async def generate_reply(self, state, text, chat=None, history=None):
+        self.metric(ai_calls=1)
+        started = time.perf_counter()
+        answer_style = state.get('style', '')
+        config = style.apply(state['ai'], answer_style)
+        remembered = memory.context(state, chat) if chat is not None else ''
+        live = await asyncio.to_thread(online.context, text)
+        context = '\n\n'.join(part for part in (remembered, live) if part)
+        if context:
+            config = dict(config, prompt=config['prompt'] + '\n\n' + context)
+        if history is None:
+            history = state['history'].get(chat, [])
+        with ai_purpose('reply', chat):
+            answer = await self.ai.answer(config, text, history)
+        answer = style.finish(answer_style, answer)
+        self.metric(ai_success=1, ai_ms=(time.perf_counter() - started) * 1000)
+        return answer
+
+    def question_lock(self, key):
+        lock = self.question_locks.get(key)
+        if lock is None:
+            lock = asyncio.Lock()
+            self.question_locks[key] = lock
+        return lock
+
+    def remember_question(self, key, text, answer):
+        history = self.question_history.get(key, []) + [
+            {'role': 'user', 'content': text.strip()[:4000]}, {'role': 'assistant', 'content': answer[:2000]}]
+        while len(history) > 6 or sum(len(turn['content']) for turn in history) > 6000:
+            history = history[2:]
+        self.question_history[key] = history
+        self.question_history.move_to_end(key)
+        if len(self.question_history) > 100:
+            self.question_history.popitem(last=False)
+
+    async def reset_questions(self, key):
+        async with self.question_lock(key):
+            self.question_history.pop(key, None)
+
+    async def answer_question(self, text, key):
+        """Explicit questions share history only with the same conversation and Telegram surface."""
+        state = self.store.read()
+        try:
+            answer = await self.generate_reply(state, text.strip()[:4000], history=self.question_history.get(key, []))
+        except AiError as exc:
+            self.error_metric('ai')
+            self.diagnostics.emit('ai', 'answer_failed', exc, retry_after_s=exc.retry_after)
+            self.log(str(exc))
+            answer = None
+        message, entities = render(answer or '⚠️ Нейросеть сейчас не может ответить. Попробуйте позже.',
+                                   state['ai'].get('formatting', 'auto'), PREFIX)
+        return message, entities, answer
+
     async def process_one(self):
         s = self.store.read()
         if quiet.active(s['behavior'], self.clock()):
-            if any(j['state'] != 'uncertain' for j in s['queue']):
+            skipped = [job for job in s['queue'] if job['state'] != 'uncertain']
+            if skipped:
+                for job in skipped:
+                    self.record_reply_note(job['chat'], job['message_id'], 'Ответ отменён при начале тихих часов.')
                 self.store.update(lambda x: x.update(queue=[j for j in x['queue'] if j['state'] == 'uncertain']))
             return
         if not s["enabled"] or not self.authorized or not self.client or not self.client.is_connected() or s["pause_until"] > self.clock():
@@ -981,23 +1111,13 @@ class Engine:
                     answer = (self.add_reminder(job['chat'], *plan) if plan
                               else await self.command_answer(job['text']))
             if not answer:
-                self.metric(ai_calls=1)
-                started = time.perf_counter()
-                config = style.apply(s['ai'], s.get('style', ''))
-                remembered = memory.context(s, job['chat'])
-                if remembered:
-                    config = dict(config, prompt=config['prompt'] + '\n\n' + remembered)
-                live = await asyncio.to_thread(online.context, job['text'])
-                if live:
-                    config = dict(config, prompt=config['prompt'] + '\n\n' + live)
-                with ai_purpose('reply', job['chat']):
-                    answer = style.finish(s.get('style', ''), await self.ai.answer(config, job['text'], s['history'].get(job['chat'], [])))
-                self.metric(ai_success=1, ai_ms=(time.perf_counter() - started) * 1000)
+                answer = await self.generate_reply(s, job['text'], job['chat'])
         except AiError as exc:
             self.error_metric('ai', job['chat'])
             self.diagnostics.emit('ai', 'answer_failed', exc, retry_after_s=exc.retry_after)
             if not self.work_allowed(job):
                 return
+            self.record_reply_note(job['chat'], job['message_id'], 'Нейросеть вернула ошибку. Подробности в журнале сервера.')
             self.log(str(exc))
             if exc.retry_after and job["attempts"] < 3:
                 self.change_job(job, state="queued", after=self.clock() + exc.retry_after, attempts=job["attempts"] + 1)
@@ -1019,6 +1139,7 @@ class Engine:
             try:
                 peer = await self.client.get_input_entity(int(job["chat"]))
                 if not await self.sources_unchanged(peer, queueing.parts(job)):
+                    self.record_reply_note(job['chat'], job['message_id'], 'Исходное сообщение изменилось или удалено.')
                     self.remove_job(job)
                     return
             except errors.FloodWaitError as exc:
@@ -1055,12 +1176,14 @@ class Engine:
             except errors.RPCError as exc:
                 self.error_metric('telegram', job['chat'])
                 self.diagnostics.emit('telegram', 'send', exc)
+                self.record_reply_note(job['chat'], job['message_id'], 'Telegram отклонил отправку ответа.')
                 self.remove_job(job)
                 self.log("Telegram отклонил отправку: " + type(exc).__name__)
                 return
             except (OSError, asyncio.TimeoutError) as exc:
                 self.error_metric('telegram', job['chat'])
                 self.diagnostics.emit('telegram', 'send_ambiguous', exc)
+                self.record_reply_note(job['chat'], job['message_id'], 'Telegram не подтвердил отправку.')
                 self.change_job(job, state="uncertain", text="", answer="", parts=[])
                 self.log("Результат отправки неизвестен. Проверьте чат; повторная отправка отменена.")
                 return
@@ -1084,6 +1207,7 @@ class Engine:
                     memory.observe(state, job["chat"], [p['id'] for p in queueing.parts(job)],
                                    job["text"], answer, self.clock())
             self.store.update(success)
+            self.record_reply_note(job['chat'], job['message_id'], 'Автоответ отправлен.')
             self.log("Автоответ отправлен.")
 
     # ------------------------------------------------------------ 2.9: memory, drafts, settings
@@ -1238,6 +1362,67 @@ class Engine:
             answer += '\n\n' + online.bot_link(username)
         return answer
 
+    async def owner_bot_control(self, event, chat, control):
+        if not self.authorized or not self.client:
+            return
+        try:
+            target = await event.get_chat()
+            if getattr(target, 'bot', False):
+                return  # The separate bot handles its own chat.
+            if control == 'статус':
+                note = self.reply_status(None if getattr(target, 'is_self', False) else chat)
+                await self.note_to_self(note, 'Статус автоответчика не отправлен')
+            else:
+                await self.reset_questions(('owner', chat))
+                await self.send_reset_reply(event, chat)
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+            self.log('Команда управления ботом не выполнена: ' + type(exc).__name__)
+
+    async def send_reset_reply(self, event, chat):
+        client = self.client
+        if not self.authorized or not client:
+            return
+        message, entities = render_command('♻️ Контекст разговора сброшен.', PREFIX)
+        try:
+            async with self.telegram_lock:
+                if client is not self.client or not self.authorized:
+                    return
+                if not event.out and queueing.blocked_reason(self.store.read(), chat, event.date.timestamp(), self.clock()):
+                    return
+                peer = await client.get_input_entity(int(chat))
+                await client(functions.messages.SendMessageRequest(
+                    peer=peer, message=message, entities=entities, random_id=secrets.randbits(63), no_webpage=True,
+                    reply_to=types.InputReplyToMessage(reply_to_msg_id=event.id)))
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+            self.log('Подтверждение сброса контекста не отправлено: ' + type(exc).__name__)
+
+    async def owner_question(self, event, text):
+        client, original = self.client, event.raw_text
+        if not self.authorized or not client:
+            return
+        try:
+            if getattr(await event.get_chat(), 'bot', False):
+                return  # A separate Telegram bot handles requests sent to its own chat.
+            peer = await event.get_input_chat()
+            key = ('owner', str(event.chat_id))
+            async with self.question_lock(key):
+                if client is not self.client or not self.authorized:
+                    return
+                message, entities, answer = await self.answer_question(text, key)
+                async with self.telegram_lock:
+                    if client is not self.client or not self.authorized:
+                        return
+                    source = await client.get_messages(peer, ids=event.id)
+                    if not source or not source.out or source.raw_text != original:
+                        return
+                    await client(functions.messages.SendMessageRequest(
+                        peer=peer, message=message, entities=entities, random_id=secrets.randbits(63), no_webpage=True,
+                        reply_to=types.InputReplyToMessage(reply_to_msg_id=event.id)))
+                    if answer:
+                        self.remember_question(key, text, answer)
+        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
+            self.log('Ответ нейросети владельцу не отправлен: ' + type(exc).__name__)
+
     async def owner_command(self, event, chat, text):
         """A command written by the owner in any private chat: the answer goes to the same chat."""
         if online.is_image_command(text):
@@ -1249,8 +1434,6 @@ class Engine:
         try:
             if secret:
                 answer = await self.arizona_login(event, text)
-            elif (stats := online.ARIZONA_STATS.match(text.strip())):
-                answer = await self.arizona_stats(stats.group(1), stats.group(2), chat)
             elif online.watch_target(text):
                 answer = await self.add_watch(online.watch_target(text))
             elif kind:
@@ -1269,123 +1452,45 @@ class Engine:
             await self.delete_for_all([event.id], 'Сообщение с токеном Arizona не удалено')
 
     async def arizona_login(self, event, text):
-        """«аризона токен …» in «Избранное»: keeps the owner's login to arizona-rp.com for «статистика»."""
+        """«аризона токен …» in «Избранное»: keeps the owner's login to arizona-rp.com."""
         if not getattr(await event.get_chat(), 'is_self', False):
             return online.warn('Токен присылайте только в «Избранное». Это сообщение я удалил.')
         token = online.arizona_token(text)
         if not token:
             return online.warn('Не вижу токена после «аризона токен».')
-        self.store.update(lambda s: s['arizona'].update(token=token, last={}))
+        self.store.update(lambda s: s['arizona'].update(token=token))
         until = online.token_until(token)
-        return ('🔑 <b>Вход в Arizona сохранён</b>\nСообщение с токеном я удалил. Пишите <code>статистика</code>.'
+        return ('🔑 <b>Вход в Arizona сохранён</b>\nСообщение с токеном я удалил.'
                 + (f'\n<i>Токен действует до {until:%d.%m %H:%M} МСК.</i>' if until else ''))
 
-    def arizona_report(self, host=None):
-        if host and re.fullmatch(r'[A-Za-z0-9.-]+(:\d+)?', host):   # the app's own https host, for the tap-to-open link
-            base = 'https://' + host
-            if self.store.read()['arizona'].get('base_url') != base:
-                self.store.update(lambda s: s['arizona'].update(base_url=base))
+    def arizona_report(self):
         token = self.store.read()['arizona'].get('token', '')
         until = online.token_until(token) if token else None
         return {'has_token': bool(token), 'until': f'{until:%d.%m %H:%M}' if until else ''}
 
-    def _arizona_link(self):
-        base = (self.store.read()['arizona'].get('base_url') or '').rstrip('/')
-        return f'{base}/open/arizona' if base.startswith('https://') else ''
+    def forget_arizona_login(self):
+        self.arizona_login_revision += 1
+        self.store.update(lambda s: s['arizona'].update(token=''))
+        return self.arizona_report()
 
     async def save_arizona_token(self, raw):
         """The token the app took from its own arizona-rp.com page after the owner logged in; checked before kept."""
         token = online.pick_token(raw)
         if not token:
             raise UserError('Это не похоже на токен входа Arizona.')
+        revision = self.arizona_login_revision
         try:
             user = await asyncio.to_thread(online.arizona_profile, token)
         except PermissionError:
             raise UserError('Сайт Arizona не принял этот токен.') from None
         except online.ArizonaShape:
-            user = {}  # the site took the login: keep it, «статистика» shows what the answer looks like
+            user = {}  # the site took the login even if the profile format changed
         except (OSError, ValueError) as exc:
             raise UserError(f'Сайт Arizona не ответил как ожидалось: {exc}') from None
-        self.store.update(lambda s: s['arizona'].update(token=token, last={}))
+        if revision != self.arizona_login_revision:
+            raise UserError('Вход в Arizona был удалён во время проверки.')
+        self.store.update(lambda s: s['arizona'].update(token=token))
         return {**self.arizona_report(), 'name': str(user.get('username') or user.get('name') or '')}
-
-    async def arizona_stats(self, nick=None, server=None, chat=None):
-        """«статистика»: own account now, or a pending search for another player (a person passes the captcha in the app)."""
-        state = self.store.read()['arizona']
-        if not state.get('token'):
-            return online.ARIZONA_HOWTO
-        if nick:
-            now = self.clock()
-            key = f"{nick.strip().casefold()}|{(server or '').strip().casefold()}"
-            cached = (state.get('cache') or {}).get(key)
-            if cached and now - cached.get('at', 0) <= online.PLAYER_CACHE_SECONDS:
-                return cached['card']  # within 30 min: the last look, no new site request
-            self.store.update(lambda s: s['arizona'].update(
-                pending={'nick': nick[:32], 'server': (server or '')[:32], 'chat': chat, 'asked': now, 'key': key}))
-            return online.arizona_search_howto(nick, server, self._arizona_link())
-        try:
-            user = await asyncio.to_thread(online.arizona_profile, state['token'])
-        except PermissionError:
-            return ('🔑 <b>Вход на сайт Arizona закончился</b>\nВойдите на arizona-rp.com заново и пришлите новый токен в '
-                    '«Избранное»: <code>аризона токен …</code>')
-        except online.ArizonaShape as exc:
-            return (online.warn('Вход работает, но сайт ответил в незнакомом виде. Перешлите это разработчику '
-                                '(здесь только названия полей, без значений):') + f'\n<code>{online.esc(str(exc)[:1500])}</code>')
-        except (OSError, ValueError) as exc:
-            return online.warn(f'Сайт Arizona не ответил: {online.esc(exc)}. Попробуйте позже.')
-        now = self.clock()
-        card = online.arizona_card(user, state.get('last') or {}, lambda: now)
-        self.store.update(lambda s: s['arizona'].update(last=online.arizona_snapshot(user, now)))
-        return card
-
-    def arizona_pending(self):
-        """What the app should search next (nick, server), or {} when nothing is waiting or it expired."""
-        p = self.store.read()['arizona'].get('pending')
-        if not p or self.clock() - p.get('asked', 0) > online.SEARCH_SECONDS:
-            return {}
-        return {'nick': p['nick'], 'server': p.get('server', '')}
-
-    async def arizona_player(self, raw):
-        """The site's «поиск игроков» answer the app forwarded: build the card and send it to the chat that asked."""
-        p = self.store.read()['arizona'].get('pending')
-        if not p:
-            return {'ok': False}
-        self.store.update(lambda s: s['arizona'].update(pending=None))  # one answer per request, however many arrive
-        if self.clock() - p.get('asked', 0) > online.SEARCH_SECONDS:
-            return {'ok': False}
-        try:
-            data = json.loads(raw)
-        except (ValueError, TypeError):
-            return {'ok': False}
-        user = online.account_in(data) or online.player_in(data)
-        if user is None:
-            card = (online.warn('Сайт ответил в незнакомом виде. Перешлите разработчику (здесь только названия полей):')
-                    + f'\n<code>{online.esc(online.shape(data)[:1500])}</code>')
-        else:
-            card = online.arizona_card(user, {}, self.clock, fallback_name=p['nick'])
-            key, now = p.get('key'), self.clock()
-            if key:
-                def put(s):
-                    cache = s['arizona'].setdefault('cache', {})
-                    cache[key] = {'card': card, 'at': now}
-                    for old in sorted(cache, key=lambda k: cache[k].get('at', 0))[:-20]:
-                        cache.pop(old, None)   # keep only the 20 freshest players
-                self.store.update(put)
-        await self.send_to_chat(p.get('chat'), card)
-        return {'ok': True}
-
-    async def send_to_chat(self, chat, html):
-        """Posts an HTML message to a chat by id, outside any incoming event (like a due reminder)."""
-        if not (self.authorized and self.client and chat):
-            return
-        try:
-            async with self.telegram_lock:
-                peer = await self.client.get_input_entity(int(chat))
-                message, entities = render_command(html, PREFIX)
-                await self.client(functions.messages.SendMessageRequest(
-                    peer=peer, message=message, entities=entities, random_id=secrets.randbits(63), no_webpage=True))
-        except (errors.RPCError, OSError, ValueError, asyncio.TimeoutError) as exc:
-            self.log('Карточка Arizona не отправлена: ' + type(exc).__name__)
 
     async def send_picture(self, peer, reply_to, text):
         """Answers a picture command with the picture (or with a text when it cannot be made)."""

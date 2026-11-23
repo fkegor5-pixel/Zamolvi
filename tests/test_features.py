@@ -404,8 +404,7 @@ async def test_drafts_expire_and_owner_reply_cancels_them(env):
     env.engine.save_approval("all", [], False)
     await reply(env, 1, 123)
     await reply(env, 2, 456)
-    owner = incoming(env, 9, 456, "Отвечу сам")
-    owner.out = True
+    owner = owner_message(env, 9, 456, "Отвечу сам")
     await env.engine.on_message(owner)
     assert [d["chat"] for d in env.engine.approval_report()["drafts"]] == ["123"]
     env.clock[0] += 13 * 3600
@@ -892,14 +891,16 @@ def test_notification_answer_takes_style_and_note_of_a_profile(api29, env):
 
 @pytest.mark.asyncio
 async def test_message_without_bot_gets_no_answer_and_with_bot_is_sent(env):
-    setup_chats(env)
+    model = setup_chats(env)
     plain = incoming(env, 7)
     plain.raw_text = plain.message.raw_text = "Привет"
     await env.engine.on_message(plain)
     await env.engine.process_one()
     assert env.engine.client.sent == []
     await reply(env, 8)  # «бот Привет»: the source check sees the text Telegram has
-    assert len(env.engine.client.sent) == 1
+    assert model.calls == [("Привет", [])]
+    sent, = env.engine.client.sent
+    assert sent.message == "[AI-автоответ] Тестовый ответ" and sent.reply_to.reply_to_msg_id == 8
 
 
 
@@ -995,6 +996,87 @@ def owner_message(env, message_id, chat, text):
 
 
 @pytest.mark.asyncio
+async def test_owner_question_gets_ai_reply_even_when_autoreplies_are_off(env):
+    model = setup_chats(env)
+    env.engine.disable()
+    question = owner_message(env, 38, 777, "Бот, что такое DNS?")
+    env.engine.client.get_messages = AsyncMock(return_value=SimpleNamespace(out=True, raw_text=question.raw_text))
+    await env.engine.on_message(question)
+    assert model.calls == [("что такое DNS?", [])]
+    sent, = env.engine.client.sent
+    assert sent.message == "[AI-автоответ] Тестовый ответ" and sent.reply_to.reply_to_msg_id == 38
+
+    await env.engine.on_message(owner_message(env, 39, 777, "бот"))
+    await env.engine.on_message(owner_message(env, 40, 777, sent.message))
+    assert len(model.calls) == len(env.engine.client.sent) == 1
+
+
+@pytest.mark.asyncio
+async def test_owner_question_is_not_answered_twice_in_a_bot_chat_or_after_an_edit(env):
+    model = setup_chats(env)
+    question = owner_message(env, 38, 777, "бот что такое DNS?")
+    question.get_chat.return_value = SimpleNamespace(bot=True)
+    await env.engine.on_message(question)
+    assert not model.calls
+
+    question.get_chat.return_value = SimpleNamespace(bot=False)
+    env.engine.client.get_messages = AsyncMock(return_value=SimpleNamespace(out=True, raw_text="бот новый вопрос"))
+    await env.engine.on_message(question)
+    assert model.calls == [("что такое DNS?", [])] and not env.engine.client.sent
+
+
+@pytest.mark.asyncio
+async def test_owner_questions_use_per_chat_history_and_reset_only_that_chat(env):
+    model = setup_chats(env)
+    prompts = {38: 'бот что такое DNS?', 39: 'бот приведи пример', 40: 'бот другой чат', 42: 'бот после сброса'}
+
+    async def source(peer, ids):
+        return SimpleNamespace(out=True, raw_text=prompts[ids])
+
+    env.engine.client.get_messages = source
+    for message_id, chat in ((38, 123), (39, 123), (40, 456)):
+        await env.engine.on_message(owner_message(env, message_id, chat, prompts[message_id]))
+    assert model.calls[1][1] == [{"role": "user", "content": "что такое DNS?"},
+                                 {"role": "assistant", "content": "Тестовый ответ"}]
+    assert model.calls[2][1] == []
+    await env.engine.on_message(owner_message(env, 41, 123, 'бот сброс'))
+    assert ('owner', '456') in env.engine.question_history
+    assert env.engine.client.sent[-1].message.endswith('Контекст разговора сброшен.')
+    await env.engine.on_message(owner_message(env, 42, 123, prompts[42]))
+    assert model.calls[-1] == ('после сброса', [])
+
+
+@pytest.mark.asyncio
+async def test_reply_status_goes_to_saved_messages_without_canceling_drafts(env):
+    model = setup_chats(env)
+    env.engine.save_approval('all', [], False)
+    await reply(env, 1, text='Привет')
+    await env.engine.on_message(owner_message(env, 2, 123, 'бот статус'))
+    sent, = env.engine.client.sent
+    assert isinstance(sent.peer, types.InputPeerSelf)
+    assert 'Черновик ждёт согласования' in sent.message
+    assert len(env.engine.approval_report()['drafts']) == 1
+    await env.engine.on_message(incoming(env, 3, text='статус'))
+    assert len(env.engine.client.sent) == len(model.calls) == 1
+    await env.engine.on_message(owner_message(env, 4, 456, 'бот статус'))
+    assert 'Чат не выбран' in env.engine.client.sent[-1].message
+
+
+@pytest.mark.asyncio
+async def test_reply_status_records_quiet_hours_and_ai_failure(env):
+    model = setup_chats(env)
+    env.engine.save_behavior({'quiet_enabled': True, 'quiet_start': '00:00', 'quiet_end': '23:59'})
+    await reply(env, 5)
+    env.engine.save_behavior({'quiet_enabled': False})
+    assert 'Действовали тихие часы' in env.engine.reply_status('123')
+    model.error = AiError('секретная информация из отчёта провайдера')
+    await reply(env, 6)
+    await env.engine.on_message(owner_message(env, 7, 123, 'бот статус'))
+    response = env.engine.client.sent[-1].message
+    assert 'Нейросеть вернула ошибку' in response and 'секретная' not in response
+
+
+@pytest.mark.asyncio
 async def test_owner_gets_answers_to_own_commands_in_any_chat(env):
     restore = owner_commands_on()
     try:
@@ -1037,10 +1119,10 @@ async def test_grid_command_is_answered_with_a_picture(env):
     try:
         setup_chats(env)
         env.engine.client.send_file = AsyncMock()
-        await env.engine.on_message(owner_message(env, 60, 777, "турик кс2 IEM сетка"))
+        await env.engine.on_message(owner_message(env, 60, 777, online.MAJOR_GRID_TEXT))
         args, kwargs = env.engine.client.send_file.call_args
         assert args[1].getvalue() == b"\x89PNG fake" and kwargs["reply_to"] == 60
-        await reply(env, 61, text="турик кс2 IEM сетка")  # a contact asks: also a picture, not a text
+        await reply(env, 61, text=online.MAJOR_GRID_TEXT)
         assert env.engine.client.send_file.call_count == 2
     finally:
         online.image = original
@@ -1161,14 +1243,10 @@ async def test_owner_asks_for_the_server_version_in_any_installation(env):
 
 
 @pytest.mark.asyncio
-async def test_owner_keeps_the_arizona_login_in_saved_messages_and_sees_own_stats(env):
-    from replyai import online
+async def test_owner_keeps_the_arizona_login_only_in_saved_messages(env):
     restore = owner_commands_on()
-    original = online.arizona_profile
     try:
         sent = env.engine.client.sent
-        await env.engine.on_message(owner_message(env, 80, 777, "статистика"))
-        assert "Нужен вход на сайт Arizona" in sent[-1].message                     # no token yet: how to add it
         elsewhere = owner_message(env, 81, 777, "аризона токен abcdefghijklmnopqrstuvwxyz0123")
         await env.engine.on_message(elsewhere)
         assert "только в «Избранное»" in sent[-1].message and 81 in env.engine.client.deleted
@@ -1179,17 +1257,10 @@ async def test_owner_keeps_the_arizona_login_in_saved_messages_and_sees_own_stat
         assert "Вход в Arizona сохранён" in sent[-1].message and sent[-1].reply_to is None
         assert 82 in env.engine.client.deleted and "abcdefghijklmnopqrstuvwxyz0123" not in sent[-1].message
         assert env.store.read()["arizona"]["token"] == "abcdefghijklmnopqrstuvwxyz0123"
-        online.arizona_profile = lambda token: {"username": "Ivan_Petrov", "cash": 100, "bank": 900}
         await env.engine.on_message(owner_message(env, 83, 1, "Статистика"))
-        assert "Arizona · Ivan_Petrov" in sent[-1].message and "Всего: 1 000 $" in sent[-1].message
-        assert env.store.read()["arizona"]["last"]["bank"] == 900
-        def ended(token):
-            raise PermissionError(401)
-        online.arizona_profile = ended
-        await env.engine.on_message(owner_message(env, 84, 1, "статистика"))
-        assert "Вход на сайт Arizona закончился" in sent[-1].message
+        await env.engine.on_message(owner_message(env, 84, 1, "статистика Tony_B Tucson"))
+        assert len(sent) == 2 and env.store.read()["arizona"]["pending"] is None
     finally:
-        online.arizona_profile = original
         restore()
 
 
@@ -1214,20 +1285,20 @@ async def test_app_sends_the_arizona_login_and_the_server_checks_it_first(env):
         online.arizona_profile = original
 
 
-@pytest.mark.asyncio
-async def test_arizona_other_player_waits_for_the_app_then_posts_the_card(env):
-    env.store.update(lambda s: s["arizona"].update(token="tok"))
-    sent = env.engine.send_to_chat = AsyncMock()                    # no real Telegram client in the test
-    howto = await env.engine.arizona_stats("Tony_B", "Tucson", "123")
-    assert "Tony_B" in howto and env.engine.arizona_pending() == {"nick": "Tony_B", "server": "Tucson"}
-    ok = await env.engine.arizona_player(json.dumps({"data": {"name": "Tony_B", "level": 9, "PlayHours": 50}}))
-    assert ok == {"ok": True}
-    chat, card = sent.await_args.args
-    assert chat == "123" and "Tony_B" in card and "в игре" in card
-    assert env.engine.arizona_pending() == {} and env.store.read()["arizona"]["pending"] is None
-    assert await env.engine.arizona_player("{}") == {"ok": False}   # nothing is waiting any more
-    again = await env.engine.arizona_stats("tony_b", "tucson", "123")   # within 30 min: cached card, no new pending
-    assert again == card and env.engine.arizona_pending() == {}
-    env.engine.arizona_report(host="my.vps.example")                   # the app tells the server its https host
-    howto = await env.engine.arizona_stats("Other_Guy", "Phoenix", "123")
-    assert "https://my.vps.example/open/arizona" in howto
+def test_older_android_cannot_send_a_pending_player_card_after_update(api29, env):
+    env.store.update(lambda s: s["arizona"].update(
+        pending={"nick": "Tony_B", "server": "Tucson", "chat": "123", "asked": env.clock[0]}))
+    pending = api29.get("/api/arizona/pending", headers=AUTH)
+    answer = api29.post("/api/arizona/player", headers=AUTH, json={"data": '{"name":"Tony_B","level":9}'})
+    assert pending.status_code == answer.status_code == 200
+    assert pending.json() == {} and answer.json() == {"ok": False}
+    assert env.engine.client.sent == []
+
+
+def test_forget_arizona_login_is_owner_only_and_clears_the_saved_token(api29, env):
+    env.store.update(lambda s: s['arizona'].update(token='fake-login-token'))
+    assert api29.delete('/api/arizona').status_code == 401
+    assert env.store.read()['arizona']['token'] == 'fake-login-token'
+    response = api29.delete('/api/arizona', headers=AUTH)
+    assert response.status_code == 200 and response.json() == {'has_token': False, 'until': ''}
+    assert env.store.read()['arizona']['token'] == ''

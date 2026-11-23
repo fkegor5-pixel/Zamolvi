@@ -24,7 +24,7 @@ import org.json.JSONObject;
 
 /**
  * «Вход в Arizona»: the owner logs in to arizona-rp.com here (the captcha is solved by the owner), the app takes the
- * login token the site itself uses and the server keeps it for «статистика». The password is never read.
+ * login token the site itself uses and the server keeps it. The password is never read.
  */
 public final class ArizonaLoginActivity extends FeatureActivity {
     private static final String SITE = "https://arizona-rp.com/";
@@ -50,26 +50,25 @@ public final class ArizonaLoginActivity extends FeatureActivity {
             + "XMLHttpRequest.prototype.open=function(m,u){this.__u=cut(u);this.__m=m;return o.apply(this,arguments)};"
             + "XMLHttpRequest.prototype.send=function(b){var x=this;if(/n-api/.test(x.__u)){"
             + "if(b)ZamolviReport.note('send '+x.__m+' '+x.__u+' '+js(b));"
-            + "x.addEventListener('load',function(){ZamolviReport.note('answer '+x.__u+' '+x.status+' '+js(x.responseText));"
-            + "if(/account\\/find/.test(x.__u))ZamolviReport.player(x.responseText)})}"
+            + "x.addEventListener('load',function(){ZamolviReport.note('answer '+x.__u+' '+x.status+' '+js(x.responseText))})}"
             + "return s.apply(this,arguments)};"
             + "var f=window.fetch;if(f)window.fetch=function(u,i){var url=cut(typeof u=='string'?u:u.url);"
             + "if(/n-api/.test(url)&&i&&i.body)ZamolviReport.note('send '+(i.method||'GET')+' '+url+' '+js(i.body));"
             + "return f.apply(this,arguments).then(function(r){if(/n-api/.test(url))r.clone().text().then(function(t){"
-            + "ZamolviReport.note('answer '+url+' '+r.status+' '+js(t));if(/account\\/find/.test(url))ZamolviReport.player(t)});return r})};})()";
+            + "ZamolviReport.note('answer '+url+' '+r.status+' '+js(t))});return r})};})()";
 
     private final Set<String> tried = new HashSet<>();
     private final Set<String> seen = new LinkedHashSet<>();   // the report: pages, backend requests, answers
     private String storage = "", cookies = "";
     private WebView web;
-    private boolean sending, done, playerSending;
+    private boolean sending, done;
 
     @SuppressLint({"SetJavaScriptEnabled", "ClickableViewAccessibility"})
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         title("Вход в Arizona");
         text("Войдите в свой аккаунт Arizona RP ниже и пройдите капчу. Как только сайт пустит вас, приложение само "
-                + "возьмёт токен входа и сохранит его на вашем VPS для команды «статистика». Пароль приложение не читает.", 14);
+                + "возьмёт токен входа и сохранит его на вашем VPS. Пароль приложение не читает.", 14);
         status = text("Ждём входа на сайт…", 15);
         button("Скопировать отчёт для разработчика", v -> copyReport());
         web = new WebView(this);
@@ -79,7 +78,6 @@ public final class ArizonaLoginActivity extends FeatureActivity {
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true); // the captcha
         web.addJavascriptInterface(new Object() {
             @JavascriptInterface public void note(String line) { ui.post(() -> ArizonaLoginActivity.this.note(line)); }
-            @JavascriptInterface public void player(String body) { ui.post(() -> sendPlayer(body)); }
         }, "ZamolviReport");
         web.setOnTouchListener((v, e) -> { // the page scrolls itself inside the screen's scroll
             if (e.getAction() == MotionEvent.ACTION_DOWN) v.getParent().requestDisallowInterceptTouchEvent(true);
@@ -111,13 +109,11 @@ public final class ArizonaLoginActivity extends FeatureActivity {
                 note("page " + page.getHost() + page.getPath());
                 view.evaluateJavascript(HOOK, null);
                 scan();
-                showPending();
             }
         });
         int height = (int) (getResources().getDisplayMetrics().heightPixels * 0.72f);
         body.addView(web, new LinearLayout.LayoutParams(-1, height));
         web.loadUrl(SITE);
-        showPending();
         ui.postDelayed(this::poll, 2000);
     }
 
@@ -157,7 +153,7 @@ public final class ArizonaLoginActivity extends FeatureActivity {
                 JSONObject answer = request("PUT", "/api/arizona", data);
                 String name = answer.optString("name");
                 String until = answer.optString("until");
-                message = "✅ Готово" + (name.isEmpty() ? "" : ": " + name) + ". Пишите «статистика» в Telegram."
+                message = "✅ Вход сохранён" + (name.isEmpty() ? "" : ": " + name) + "."
                         + (until.isEmpty() ? "" : "\nВход действует до " + until + ".");
                 ok = true;
             } catch (Exception e) {
@@ -179,44 +175,6 @@ public final class ArizonaLoginActivity extends FeatureActivity {
 
     private void note(String line) {
         if (seen.size() < 300) seen.add(line.length() > 1500 ? line.substring(0, 1500) + "…" : line);
-    }
-
-    /** The site's player-search answer, forwarded to the server, which posts the card to the chat that asked. */
-    private void sendPlayer(String body) {
-        if (playerSending || body == null || body.length() < 2) return;  // NB: not gated by `done` — own-token save must not block a player card
-        playerSending = true;
-        status.setText("Отправляю статистику игрока…");
-        worker.execute(() -> {
-            String message;
-            try {
-                String trimmed = body.length() > 200000 ? body.substring(0, 200000) : body;
-                JSONObject answer = request("POST", "/api/arizona/player", new JSONObject().put("data", trimmed));
-                message = answer.optBoolean("ok") ? "✅ Статистика игрока отправлена в чат."
-                        : "Сначала напишите боту «статистика Ник сервер», потом ищите здесь.";
-            } catch (Exception e) {
-                message = "Не отправилось: " + (e.getMessage() == null ? "ошибка" : e.getMessage());
-            }
-            final String text = message;
-            ui.post(() -> { if (closed || isFinishing()) return; playerSending = false; status.setText(text); });
-        });
-    }
-
-    /** If the owner asked «статистика Ник сервер» in Telegram, tell them which player to look up here. */
-    private void showPending() {
-        worker.execute(() -> {
-            String nick = "", server = "";
-            try {
-                JSONObject p = request("GET", "/api/arizona/pending", null);
-                nick = p.optString("nick");
-                server = p.optString("server");
-            } catch (Exception ignored) { }
-            final String n = nick, s = server;
-            ui.post(() -> {
-                if (closed || isFinishing() || n.isEmpty()) return;
-                status.setText("🔎 Найдите игрока «" + n + "»" + (s.isEmpty() ? "" : " на сервере " + s)
-                        + " во вкладке «Поиск игроков» и пройдите капчу — карточка уйдёт в чат сама.");
-            });
-        });
     }
 
     private static String names(String cookieHeader) {

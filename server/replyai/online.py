@@ -28,6 +28,7 @@ NEAR = 300         # how far from the name a «N / M» count may be
 
 WANTS_COUNT = re.compile(r"онлайн|онлайна|сколько|игрок|человек", re.IGNORECASE)
 BOT = re.compile(r"^\s*бот\b[\s,:.!-]*", re.IGNORECASE)   # the owner's bot answers only «бот …»
+BOT_CONTROL = re.compile(r"^(статус|сброс)[.!?\s]*$", re.IGNORECASE)
 COMMAND = re.compile(r"^онлайн[.!?\s]*$", re.IGNORECASE)
 DEMOB_COMMAND = re.compile(r"^дембель[.!?\s]*$", re.IGNORECASE)
 MSK = timezone(timedelta(hours=3))
@@ -73,25 +74,18 @@ RANDOM_COMMAND = re.compile(r"^рандом(?:\s+(\d{1,9})(?:\s*-\s*(\d{1,9}))?)
 FACEIT_COMMAND = re.compile(r"^фейсит\s+([A-Za-z0-9_-]{2,32})[.!?\s]*$", re.IGNORECASE)
 FACEIT_OURS_COMMAND = re.compile(r"^фейсит[.!?\s]*$", re.IGNORECASE)
 INVENTORY_COMMAND = re.compile(r"^инвентар[ьи][.!?\s]*$", re.IGNORECASE)
-GAME = r"(кс2|кс|cs2|cs|д2|d2|дота2?|dota2?)"  # турик <игра> <название>
-TURIK_COMMAND = re.compile(r"^(?:турик|турики|турниры?)[.!?\s]*$", re.IGNORECASE)
-TURIK_GRID_COMMAND = re.compile(r"^(?:турик|турнир)\s+" + GAME + r"\s+(.{2,80}?)\s+сетк[аиу][.!?\s]*$", re.IGNORECASE)
-TURIK_ONE_COMMAND = re.compile(r"^(?:турик|турнир)\s+" + GAME + r"\s+(.{2,80}?)[.!?\s]*$", re.IGNORECASE)
+MAJOR_NAME = "PGL Major Singapore 2026"
+MAJOR_GRID_TEXT = f"pgl {MAJOR_NAME} сетка"
+PGL_COMMAND = re.compile(r"^(?:pgl|major|мажор)[.!?\s]*$", re.IGNORECASE)
+PGL_GRID_COMMAND = re.compile(rf"^pgl(?:\s+{re.escape(MAJOR_NAME)})?\s+сетка[.!?\s]*$", re.IGNORECASE)
+PGL_FILTER_COMMAND = re.compile(r"^pgl\s+([^\r\n]{1,64}?)[.!?\s]*$", re.IGNORECASE)
 CREATE_BOT_COMMAND = re.compile(r"^(?:бот\s+)?создать\s+бота[.!?\s]*$", re.IGNORECASE)  # in «Избранное» only
 GRAPH_COMMAND = re.compile(r"^онлайн\s+график[.!?\s]*$", re.IGNORECASE)
 STEAM_GAMES_COMMAND = re.compile(r"^(?:стим|steam)\s+игры[.!?\s]*$", re.IGNORECASE)
 WATCH = re.compile(r"^жди\s+(.{2,40}?)[.!?\s]*$", re.IGNORECASE)
-# «статистика» (own account), «статистика Ник», «статистика Ник Tucson» (another player; a person does the captcha)
-ARIZONA_STATS = re.compile(r"^статистика(?:\s+(\S+)(?:\s+(.+?))?)?[.!?]*\s*$", re.IGNORECASE)
-SEARCH_SECONDS = 15 * 60  # a pending player search waits this long for the app to bring the site's answer
-PLAYER_CACHE_SECONDS = 30 * 60  # a found player is refreshed at most this often: a repeat within it returns the last look
 ARIZONA_TOKEN = re.compile(r"^аризона\s+токен\b(.*)$", re.IGNORECASE | re.DOTALL)
 ARIZONA_PROFILE = "https://n-api.arizona-rp.com/api/account"  # what the site itself asks after the login (11.2026)
-ARIZONA_MONEY = (("cash", "💵 Наличные"), ("bank", "🏦 Банк"), ("individualAccount", "💳 Личный счёт"),
-                 ("depozit", "📈 Депозит"), ("deposit", "📈 Депозит"))
-ARIZONA_EXTRA = (("donate", "💎 AZ-коины", ""), ("coins", "💎 AZ-коины", ""), ("euro", "💶 Евро", " €"),
-                 ("bitcoin", "🪙 Биткоины", " BTC"), ("bitcoins", "🪙 Биткоины", " BTC"))
-ARIZONA_ACCOUNTS = tuple(f"bankAccount{i}" for i in range(1, 7))  # n-api: extra bank accounts  # «жди space»: the owner hears when it starts
+ARIZONA_MONEY_FIELDS = ("cash", "bank", "individualAccount", "depozit", "deposit")
 WATCH_SECONDS = 60      # how often a watched server is checked
 MAX_WATCHES = 5
 SAMPLE_SECONDS = 300    # «онлайн график»: one count of every server per 5 minutes
@@ -116,15 +110,10 @@ DIGESTS = {  # kind -> (channels, task for the model)
               + _RULES),
 }
 BO3_API = "https://api.bo3.gg/api/v1"
-GAMES = {"cs2": (1, "CS2", "кс2"), "dota2": (4, "Dota2", "д2")}  # bo3.gg discipline id, label, command word
-TOP_TIERS = ("s", "a")      # «турик» lists these; a game with none of them shows its best MAX_TOURNEYS
-MAX_TOURNEYS = 3
-TOURNEY_TTL = 600
-# shortcut: the first 100 matches of a tournament (newest first); a longer league loses its oldest ones
+# bo3.gg records the three Swiss stages separately and includes the playoffs in Stage 3.
+MAJOR_STAGES = ((6269, "Stage 1"), (6268, "Stage 2"), (4226, "Stage 3"))
 TOURNEY_MATCHES = (BO3_API + "/matches?scope=widget-matches&page[offset]=0&page[limit]=100&sort=-start_date"
-                   "&filter[matches.discipline_id][eq]={game}&filter[matches.tournament_id][eq]={tid}&with=teams")
-TOURNEYS = (BO3_API + "/tournaments?page[offset]=0&page[limit]=50&filter[tournaments.status][in]=current"
-            "&filter[tournaments.discipline_id][eq]={game}")
+                   "&filter[matches.discipline_id][eq]=1&filter[matches.tournament_id][eq]={tid}&with=teams")
 LEVEL_COMMAND = re.compile(r"^уровень\s+(?:стим|steam)[.!?\s]*$", re.IGNORECASE)
 REMIND_IN = re.compile(r"^напомни\s+через\s+(\d{1,15})\s*(минут\w*|мин|м|час\w*|ч|дн\w*|день|д)\s+(.{1,200}?)\s*$",
                        re.IGNORECASE | re.DOTALL)
@@ -165,7 +154,7 @@ UNIT = {"м": 60, "ч": 3600, "д": 86400}
 SLASH = {"/help": "команды", "/commands": "команды", "/online": "онлайн", "/top": "топ онлайн",
          "/graph": "онлайн график", "/hours": "часы в кс", "/ingame": "кто в игре",
          "/faceit": "фейсит", "/inventory": "инвентарь", "/level": "уровень стим", "/steam_games": "стим игры",
-         "/turik": "турик",
+         "/pgl": "pgl",
          "/demob": "дембель", "/rates": "курс", "/coin": "монетка", "/random": "рандом",
          "/news": "новости", "/money": "получить деньги"}
 HELP = ("🤖 <b>Команды бота</b>\n"
@@ -183,10 +172,11 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "<code>инвентарь</code> — стоимость инвентарей\n"
         "<code>уровень стим</code> — уровень Steam\n"
         "<code>стим игры</code> — скидки и раздачи\n\n"
-        "🏆 <b>Турниры CS2 и Dota 2</b>\n"
-        "<code>турик</code> — какие турниры идут сейчас\n"
-        "<code>турик кс2 название</code> — матчи турнира\n"
-        "<code>турик д2 название сетка</code> — сетка турнира\n\n"
+        f"🏆 <b>{MAJOR_NAME}</b>\n"
+        "<code>pgl</code> — матчи, счёт и расписание\n"
+        "<code>pgl завтра</code> — расписание на завтра (МСК)\n"
+        "<code>pgl Spirit</code> — ближайший матч и последний результат команды\n"
+        f"<code>{MAJOR_GRID_TEXT}</code> — сетка\n\n"
         "🧰 <b>Разное</b>\n"
         "<code>дембель</code> — сколько до дембеля\n"
         "<code>курс</code> — доллар и евро по ЦБ\n"
@@ -196,8 +186,8 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "<code>новости</code> — шуточные новости\n"
         "<code>получить деньги</code> — видео-инструкция\n"
         "<code>версия</code> — версия сервера и есть ли новее\n"
-        "<code>статистика</code> — ваш аккаунт Arizona (нужен токен)\n"
-        "<code>статистика Ник Tucson</code> — другой игрок (капчу проходите в приложении)\n"
+        "<code>бот статус</code> — причина пропущенного ответа в «Избранном» владельца\n"
+        "<code>бот сброс</code> — начать новый разговор с нейросетью\n"
         "<code>напомни через 30 минут позвонить</code>\n"
         "<code>напомни в 18:30 позвонить</code>")
 COMMAND_WORDS = sorted(set(SLASH.values()))  # every one is <code> in HELP: a tap copies it
@@ -209,7 +199,6 @@ _last_command = {}  # chat -> time of its last command
 _rng = random.SystemRandom()
 SKY_ICON = {"ясно": "☀️", "в основном ясно": "🌤", "переменная облачность": "⛅", "пасмурно": "☁️", "туман": "🌫",
             "морось": "🌦", "дождь": "🌧", "снег": "🌨", "ливень": "🌧", "снегопад": "❄️", "гроза": "⛈"}
-GAME_ICON = {"cs2": "🔫", "dota2": "🐉"}
 FOLD = 8  # a list longer than this is a folded quote: Telegram shows its first lines and «показать больше»
 
 
@@ -241,6 +230,12 @@ def addressed(text):
     if match:
         return text[match.end():]
     return text if is_command(text) else None
+
+
+def bot_control(text):
+    prefix = BOT.match(text or "")
+    match = BOT_CONTROL.fullmatch(text[prefix.end():]) if prefix else None
+    return match[1].casefold() if match else None
 
 
 def bot_link(username):
@@ -303,7 +298,7 @@ def allowed(chat, now):
 def answer(text, fetcher=None, clock=time.time, rng=None):
     """The fixed answer to a command (reminders are handled by the engine, see reminder())."""
     text, fetcher, rng = (text or "").strip(), fetcher or fetch, rng or _rng
-    if WATCH.match(text) or ARIZONA_STATS.match(text) or ARIZONA_TOKEN.match(text):  # the engine, for the owner
+    if WATCH.match(text) or ARIZONA_TOKEN.match(text):  # the engine, for the owner
         return "🔒 Эта команда только для владельца."
     if DEMOB_COMMAND.match(text):
         return demob(clock, rng.choice)
@@ -319,8 +314,10 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
         return faceit_accounts(fetcher, clock)
     if INVENTORY_COMMAND.match(text):
         return inventories(fetcher, clock)
-    if TURIK_COMMAND.match(text):
-        return turik(fetcher, clock)
+    if PGL_COMMAND.match(text):
+        return pgl(fetcher, clock)
+    if (view := PGL_FILTER_COMMAND.match(text)) and not PGL_GRID_COMMAND.match(text):
+        return pgl(fetcher, clock, view[1].strip())
     if LEVEL_COMMAND.match(text):
         return steam_levels(fetcher, clock)
     if FLAG_COMMAND.match(text):
@@ -334,8 +331,7 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
     for pattern, handler in ((SERVER_COMMAND, lambda m: server_online(m.group(1), fetcher, clock)),
                              (WEATHER_COMMAND, lambda m: weather(m.group(1), fetcher, clock)),
                              (RANDOM_COMMAND, lambda m: random_number(m, rng)),
-                             (FACEIT_COMMAND, lambda m: faceit(m.group(1), fetcher, clock)),
-                             (TURIK_ONE_COMMAND, lambda m: turik_one(game_of(m.group(1)), m.group(2), fetcher, clock))):
+                             (FACEIT_COMMAND, lambda m: faceit(m.group(1), fetcher, clock))):
         m = pattern.match(text)
         if m:
             return handler(m)
@@ -526,24 +522,6 @@ def steam():
     return [(n, f"https://steamcommunity.com/id/{urllib.parse.quote(n)}/?l=russian") for n in names]
 
 
-ARIZONA_HOWTO = ("🔑 <b>Нужен вход на сайт Arizona</b>\n"
-                 "1. Войдите на arizona-rp.com в браузере: капчу проходите сами.\n"
-                 "2. Проще всего в приложении Zamolvi: «Режим разработчика» → «Вход в Arizona».\n"
-                 "   Или пришлите токен сюда: <code>аризона токен ваш_токен</code>\n"
-                 "<i>Сообщение с токеном бот сразу удалит, а сам токен хранит на вашем сервере в зашифрованном виде.</i>")
-
-
-def arizona_search_howto(nick, server, link=""):
-    """Reply to «статистика Ник сервер»: the site's captcha has to be passed by a person, in the app."""
-    where = f" на сервере <b>{esc(server)}</b>" if server else ""
-    tap = f'\n👉 <a href="{link}">Открыть поиск в приложении</a>' if link else ""
-    return (f"🔎 <b>Поиск игрока {esc(nick)}</b>{where}{tap}\n"
-            "Капчу на сайте нужно пройти вручную — за вас это сделать нельзя.\n"
-            "1. Нажмите ссылку выше (или откройте Zamolvi → «Режим разработчика» → «Вход в Arizona»).\n"
-            f"2. На сайте во вкладке «Поиск игроков» найдите <b>{esc(nick)}</b> и пройдите капчу.\n"
-            "3. Карточка игрока придёт сюда сама. Повторный запрос за 30 минут вернёт прошлые данные.")
-
-
 def arizona_token(text):
     """The login token from «аризона токен …»: a JWT anywhere in the pasted text, or the one long word there."""
     return pick_token((ARIZONA_TOKEN.match((text or "").strip()) or [None, ""])[1])
@@ -593,7 +571,7 @@ class ArizonaShape(ValueError):
 def account_in(data, depth=0):
     """The first object with money fields anywhere in the answer (it may be wrapped or a list of characters)."""
     if isinstance(data, dict):
-        if any(isinstance(data.get(k), (int, float)) for k, _ in ARIZONA_MONEY):
+        if any(isinstance(data.get(k), (int, float)) for k in ARIZONA_MONEY_FIELDS):
             return data
         children = data.values()
     elif isinstance(data, list):
@@ -602,24 +580,6 @@ def account_in(data, depth=0):
         return None
     for child in children:
         found = account_in(child, depth + 1) if depth < 4 else None
-        if found is not None:
-            return found
-    return None
-
-
-def player_in(data, depth=0):
-    """The first object that looks like a player (has a name/login), for the public «поиск игроков» answer."""
-    ident = ("username", "name", "nickname", "nick", "login")
-    if isinstance(data, dict):
-        if any(isinstance(data.get(k), str) and data.get(k) for k in ident):
-            return data
-        children = data.values()
-    elif isinstance(data, list):
-        children = data
-    else:
-        return None
-    for child in children:
-        found = player_in(child, depth + 1) if depth < 4 else None
         if found is not None:
             return found
     return None
@@ -634,54 +594,6 @@ def shape(data, depth=0):
     if isinstance(data, list):
         return "[" + (shape(data[0], depth + 1) if data else "") + "]"
     return type(data).__name__
-
-
-def money(value):
-    return f"{int(value):,}".replace(",", " ")
-
-
-def arizona_card(user, previous, clock=time.time, fallback_name="ваш аккаунт"):
-    """«статистика»: the account with the money and what changed since the last look."""
-    def change(key):
-        if key not in previous or not isinstance(user.get(key), (int, float)):
-            return ""
-        diff = user[key] - previous[key]
-        return f" <i>({'+' if diff > 0 else '−'}{money(abs(diff))})</i>" if diff else ""
-    name = user.get("username") or user.get("name") or user.get("nickname") or fallback_name
-    lines = [f"🎮 <b>Arizona · {esc(name)}</b>"]
-    head = [f"⭐ Уровень <b>{esc(user['level'])}</b>" if user.get("level") is not None else "",
-            f"👑 {esc(user.get('vipName') or user.get('vip'))}" if user.get("vipName") or user.get("vip") else "",
-            f"⏱ {money(user['PlayHours'])} ч в игре" if isinstance(user.get("PlayHours"), (int, float)) else ""]
-    if any(head):
-        lines.append(" · ".join(x for x in head if x))
-    total, seen = 0, set()
-    for key, label in ARIZONA_MONEY:
-        if isinstance(user.get(key), (int, float)) and label not in seen:
-            seen.add(label)
-            total += user[key]
-            lines.append(f"{label}: <b>{money(user[key])} $</b>{change(key)}")
-    extra = sum(user[k] for k in ARIZONA_ACCOUNTS if isinstance(user.get(k), (int, float)))
-    if extra:
-        total += extra
-        lines.append(f"💳 Доп. счета: <b>{money(extra)} $</b>")
-    if seen or extra:  # a public player answer may carry no money at all: skip the «total» line then
-        lines.append(f"💰 Всего: <b>{money(total)} $</b>")
-    for key, label, unit in ARIZONA_EXTRA:
-        if user.get(key) and isinstance(user[key], (int, float)):
-            lines.append(f"{label}: <b>{money(user[key])}{unit}</b>{change(key)}")
-    work = [esc(user[k]) for k in ("jobName", "job", "orgName", "organization", "rangName") if user.get(k)]
-    if work:
-        lines.append("💼 " + " · ".join(work))
-    if user.get("warns"):
-        lines.append(f"⚠️ Предупреждений: <b>{esc(user['warns'])}</b>")
-    since = f" · изменения с {datetime.fromtimestamp(previous['at'], MSK):%d.%m %H:%M}" if previous.get("at") else ""
-    return "\n".join(lines) + "\n" + stamp(clock, "arizona-rp.com" + since)
-
-
-def arizona_snapshot(user, now):
-    """What the next «статистика» compares with."""
-    keys = [k for k, _ in ARIZONA_MONEY] + [k for k, _, _ in ARIZONA_EXTRA]
-    return {"at": now, **{k: user[k] for k in keys if isinstance(user.get(k), (int, float))}}
 
 
 def demob_dates():
@@ -756,8 +668,8 @@ def demob(clock=time.time, pick=random.choice):
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
                 RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, FLAG_COMMAND, NEWS_COMMAND, MONEY_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
-                INVENTORY_COMMAND, LEVEL_COMMAND, TURIK_COMMAND, TURIK_GRID_COMMAND, TURIK_ONE_COMMAND,
-                GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT, WATCH, ARIZONA_STATS, ARIZONA_TOKEN)
+                INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, PGL_GRID_COMMAND, PGL_FILTER_COMMAND,
+                GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT, WATCH, ARIZONA_TOKEN)
 
 
 def steam_key(key=None):
@@ -1047,14 +959,13 @@ def steam_levels(fetcher=fetch, clock=time.time, key=None):
 def is_image_command(text):
     """Commands answered with a picture instead of text."""
     text = (text or "").strip()
-    return enabled() and any(c.match(text) for c in (TURIK_GRID_COMMAND, GRAPH_COMMAND))
+    return enabled() and any(c.match(text) for c in (PGL_GRID_COMMAND, GRAPH_COMMAND))
 
 
 def caption(text):
     if GRAPH_COMMAND.match((text or "").strip()):
         return "Онлайн за сутки"
-    m = TURIK_GRID_COMMAND.match((text or "").strip())
-    return (clean_name(m.group(2)) + " — сетка") if m else ""
+    return MAJOR_NAME + " — сетка" if PGL_GRID_COMMAND.match((text or "").strip()) else ""
 
 
 def image(text, fetcher=fetch, clock=time.time, samples=()):
@@ -1062,8 +973,7 @@ def image(text, fetcher=fetch, clock=time.time, samples=()):
     text = (text or "").strip()
     if GRAPH_COMMAND.match(text):
         return online_graph(samples, clock)
-    m = TURIK_GRID_COMMAND.match(text)
-    return turik_grid(game_of(m.group(1)), m.group(2), fetcher, clock)
+    return pgl_grid(fetcher, clock)
 
 
 def online_graph(samples, clock=time.time):
@@ -1078,23 +988,19 @@ def online_graph(samples, clock=time.time):
         return warn("Для картинки на сервере нужна библиотека Pillow.")
 
 
-def bo3_rows(game, tid, fetcher=fetch, clock=time.time):
+def bo3_rows(tid, fetcher=fetch, clock=time.time):
     """Matches of a bo3.gg tournament with both teams known, in time order; None when bo3.gg cannot be read."""
-    data = get_json(TOURNEY_MATCHES.format(game=GAMES[game][0], tid=tid), fetcher, clock)
-    if not isinstance(data, dict):
+    data = get_json(TOURNEY_MATCHES.format(tid=tid), fetcher, clock)
+    if not isinstance(data, dict) or not isinstance(data.get("results"), list):
         return None
     matches = []
-    for m in data.get("results") or []:
+    for m in data["results"]:
         one, two = (m.get("team1") or {}).get("name"), (m.get("team2") or {}).get("name")
         if one and two:
             matches.append({"team1": one, "team2": two, "score1": m.get("team1_score"), "score2": m.get("team2_score"),
                             "done": m.get("status") in ("finished", "defwin"), "status": m.get("status"),
-                            "start": m.get("start_date"), "slug": m.get("slug"), "best": m.get("bo_type")})
+                            "start": m.get("start_date"), "slug": m.get("slug")})
     return sorted(matches, key=lambda m: m["start"] or "")
-
-
-def updated(clock, source):
-    return stamp(clock, source)
 
 
 def moment(value):
@@ -1109,24 +1015,21 @@ def map_name(value):
 
 
 def match_maps(match, fetcher=fetch, clock=time.time):
-    """Lines «🗺 Карта 1: Nuke 13:9 · Vitality» of a played or live match (HTML)."""
+    """Map scores and the current map of a live series."""
+    if not match.get("slug"):
+        return []
     data = get_json(f"{BO3_API}/matches/{match.get('slug')}?scope=show-match&with=games,teams", fetcher, clock)
     games = sorted((data or {}).get("games") or [], key=lambda g: g.get("number") or 0) if isinstance(data, dict) else []
     lines = []
     for g in games:
-        if not g.get("map_name"):  # Dota 2: a game, no map and no rounds
-            head = f"🎮 Игра {g.get('number')}"
-            if g.get("status") == "finished":
-                lines.append(f"{head}: победа {esc(g.get('winner_clan_name'))}")
-            elif g.get("status") == "current":
-                lines.append(head + ", <i>идёт</i>")
+        if not g.get("map_name"):
             continue
-        head = f"🗺 Карта {g.get('number')}: {esc(map_name(g.get('map_name')))}"
+        head = f"Карта {g.get('number')}: {esc(map_name(g['map_name']))}"
         if g.get("status") == "finished":
-            lines.append(f"{head} <b>{g.get('winner_clan_score')}:{g.get('loser_clan_score')}</b>"
-                         f" · {esc(g.get('winner_clan_name'))}")
+            lines.append(f"{head} {g.get('winner_clan_score')}:{g.get('loser_clan_score')}"
+                         f" ({esc(g.get('winner_clan_name'))})")
         elif g.get("status") == "current":
-            lines.append(head + ", <i>идёт</i>")
+            lines.append(head + ", идёт")
     return lines
 
 
@@ -1172,21 +1075,15 @@ def digest_answer(kind, summary, now):
 
 
 def matches_view(rows, fetcher=fetch, clock=time.time):
-    """Today's results, live matches with maps, the next day's matches (HTML)."""
+    """Today's results, live matches with maps, and games scheduled within a day."""
     now = datetime.fromtimestamp(clock(), MSK)
 
     def head(m):
         when = moment(m["start"])
         return "" if when is None else (f"{when:%H:%M} " if when.date() == now.date() else f"{when:%d.%m %H:%M} ")
 
-    def team(m, side):
-        name = esc(m[f"team{side}"])
-        a, b = m["score1"] or 0, m["score2"] or 0
-        won = m["done"] and (a > b if side == 1 else b > a)
-        return f"<b>{name}</b>" if won else name
-
     def score(m):
-        return f"{head(m)}{team(m, 1)} <b>{m['score1'] or 0}:{m['score2'] or 0}</b> {team(m, 2)}"
+        return f"{head(m)}{esc(m['team1'])} {m['score1'] or 0}-{m['score2'] or 0} {esc(m['team2'])}"
 
     played = [m for m in rows if m["done"] and (moment(m["start"]) or now).date() == now.date()]
     live = [m for m in rows if m["status"] == "current"]
@@ -1195,111 +1092,83 @@ def matches_view(rows, fetcher=fetch, clock=time.time):
     now_lines = []
     for m in live:
         now_lines.append(score(m))
-        now_lines += ["   " + line for line in match_maps(m, fetcher, clock)]
-    return "\n".join([
-        "✅ <b>Сыграно сегодня</b>", quote([score(m) for m in played]) if played else "<i>пока ничего</i>",
-        "🔴 <b>Сейчас идёт</b>", quote(now_lines) if live else "<i>сейчас матчей нет</i>",
-        "🕒 <b>Ожидаются</b>", quote([f"{head(m)}{esc(m['team1'])} — {esc(m['team2'])}" for m in upcoming])
-        if upcoming else "<i>нет</i>"])
+        now_lines.extend(match_maps(m, fetcher, clock))
+    blocks = (("Сыграно сегодня:", [score(m) for m in played]), ("Онлайн:", now_lines),
+              ("Ожидаются игры:", [f"{head(m)}{esc(m['team1'])} — {esc(m['team2'])}" for m in upcoming]))
+    return "\n\n".join("\n".join([title, *(lines or ["нет"])]) for title, lines in blocks)
 
 
-def game_of(word):
-    return "cs2" if word.lower().startswith(("к", "c")) else "dota2"
+def major_stages(fetcher, clock):
+    return [(name, bo3_rows(tid, fetcher, clock)) for tid, name in MAJOR_STAGES]
 
 
-def clean_name(text):
-    return re.sub(r"\s+", " ", (text or "").strip(" \"«»'“”")).strip()
+def pgl_filter(matches, now, query):
+    def game(m, score=False):
+        when = moment(m['start'])
+        date = f"{when:%d.%m %H:%M} " if when else ""
+        result = f"{m['score1'] or 0}-{m['score2'] or 0}" if score else "—"
+        return f"{date}{esc(m['team1'])} {result} {esc(m['team2'])}"
+
+    if query.casefold() == 'завтра':
+        day = now.date() + timedelta(days=1)
+        games = [game(m) for m in matches if m['status'] == 'upcoming'
+                 and (when := moment(m['start'])) and when.date() == day]
+        return f"Расписание на {day:%d.%m} (МСК):\n" + ("\n".join(games) if games else "Матчи пока не опубликованы.")
+
+    teams = {m[key] for m in matches for key in ('team1', 'team2')}
+    needle = query.casefold()
+    found = sorted(team for team in teams if needle in team.casefold())
+    exact = next((team for team in found if team.casefold() == needle), None)
+    if not found:
+        return f"Матчи команды «{esc(query)}» пока не опубликованы."
+    if exact is None and len(found) > 1:
+        return "Уточните команду:\n" + "\n".join(f"<code>pgl {esc(team)}</code>" for team in found)
+    team = exact or found[0]
+    games = [m for m in matches if team in (m['team1'], m['team2'])]
+    upcoming = next((m for m in games if m['status'] == 'upcoming'), None)
+    last = next((m for m in reversed(games) if m['done']), None)
+    return (f"<b>{esc(team)}</b>\n\nБлижайший матч:\n{game(upcoming) if upcoming else 'пока нет'}"
+            f"\n\nПоследний результат:\n{game(last, score=True) if last else 'пока нет'}")
 
 
-def tournaments(game, fetcher=fetch, clock=time.time):
-    """Current bo3.gg tournaments of the game, the most important first; None when bo3.gg cannot be read."""
-    data = get_json(TOURNEYS.format(game=GAMES[game][0]), fetcher, clock, ttl=TOURNEY_TTL)
-    if not isinstance(data, dict):
-        return None
-    found = [t for t in data.get("results") or [] if t.get("id") and t.get("name")]
-    return sorted(found, key=lambda t: (t.get("tier_rank") or 99, -(t.get("prize") or 0)))
-
-
-def featured(found):
-    return [t for t in found if t.get("tier") in TOP_TIERS][:MAX_TOURNEYS] or found[:MAX_TOURNEYS]
-
-
-def command_of(game, t, grid=False):
-    return f"<code>турик {GAMES[game][2]} {html.escape(t['name'])}{' сетка' if grid else ''}</code>"
-
-
-def turik(fetcher=fetch, clock=time.time):
-    """The answer to «турик»: the current CS2 and Dota 2 tournaments and the commands to see one."""
+def pgl(fetcher=fetch, clock=time.time, query=None):
+    stages = major_stages(fetcher, clock)
+    if all(rows is None for _, rows in stages):
+        return warn("bo3.gg сейчас не отвечает, попробуйте позже.")
+    matches = sorted((match for _, rows in stages for match in rows or []),
+                     key=lambda m: moment(m['start']) or datetime.max.replace(tzinfo=MSK))
     now = datetime.fromtimestamp(clock(), MSK)
-    lines, more = [], []
-    for game, (_, label, _) in GAMES.items():
-        found = tournaments(game, fetcher, clock)
-        if found is None:
-            lines.append(f"{GAME_ICON[game]} <b>{label}</b> — <i>bo3.gg сейчас не отвечает</i>")
-            continue
-        top = featured(found)
-        lines += [f"{GAME_ICON[game]} <b>{label}</b> — {esc(t['name'])}" for t in top] or [
-            f"{GAME_ICON[game]} <b>{label}</b> — <i>сейчас турниров нет</i>"]
-        more += [f"{label} — {command_of(game, t)}" for t in top]
-    text = f"🏆 <b>Турниры на {now:%d.%m.%Y}</b>\n" + quote(lines)
-    if more:
-        text += ("\n📋 <b>Подробнее о турнире</b> <i>(нажмите, чтобы скопировать)</i>\n" + "\n".join(more)
-                 + "\n\n<i>📊 Сетка — добавьте в конце «сетка»</i>")
-    return text + "\n" + stamp(clock, "bo3.gg")
+    details = pgl_filter(matches, now, query) if query else matches_view(matches, fetcher, clock)
+    missing = [name for name, rows in stages if rows is None]
+    if missing:
+        details += "\n\n" + warn("bo3.gg не отдал данные: " + ", ".join(missing))
+    return (f"🏆 <b>{MAJOR_NAME}</b> (CS2)\nОбновлено: {now:%d.%m.%Y %H:%M} (МСК)\n\n"
+            f"{details}\n\nСетка: <code>{MAJOR_GRID_TEXT}</code>")
 
 
-def find_tournament(game, query, fetcher=fetch, clock=time.time):
-    """(tournament or None, all current ones or None) for «турик <игра> <название>»: the exact name first, then a part."""
-    found = tournaments(game, fetcher, clock)
-    q = clean_name(query).casefold()
-    if not found or not q:
-        return None, found
-    exact = [t for t in found if t["name"].casefold() == q]
-    part = [t for t in found if q in t["name"].casefold() or q in (t.get("slug") or "").replace("-", " ")]
-    return (exact or part or [None])[0], found
-
-
-def not_found(game, query, found):
-    label = GAMES[game][1]
-    if found is None:
-        return warn("bo3.gg сейчас не отвечает, попробуйте позже.")
-    lines = [f"🔍 Турнир «{esc(clean_name(query))}» по {label} сейчас не идёт."]
-    if found:
-        lines += ["", "📋 <b>Сейчас идут</b> <i>(нажмите, чтобы скопировать)</i>"] + [command_of(game, t) for t in featured(found)]
-    return "\n".join(lines)
-
-
-def turik_one(game, query, fetcher=fetch, clock=time.time):
-    """The answer to «турик кс2 <название>»: the matches of that tournament."""
-    t, found = find_tournament(game, query, fetcher, clock)
-    if t is None:
-        return not_found(game, query, found)
-    rows = bo3_rows(game, t["id"], fetcher, clock)
-    if rows is None:
-        return warn("bo3.gg сейчас не отвечает, попробуйте позже.")
-    return (f"{GAME_ICON[game]} <b>{esc(t['name'])}</b> · {GAMES[game][1]}\n\n" + matches_view(rows, fetcher, clock)
-            + f"\n\n📊 Сетка: {command_of(game, t, grid=True)}\n" + stamp(clock, "bo3.gg"))
-
-
-def turik_grid(game, query, fetcher=fetch, clock=time.time):
-    """PNG of «турик кс2 <название> сетка»: a 16-team Swiss stage and its play-off as before, any other format as
-    matches by day (bo3.gg does not say which stage a match belongs to)."""
+def pgl_grid(fetcher=fetch, clock=time.time):
+    """PNG for the latest stage that has started, or the first scheduled stage."""
     from . import bracket
-    t, found = find_tournament(game, query, fetcher, clock)
-    if t is None:
-        return not_found(game, query, found)
-    rows = bo3_rows(game, t["id"], fetcher, clock)
-    if rows is None:
+    stages = major_stages(fetcher, clock)
+    if any(rows is None for _, rows in stages):
         return warn("bo3.gg сейчас не отвечает, попробуйте позже.")
-    if not rows:
-        return f"🕒 У турнира «{esc(t['name'])}» пока нет матчей с известными командами."
-    subtitle = f"Обновлено {datetime.fromtimestamp(clock(), MSK):%d.%m %H:%M} (МСК) · данные bo3.gg"
+    scheduled = [(name, rows) for name, rows in stages if rows]
+    if not scheduled:
+        return f"🕒 У турнира «{MAJOR_NAME}» пока нет матчей с известными командами."
+    now = datetime.fromtimestamp(clock(), MSK)
+    stage, rows = scheduled[0]
+    for name, matches in reversed(scheduled):
+        if any(m["done"] or m["status"] == "current" or ((start := moment(m["start"])) and start <= now)
+               for m in matches):
+            stage, rows = name, matches
+            break
+    title = f"{MAJOR_NAME} — {stage}"
+    subtitle = f"Обновлено {now:%d.%m %H:%M} (МСК) · данные bo3.gg"
     try:
         if bracket.is_swiss(rows):
             games, _ = bracket.playoff(rows)
-            return (bracket.render_playoff(games, t["name"] + " — плей-офф", subtitle) if games
-                    else bracket.render(rows, t["name"] + " — групповой этап", subtitle))
-        return bracket.render_days([dict(m, when=moment(m["start"])) for m in rows], t["name"], subtitle,
-                                   datetime.fromtimestamp(clock(), MSK))
+            return (bracket.render_playoff(games, MAJOR_NAME + " — плей-офф", subtitle) if games
+                    else bracket.render(rows, title, subtitle))
+        return bracket.render_days([dict(m, when=moment(m["start"])) for m in rows], title, subtitle, now)
     except ImportError:
         return warn("Для картинки на сервере нужна библиотека Pillow.")
