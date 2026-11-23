@@ -537,6 +537,10 @@ def create_app(store=None, engine=None, token=None):
     async def put_arizona_login(data: ArizonaLogin):
         return await engine.save_arizona_token(data.token)
 
+    @app.delete('/api/arizona', dependencies=protected)
+    async def forget_arizona_login():
+        return engine.forget_arizona_login()
+
     # Older Android builds still call these routes when the Arizona screen is open.
     @app.get('/api/arizona/pending', dependencies=protected)
     async def get_arizona_pending():

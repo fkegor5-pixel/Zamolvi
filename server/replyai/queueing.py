@@ -25,13 +25,23 @@ def make_job(chat, items, revision, now, wait, expires=0):
             'created_at': now, 'batch_until': now + wait if wait else 0, 'expires_at': expires}
 
 
-def enqueue(state, chat, part, timestamp, now):
+def blocked_reason(state, chat, timestamp, now):
     selected = state['selected'].get(chat)
+    if not selected:
+        return 'Чат не выбран для автоответов.'
+    if not state['enabled']:
+        return 'Автоответчик выключен.'
+    if timestamp < max(state['enabled_at'], selected['since']):
+        return 'Сообщение пришло до включения автоответов в этом чате.'
+    if quiet.active(state['behavior'], now) or quiet.active(state['behavior'], timestamp):
+        return 'Действовали тихие часы.'
+    return ''
+
+
+def enqueue(state, chat, part, timestamp, now):
     identity = f"{chat}:{part['id']}"
     behavior = state['behavior']
-    if not state['enabled'] or not selected or timestamp < max(state['enabled_at'], selected['since']):
-        return False
-    if quiet.active(behavior, now) or quiet.active(behavior, timestamp):
+    if blocked_reason(state, chat, timestamp, now):
         return False
     if identity in state['seen'] or sum(max(1, len(parts(j))) for j in state['queue']) >= MAX_PENDING:
         return False

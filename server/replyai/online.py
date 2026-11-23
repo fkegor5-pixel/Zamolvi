@@ -28,6 +28,7 @@ NEAR = 300         # how far from the name a «N / M» count may be
 
 WANTS_COUNT = re.compile(r"онлайн|онлайна|сколько|игрок|человек", re.IGNORECASE)
 BOT = re.compile(r"^\s*бот\b[\s,:.!-]*", re.IGNORECASE)   # the owner's bot answers only «бот …»
+BOT_CONTROL = re.compile(r"^(статус|сброс)[.!?\s]*$", re.IGNORECASE)
 COMMAND = re.compile(r"^онлайн[.!?\s]*$", re.IGNORECASE)
 DEMOB_COMMAND = re.compile(r"^дембель[.!?\s]*$", re.IGNORECASE)
 MSK = timezone(timedelta(hours=3))
@@ -77,6 +78,7 @@ MAJOR_NAME = "PGL Major Singapore 2026"
 MAJOR_GRID_TEXT = f"pgl {MAJOR_NAME} сетка"
 PGL_COMMAND = re.compile(r"^(?:pgl|major|мажор)[.!?\s]*$", re.IGNORECASE)
 PGL_GRID_COMMAND = re.compile(rf"^pgl(?:\s+{re.escape(MAJOR_NAME)})?\s+сетка[.!?\s]*$", re.IGNORECASE)
+PGL_FILTER_COMMAND = re.compile(r"^pgl\s+([^\r\n]{1,64}?)[.!?\s]*$", re.IGNORECASE)
 CREATE_BOT_COMMAND = re.compile(r"^(?:бот\s+)?создать\s+бота[.!?\s]*$", re.IGNORECASE)  # in «Избранное» only
 GRAPH_COMMAND = re.compile(r"^онлайн\s+график[.!?\s]*$", re.IGNORECASE)
 STEAM_GAMES_COMMAND = re.compile(r"^(?:стим|steam)\s+игры[.!?\s]*$", re.IGNORECASE)
@@ -172,6 +174,8 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "<code>стим игры</code> — скидки и раздачи\n\n"
         f"🏆 <b>{MAJOR_NAME}</b>\n"
         "<code>pgl</code> — матчи, счёт и расписание\n"
+        "<code>pgl завтра</code> — расписание на завтра (МСК)\n"
+        "<code>pgl Spirit</code> — ближайший матч и последний результат команды\n"
         f"<code>{MAJOR_GRID_TEXT}</code> — сетка\n\n"
         "🧰 <b>Разное</b>\n"
         "<code>дембель</code> — сколько до дембеля\n"
@@ -182,6 +186,8 @@ HELP = ("🤖 <b>Команды бота</b>\n"
         "<code>новости</code> — шуточные новости\n"
         "<code>получить деньги</code> — видео-инструкция\n"
         "<code>версия</code> — версия сервера и есть ли новее\n"
+        "<code>бот статус</code> — причина пропущенного ответа в «Избранном» владельца\n"
+        "<code>бот сброс</code> — начать новый разговор с нейросетью\n"
         "<code>напомни через 30 минут позвонить</code>\n"
         "<code>напомни в 18:30 позвонить</code>")
 COMMAND_WORDS = sorted(set(SLASH.values()))  # every one is <code> in HELP: a tap copies it
@@ -224,6 +230,12 @@ def addressed(text):
     if match:
         return text[match.end():]
     return text if is_command(text) else None
+
+
+def bot_control(text):
+    prefix = BOT.match(text or "")
+    match = BOT_CONTROL.fullmatch(text[prefix.end():]) if prefix else None
+    return match[1].casefold() if match else None
 
 
 def bot_link(username):
@@ -304,6 +316,8 @@ def answer(text, fetcher=None, clock=time.time, rng=None):
         return inventories(fetcher, clock)
     if PGL_COMMAND.match(text):
         return pgl(fetcher, clock)
+    if (view := PGL_FILTER_COMMAND.match(text)) and not PGL_GRID_COMMAND.match(text):
+        return pgl(fetcher, clock, view[1].strip())
     if LEVEL_COMMAND.match(text):
         return steam_levels(fetcher, clock)
     if FLAG_COMMAND.match(text):
@@ -654,7 +668,7 @@ def demob(clock=time.time, pick=random.choice):
 
 ALL_COMMANDS = (COMMAND, HOURS_COMMAND, DEMOB_COMMAND, HELP_COMMAND, TOP_COMMAND, SERVER_COMMAND, INGAME_COMMAND,
                 RATES_COMMAND, WEATHER_COMMAND, COIN_COMMAND, FLAG_COMMAND, NEWS_COMMAND, MONEY_COMMAND, RANDOM_COMMAND, FACEIT_COMMAND, FACEIT_OURS_COMMAND,
-                INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, PGL_GRID_COMMAND,
+                INVENTORY_COMMAND, LEVEL_COMMAND, PGL_COMMAND, PGL_GRID_COMMAND, PGL_FILTER_COMMAND,
                 GRAPH_COMMAND, STEAM_GAMES_COMMAND, REMIND_IN, REMIND_AT, WATCH, ARIZONA_TOKEN)
 
 
@@ -1088,13 +1102,43 @@ def major_stages(fetcher, clock):
     return [(name, bo3_rows(tid, fetcher, clock)) for tid, name in MAJOR_STAGES]
 
 
-def pgl(fetcher=fetch, clock=time.time):
+def pgl_filter(matches, now, query):
+    def game(m, score=False):
+        when = moment(m['start'])
+        date = f"{when:%d.%m %H:%M} " if when else ""
+        result = f"{m['score1'] or 0}-{m['score2'] or 0}" if score else "—"
+        return f"{date}{esc(m['team1'])} {result} {esc(m['team2'])}"
+
+    if query.casefold() == 'завтра':
+        day = now.date() + timedelta(days=1)
+        games = [game(m) for m in matches if m['status'] == 'upcoming'
+                 and (when := moment(m['start'])) and when.date() == day]
+        return f"Расписание на {day:%d.%m} (МСК):\n" + ("\n".join(games) if games else "Матчи пока не опубликованы.")
+
+    teams = {m[key] for m in matches for key in ('team1', 'team2')}
+    needle = query.casefold()
+    found = sorted(team for team in teams if needle in team.casefold())
+    exact = next((team for team in found if team.casefold() == needle), None)
+    if not found:
+        return f"Матчи команды «{esc(query)}» пока не опубликованы."
+    if exact is None and len(found) > 1:
+        return "Уточните команду:\n" + "\n".join(f"<code>pgl {esc(team)}</code>" for team in found)
+    team = exact or found[0]
+    games = [m for m in matches if team in (m['team1'], m['team2'])]
+    upcoming = next((m for m in games if m['status'] == 'upcoming'), None)
+    last = next((m for m in reversed(games) if m['done']), None)
+    return (f"<b>{esc(team)}</b>\n\nБлижайший матч:\n{game(upcoming) if upcoming else 'пока нет'}"
+            f"\n\nПоследний результат:\n{game(last, score=True) if last else 'пока нет'}")
+
+
+def pgl(fetcher=fetch, clock=time.time, query=None):
     stages = major_stages(fetcher, clock)
     if all(rows is None for _, rows in stages):
         return warn("bo3.gg сейчас не отвечает, попробуйте позже.")
-    matches = sorted((match for _, rows in stages for match in rows or []), key=lambda m: m["start"] or "")
+    matches = sorted((match for _, rows in stages for match in rows or []),
+                     key=lambda m: moment(m['start']) or datetime.max.replace(tzinfo=MSK))
     now = datetime.fromtimestamp(clock(), MSK)
-    details = matches_view(matches, fetcher, clock)
+    details = pgl_filter(matches, now, query) if query else matches_view(matches, fetcher, clock)
     missing = [name for name, rows in stages if rows is None]
     if missing:
         details += "\n\n" + warn("bo3.gg не отдал данные: " + ", ".join(missing))

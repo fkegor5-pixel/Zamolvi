@@ -1026,6 +1026,57 @@ async def test_owner_question_is_not_answered_twice_in_a_bot_chat_or_after_an_ed
 
 
 @pytest.mark.asyncio
+async def test_owner_questions_use_per_chat_history_and_reset_only_that_chat(env):
+    model = setup_chats(env)
+    prompts = {38: 'бот что такое DNS?', 39: 'бот приведи пример', 40: 'бот другой чат', 42: 'бот после сброса'}
+
+    async def source(peer, ids):
+        return SimpleNamespace(out=True, raw_text=prompts[ids])
+
+    env.engine.client.get_messages = source
+    for message_id, chat in ((38, 123), (39, 123), (40, 456)):
+        await env.engine.on_message(owner_message(env, message_id, chat, prompts[message_id]))
+    assert model.calls[1][1] == [{"role": "user", "content": "что такое DNS?"},
+                                 {"role": "assistant", "content": "Тестовый ответ"}]
+    assert model.calls[2][1] == []
+    await env.engine.on_message(owner_message(env, 41, 123, 'бот сброс'))
+    assert ('owner', '456') in env.engine.question_history
+    assert env.engine.client.sent[-1].message.endswith('Контекст разговора сброшен.')
+    await env.engine.on_message(owner_message(env, 42, 123, prompts[42]))
+    assert model.calls[-1] == ('после сброса', [])
+
+
+@pytest.mark.asyncio
+async def test_reply_status_goes_to_saved_messages_without_canceling_drafts(env):
+    model = setup_chats(env)
+    env.engine.save_approval('all', [], False)
+    await reply(env, 1, text='Привет')
+    await env.engine.on_message(owner_message(env, 2, 123, 'бот статус'))
+    sent, = env.engine.client.sent
+    assert isinstance(sent.peer, types.InputPeerSelf)
+    assert 'Черновик ждёт согласования' in sent.message
+    assert len(env.engine.approval_report()['drafts']) == 1
+    await env.engine.on_message(incoming(env, 3, text='статус'))
+    assert len(env.engine.client.sent) == len(model.calls) == 1
+    await env.engine.on_message(owner_message(env, 4, 456, 'бот статус'))
+    assert 'Чат не выбран' in env.engine.client.sent[-1].message
+
+
+@pytest.mark.asyncio
+async def test_reply_status_records_quiet_hours_and_ai_failure(env):
+    model = setup_chats(env)
+    env.engine.save_behavior({'quiet_enabled': True, 'quiet_start': '00:00', 'quiet_end': '23:59'})
+    await reply(env, 5)
+    env.engine.save_behavior({'quiet_enabled': False})
+    assert 'Действовали тихие часы' in env.engine.reply_status('123')
+    model.error = AiError('секретная информация из отчёта провайдера')
+    await reply(env, 6)
+    await env.engine.on_message(owner_message(env, 7, 123, 'бот статус'))
+    response = env.engine.client.sent[-1].message
+    assert 'Нейросеть вернула ошибку' in response and 'секретная' not in response
+
+
+@pytest.mark.asyncio
 async def test_owner_gets_answers_to_own_commands_in_any_chat(env):
     restore = owner_commands_on()
     try:
@@ -1242,3 +1293,12 @@ def test_older_android_cannot_send_a_pending_player_card_after_update(api29, env
     assert pending.status_code == answer.status_code == 200
     assert pending.json() == {} and answer.json() == {"ok": False}
     assert env.engine.client.sent == []
+
+
+def test_forget_arizona_login_is_owner_only_and_clears_the_saved_token(api29, env):
+    env.store.update(lambda s: s['arizona'].update(token='fake-login-token'))
+    assert api29.delete('/api/arizona').status_code == 401
+    assert env.store.read()['arizona']['token'] == 'fake-login-token'
+    response = api29.delete('/api/arizona', headers=AUTH)
+    assert response.status_code == 200 and response.json() == {'has_token': False, 'until': ''}
+    assert env.store.read()['arizona']['token'] == ''

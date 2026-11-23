@@ -156,7 +156,7 @@ async def test_stranger_asks_owner_lets_in_then_commands_work(env, commands_on):
     finally:
         online.answer = original
     await bot.on_message(message(2, "/menu"))
-    assert bot.client.sent[-1][1] == botmode.MENU_TEXT and len(bot.client.sent[-1][2]["buttons"]) == 1 + (len(botmode.MENU) + 1) // 2
+    assert bot.client.sent[-1][1] == botmode.MENU_TEXT and len(bot.client.sent[-1][2]["buttons"]) == 3
     await bot.on_button(button(1, b"drop:2"))
     assert not bot.allowed(2)
 
@@ -190,6 +190,40 @@ async def test_bot_prefix_routes_free_text_to_ai_for_owner_and_approved_user(env
     assert env.ai.calls == [("что такое DNS?", []), ("объясни HTTPS", [])]
     assert [(chat, text) for chat, text, _ in bot.client.sent[-2:]] == [
         (1, "[AI-автоответ] Тестовый ответ"), (2, "[AI-автоответ] Тестовый ответ")]
+    env.clock[0] += botmode.PAUSE
+    await bot.on_message(message(1, "бот приведи пример"))
+    assert env.ai.calls[-1][1] == [{"role": "user", "content": "что такое DNS?"},
+                                   {"role": "assistant", "content": "Тестовый ответ"}]
+    reset = message(2, "бот сброс")
+    await bot.on_message(reset)
+    assert reset.answers == ['♻️ Контекст разговора сброшен.'] and ('bot', '2') not in env.engine.question_history
+    assert ('bot', '1') in env.engine.question_history
+    env.clock[0] += botmode.PAUSE
+    await bot.on_message(message(2, "бот приведи пример"))
+    assert env.ai.calls[-1] == ("приведи пример", [])
+
+
+@pytest.mark.asyncio
+async def test_bot_menu_groups_keep_old_command_ids_and_owner_status_private(env, commands_on):
+    bot = env.engine.bot
+    bot.client, bot.owner_id = BotClient(), 1
+    env.store.update(lambda s: s.update(bot={"token": TOKEN, "allowed": {"2": {}}}))
+    root = [btn.type.data for row in botmode.keyboard() for btn in row]
+    assert root == [b'c0', b'c9', b'remind', b'games', b'tools']
+    submenu = button(2, b'tools')
+    await bot.on_button(submenu)
+    assert submenu.edits == ['🧰 Разное']
+    assert [btn.type.data for row in botmode.keyboard(b'tools') for btn in row] == [
+        b'c10', b'c11', b'c12', b'c13', b'c14', b'c15', b'menu-home']
+    back = button(2, b'menu-home')
+    await bot.on_button(back)
+    assert back.edits == [botmode.MENU_TEXT]
+    guest = message(2, 'бот статус')
+    await bot.on_message(guest)
+    assert guest.answers == ['Статус доступен владельцу.']
+    owner = message(1, 'бот статус')
+    await bot.on_message(owner)
+    assert 'Автоответчик выключен.' in owner.answers[0] and not env.ai.calls
 
 
 @pytest.mark.asyncio

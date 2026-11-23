@@ -23,7 +23,7 @@ POLL = 1
 FAILURES = (errors.RPCError, OSError, ValueError, asyncio.TimeoutError)
 CHECK = 60           # seconds between checks that the running bot still answers Telegram
 PAUSE = 2            # seconds between commands of one person; the chats keep online.COOLDOWN
-MENU = (  # (button, command); the emoji is the section
+MENU = (  # (button, command); keep the indices stable for existing Telegram keyboards
     ("🎮 Онлайн", "онлайн"), ("🎮 Топ онлайн", "топ онлайн"),
     ("🎮 График онлайна", "онлайн график"),
     ("🔫 Часы в CS2", "часы в кс"), ("🔫 Кто в игре", "кто в игре"),
@@ -33,11 +33,10 @@ MENU = (  # (button, command); the emoji is the section
     ("🧰 Дембель", "дембель"), ("🧰 Курс", "курс"), ("🧰 Монетка", "монетка"), ("🧰 Рандом", "рандом"),
     ("🧰 Новости", "новости"), ("🧰 Получить деньги", "получить деньги"),
 )
-MENU_TEXT = ("🤖 <b>Zamolvi Bot</b>\n"
-             "<i>Нажмите кнопку или напишите команду текстом — команды ниже копируются нажатием:</i>\n"
-             "<code>погода Москва</code>\n<code>онлайн Phoenix</code>\n<code>pgl</code>\n"
-             "<code>рандом 10-20</code>\n<code>напомни через 30 минут позвонить</code>\n\n"
-             "Вопрос нейросети: <code>бот объясни, что такое DNS</code>")
+MENU_TEXT = ("🤖 <b>Zamolvi Bot</b>\n\n"
+             "Вопрос нейросети: <code>бот объясни, что такое DNS</code>\n"
+             "Новый разговор: <code>бот сброс</code>")
+SECTIONS = {b'games': '🎮 Игры', b'tools': '🧰 Разное'}
 OPEN = {"/start", "/menu", "/help", "меню", "команды", "помощь"}
 
 
@@ -46,9 +45,16 @@ UNITS = {"м": ("минут", "30 позвонить маме"), "ч": ("час�
 REMIND_ANSWER = re.compile(r"^(\d{1,15})\s+(.+)$", re.DOTALL)
 
 
-def keyboard():
-    buttons = [Button.inline(label, data=f"c{i}".encode()) for i, (label, _) in enumerate(MENU)]
-    return [[Button.inline("⏰ Напомнить", data=b"remind")]] + [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+def keyboard(section=None):
+    if section is None:
+        common = [Button.inline(label, data=f"c{i}".encode()) for i, (label, cmd) in enumerate(MENU)
+                  if cmd in ('онлайн', 'pgl')]
+        return [common, [Button.inline('⏰ Напомнить', data=b'remind')],
+                [Button.inline(label, data=key) for key, label in SECTIONS.items()]]
+    buttons = [Button.inline(label, data=f"c{i}".encode()) for i, (label, _) in enumerate(MENU)
+               if label.startswith('🧰') == (section == b'tools')]
+    return [buttons[i:i + 2] for i in range(0, len(buttons), 2)] + [
+        [Button.inline('‹ Меню', data=b'menu-home')]]
 
 
 def units():
@@ -224,6 +230,8 @@ class OwnBot:
     async def stop(self):
         if self.client:
             client, self.client = self.client, None
+            for key in [key for key in self.engine.question_history if key[0] == 'bot']:
+                self.engine.question_history.pop(key, None)
             with contextlib.suppress(Exception):
                 await client.disconnect()
 
@@ -262,6 +270,7 @@ class OwnBot:
             await event.edit("❌ Запрос отклонён.")
         else:
             self.engine.store.update(lambda s: s["bot"].setdefault("allowed", {}).pop(str(user_id), None))
+            self.engine.question_history.pop(('bot', str(user_id)), None)
             await event.edit("🚫 Доступ закрыт.")
         self.asked.discard(user_id)
 
@@ -314,6 +323,18 @@ class OwnBot:
             await self.run(event.chat_id, f"напомни через {found.group(1)} {UNITS[unit][0]} {found.group(2)}")
             return
         self.waiting.pop(event.chat_id, None)  # any other command cancels «⏰ Напомнить»
+        control = online.bot_control(text)
+        if control == 'сброс':
+            await self.engine.reset_questions(('bot', str(event.chat_id)))
+            if self.allowed(event.sender_id):
+                await event.respond('♻️ Контекст разговора сброшен.', buttons=back())
+            return
+        if control == 'статус':
+            if event.sender_id == self.owner_id:
+                await event.respond(self.engine.reply_status(), parse_mode='html', buttons=back())
+            else:
+                await event.respond('Статус доступен владельцу.', buttons=back())
+            return
         if word in OPEN:
             await self.client.send_message(event.chat_id, MENU_TEXT, parse_mode="html", buttons=keyboard())
             return
@@ -342,6 +363,14 @@ class OwnBot:
             return
         if not self.allowed(event.sender_id):
             await event.answer("Нет доступа")
+            return
+        if data in SECTIONS or data == b'menu-home':
+            self.waiting.pop(event.chat_id, None)
+            await event.answer()
+            if data in SECTIONS:
+                await event.edit(SECTIONS[data], buttons=keyboard(data))
+            else:
+                await event.edit(MENU_TEXT, parse_mode='html', buttons=keyboard())
             return
         if data == b"remind":
             await event.answer()
@@ -377,10 +406,16 @@ class OwnBot:
         new = []
         try:
             if question:
-                text, entities = await e.answer_question(body)
-                if client is self.client and self.allowed(chat):
-                    new.append(await client.send_message(chat, text, formatting_entities=entities,
-                                                         buttons=back(), link_preview=False))
+                key = ('bot', str(chat))
+                async with e.question_lock(key):
+                    if client is not self.client or not self.allowed(chat):
+                        return
+                    text, entities, answer = await e.answer_question(body, key)
+                    if client is self.client and self.allowed(chat):
+                        new.append(await client.send_message(chat, text, formatting_entities=entities,
+                                                             buttons=back(), link_preview=False))
+                        if answer and client is self.client and self.allowed(chat):
+                            e.remember_question(key, body, answer)
                 return
             if online.is_image_command(body):
                 result = await asyncio.to_thread(online.image, body, samples=e.store.read().get("online_samples", []))

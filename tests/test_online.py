@@ -492,6 +492,24 @@ def test_pgl_keeps_matches_from_available_stages_when_one_fails():
     assert "12:00 G2 — NAVI" in answer and "bo3.gg не отдал данные: Stage 1" in answer
 
 
+def test_pgl_tomorrow_and_team_use_moscow_dates_and_all_stages():
+    online._cache.clear()
+    now = online.datetime(2026, 12, 1, 20, 0, tzinfo=online.MSK).timestamp()
+    pages = major_pages([
+        bo3_row("Spirit", "G2", 0, 0, "upcoming", "2026-12-01T21:30:00+00:00"),
+        bo3_row("NAVI", "Spirit", 0, 0, "upcoming", "2026-12-03T11:00:00+03:00"),
+    ], tid=STAGE_3)
+    pages[online.TOURNEY_MATCHES.format(tid=STAGE_2)] = json.dumps({"results": [
+        bo3_row("Vitality", "Spirit", 0, 2, start="2026-11-30T15:00:00+03:00")]})
+    assert online.addressed('pgl завтра') == 'pgl завтра' and online.is_command('pgl Spirit')
+    tomorrow = shown(online.answer('pgl завтра', fetcher=fake(pages), clock=lambda: now))
+    assert '02.12 00:30 Spirit — G2' in tomorrow and 'NAVI' not in tomorrow and 'Vitality' not in tomorrow
+    team = shown(online.answer('pgl SPIRIT', fetcher=fake(pages), clock=lambda: now))
+    assert '02.12 00:30 Spirit — G2' in team and '30.11 15:00 Vitality 0-2 Spirit' in team
+    assert 'NAVI' not in team
+    online._cache.clear()
+
+
 def test_pgl_uses_the_requested_format_and_copyable_grid_command():
     online._cache.clear()
     now = online.datetime(2026, 12, 2, 16, 20, tzinfo=online.MSK).timestamp()
